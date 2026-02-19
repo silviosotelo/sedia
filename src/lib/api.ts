@@ -43,19 +43,19 @@ export const api = {
   tenants: {
     list: (): Promise<Tenant[]> => {
       if (MOCK_MODE) return mockStore.getTenants();
-      return request<Tenant[]>('/tenants');
+      return request<{ data: Tenant[]; total: number }>('/tenants').then((r) => r.data ?? []);
     },
     get: (id: string): Promise<TenantWithConfig> => {
       if (MOCK_MODE) return mockStore.getTenant(id);
-      return request<TenantWithConfig>(`/tenants/${id}`);
+      return request<{ data: TenantWithConfig }>(`/tenants/${id}`).then((r) => r.data);
     },
     create: (body: unknown): Promise<Tenant> => {
       if (MOCK_MODE) return mockStore.createTenant(body);
-      return request<Tenant>('/tenants', { method: 'POST', body: JSON.stringify(body) });
+      return request<{ data: Tenant }>('/tenants', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
     },
     update: (id: string, body: unknown): Promise<Tenant> => {
       if (MOCK_MODE) return mockStore.updateTenant(id, body);
-      return request<Tenant>(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      return request<{ data: Tenant }>(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data);
     },
   },
 
@@ -75,25 +75,25 @@ export const api = {
       if (params?.limit) q.set('limit', String(params.limit));
       if (params?.offset) q.set('offset', String(params.offset));
       const qs = q.toString();
-      return request<Job[]>(`/jobs${qs ? `?${qs}` : ''}`);
+      return request<{ data: Job[]; total: number }>(`/jobs${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
     },
     get: (id: string): Promise<Job> => {
       if (MOCK_MODE) return mockStore.getJob(id);
-      return request<Job>(`/jobs/${id}`);
+      return request<{ data: Job }>(`/jobs/${id}`).then((r) => r.data);
     },
     syncComprobantes: (tenantId: string, body?: { mes?: number; anio?: number }): Promise<{ job_id: string; tipo_job: string; estado: string }> => {
       if (MOCK_MODE) return mockStore.syncComprobantes(tenantId, body);
-      return request<{ job_id: string; tipo_job: string; estado: string }>(`/tenants/${tenantId}/jobs/sync-comprobantes`, {
+      return request<{ message: string; data: { job_id: string } }>(`/tenants/${tenantId}/jobs/sync-comprobantes`, {
         method: 'POST',
         body: JSON.stringify(body || {}),
-      });
+      }).then((r) => ({ job_id: r.data.job_id, tipo_job: 'SYNC_COMPROBANTES', estado: 'PENDING' }));
     },
     descargarXml: (tenantId: string, body?: { batch_size?: number; comprobante_id?: string }): Promise<{ job_id: string; tipo_job: string; estado: string }> => {
       if (MOCK_MODE) return mockStore.descargarXml(tenantId, body);
-      return request<{ job_id: string; tipo_job: string; estado: string }>(`/tenants/${tenantId}/jobs/descargar-xml`, {
+      return request<{ message: string; data: { job_id: string } }>(`/tenants/${tenantId}/jobs/descargar-xml`, {
         method: 'POST',
         body: JSON.stringify(body || {}),
-      });
+      }).then((r) => ({ job_id: r.data.job_id, tipo_job: 'DESCARGAR_XML', estado: 'PENDING' }));
     },
   },
 
@@ -121,13 +121,21 @@ export const api = {
       if (params?.page) q.set('page', String(params.page));
       if (params?.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
-      return request<PaginatedResponse<Comprobante>>(
+      return request<{ data: Comprobante[]; meta: { total: number; page: number; limit: number; total_pages: number } }>(
         `/tenants/${tenantId}/comprobantes${qs ? `?${qs}` : ''}`
-      );
+      ).then((r) => ({
+        data: r.data ?? [],
+        pagination: {
+          page: r.meta.page,
+          limit: r.meta.limit,
+          total: r.meta.total,
+          total_pages: r.meta.total_pages,
+        },
+      }));
     },
     get: (tenantId: string, comprobanteId: string): Promise<Comprobante> => {
       if (MOCK_MODE) return mockStore.getComprobante(tenantId, comprobanteId);
-      return request<Comprobante>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`);
+      return request<{ data: Comprobante }>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`).then((r) => r.data);
     },
   },
 };
