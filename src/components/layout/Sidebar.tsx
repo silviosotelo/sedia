@@ -3,10 +3,10 @@ import {
   Building2,
   Briefcase,
   FileText,
-  Settings,
   ExternalLink,
   ChevronRight,
   Zap,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -30,9 +30,10 @@ interface SidebarProps {
   current: Page;
   onNavigate: (page: Page) => void;
   apiStatus: 'ok' | 'error' | 'checking';
+  mockMode?: boolean;
 }
 
-export function Sidebar({ current, onNavigate, apiStatus }: SidebarProps) {
+export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarProps) {
   return (
     <aside className="w-60 flex-shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-zinc-200">
       <div className="px-5 pt-6 pb-4 border-b border-zinc-100">
@@ -89,27 +90,34 @@ export function Sidebar({ current, onNavigate, apiStatus }: SidebarProps) {
       </nav>
 
       <div className="px-4 py-4 border-t border-zinc-100">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'w-2 h-2 rounded-full flex-shrink-0',
-              apiStatus === 'ok'
-                ? 'bg-emerald-500'
+        {mockMode ? (
+          <div className="flex items-center gap-2">
+            <FlaskConical className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <span className="text-xs text-amber-600 font-medium">Modo Demo</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'w-2 h-2 rounded-full flex-shrink-0',
+                apiStatus === 'ok'
+                  ? 'bg-emerald-500'
+                  : apiStatus === 'error'
+                  ? 'bg-rose-500'
+                  : 'bg-amber-400 animate-pulse'
+              )}
+            />
+            <span className="text-xs text-zinc-500">
+              {apiStatus === 'ok'
+                ? 'API conectada'
                 : apiStatus === 'error'
-                ? 'bg-rose-500'
-                : 'bg-amber-400 animate-pulse'
-            )}
-          />
-          <span className="text-xs text-zinc-500">
-            {apiStatus === 'ok'
-              ? 'API conectada'
-              : apiStatus === 'error'
-              ? 'API desconectada'
-              : 'Verificando...'}
-          </span>
-        </div>
+                ? 'API desconectada'
+                : 'Verificando...'}
+            </span>
+          </div>
+        )}
         <p className="text-[10px] text-zinc-400 mt-1">
-          {(import.meta.env.VITE_API_URL as string) || 'http://localhost:4000'}
+          {mockMode ? 'datos de ejemplo en memoria' : ((import.meta.env.VITE_API_URL as string) || 'http://localhost:4000')}
         </p>
       </div>
     </aside>

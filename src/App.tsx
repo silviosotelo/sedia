@@ -6,7 +6,7 @@ import { Tenants } from './pages/Tenants';
 import { Jobs } from './pages/Jobs';
 import { Comprobantes } from './pages/Comprobantes';
 import { useToast } from './hooks/useToast';
-import { api } from './lib/api';
+import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
 
 interface NavParams {
@@ -21,6 +21,10 @@ export default function App() {
   const { toasts, remove, success, error } = useToast();
 
   const checkApi = useCallback(async () => {
+    if (MOCK_MODE) {
+      setApiStatus('ok');
+      return;
+    }
     try {
       await api.health();
       setApiStatus('ok');
@@ -42,7 +46,12 @@ export default function App() {
 
   return (
     <>
-      <Shell current={page} onNavigate={navigate} apiStatus={apiStatus}>
+      {MOCK_MODE && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-white text-xs font-semibold text-center py-1 tracking-wide">
+          MODO DEMO — datos de ejemplo en memoria, no conectado al backend
+        </div>
+      )}
+      <Shell current={page} onNavigate={navigate} apiStatus={apiStatus} mockMode={MOCK_MODE}>
         {page === 'dashboard' && (
           <Dashboard onNavigate={navigate} />
         )}
