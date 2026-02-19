@@ -7,7 +7,7 @@ import type {
 } from '../types';
 import { mockStore } from './mock-data';
 
-export const MOCK_MODE = (import.meta.env.VITE_MOCK_MODE as string) === 'true' || true;
+export const MOCK_MODE = (import.meta.env.VITE_MOCK_MODE as string) === 'true';
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000';
 
