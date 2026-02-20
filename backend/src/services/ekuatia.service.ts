@@ -10,6 +10,8 @@ const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
 
 const RECAPTCHA_SITE_KEY = '6LchFioUAAAAAL1JVkV0YFmLd0nMEd_C5P60eaTi';
 
+const TOKEN_TTL_MS = 110_000;
+
 export interface XmlDownloadResult {
   cdc: string;
   xmlContenido: string;
@@ -17,81 +19,162 @@ export interface XmlDownloadResult {
   detalles: DetallesXml;
 }
 
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+}
+
 /**
- * Descarga y parsea el XML de un comprobante electrónico desde eKuatia.
+ * Descarga y parsea XMLs de comprobantes electrónicos desde eKuatia.
  *
- * Flujo:
- *   1. Resolver el reCAPTCHA de https://ekuatia.set.gov.py/consultas/ con SolveCaptcha
- *   2. GET directo a https://ekuatia.set.gov.py/docs/documento-electronico-xml/{cdc}
- *      con el token del captcha en el header o cookie (ver nota abajo)
- *   3. Parsear el XML devuelto con @xmldom/xmldom
- *   4. Retornar contenido XML + DetallesXml estructurado
+ * Estrategia de captcha:
+ *   eKuatia requiere resolver un reCAPTCHA v2 en /consultas/ para acceder
+ *   al endpoint de descarga XML. Un token resuelto es válido ~2 minutos.
  *
- * Nota sobre el captcha:
- *   eKuatia requiere resolver el reCAPTCHA en /consultas/ antes de permitir
- *   acceso al endpoint de descarga XML. La solución del captcha valida la sesión
- *   del navegador. Para Puppeteer se inyecta el token y se hace submit;
- *   para descarga directa via axios se necesita la cookie de sesión obtenida
- *   tras resolver el captcha en el formulario de /consultas/.
- *   Si el servidor no acepta la descarga directa con el token, usar el método
- *   Puppeteer (ver descargarConPuppeteer()).
+ *   Para aprovechar esa ventana, EkuatiaService mantiene un token en caché
+ *   con TTL conservador de 110 segundos. Todos los CDCs descargados en ese
+ *   lapso reutilizan el mismo token sin pagar el costo de resolver un captcha
+ *   nuevo (~20–60 s). Cuando el token expira (o nunca existió), se resuelve
+ *   uno nuevo de forma transparente antes del siguiente download.
+ *
+ *   En la práctica, un token de 110 s permite descargar 10–30 XMLs por
+ *   resolución de captcha dependiendo de la velocidad de la red.
  */
 export class EkuatiaService {
-  private solveCaptchaApiKey: string;
+  readonly solveCaptchaApiKey: string;
+  private cachedToken: CachedToken | null = null;
+  private resolvingToken: Promise<string> | null = null;
 
   constructor(solveCaptchaApiKey: string) {
     this.solveCaptchaApiKey = solveCaptchaApiKey;
   }
 
-  /**
-   * Método principal: descarga el XML de un CDC usando SolveCaptcha + axios.
-   * Si el endpoint requiere sesión de browser, usar descargarConPuppeteer().
-   */
-  async descargarXml(cdc: string): Promise<XmlDownloadResult> {
-    logger.info('Iniciando descarga XML', { cdc });
+  private tokenIsValid(): boolean {
+    return (
+      this.cachedToken !== null &&
+      Date.now() < this.cachedToken.expiresAt
+    );
+  }
 
-    const token = await resolverCaptcha({
+  /**
+   * Obtiene un token válido. Si el caché aún no expiró lo retorna directamente.
+   * Si hay una resolución en curso (p.ej. descargas concurrentes), la espera
+   * en lugar de lanzar un segundo captcha.
+   */
+  private async getToken(): Promise<string> {
+    if (this.tokenIsValid()) {
+      return this.cachedToken!.token;
+    }
+
+    if (this.resolvingToken) {
+      return this.resolvingToken;
+    }
+
+    this.cachedToken = null;
+
+    this.resolvingToken = resolverCaptcha({
       apiKey: this.solveCaptchaApiKey,
       siteKey: RECAPTCHA_SITE_KEY,
       pageUrl: CONSULTAS_URL,
       timeoutMs: 120000,
+    }).then((token) => {
+      this.cachedToken = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
+      this.resolvingToken = null;
+      logger.info('Captcha resuelto y cacheado', {
+        expira_en_segundos: TOKEN_TTL_MS / 1000,
+      });
+      return token;
+    }).catch((err) => {
+      this.resolvingToken = null;
+      throw err;
     });
 
-    logger.debug('Captcha resuelto, descargando XML', { cdc });
+    return this.resolvingToken;
+  }
+
+  /**
+   * Invalida el token en caché. Se llama cuando eKuatia rechaza el token
+   * (p.ej. HTTP 403 con cuerpo que indica captcha inválido).
+   */
+  invalidateToken(): void {
+    this.cachedToken = null;
+    logger.debug('Token de captcha invalidado');
+  }
+
+  tokenSecondsRemaining(): number {
+    if (!this.cachedToken) return 0;
+    return Math.max(0, Math.round((this.cachedToken.expiresAt - Date.now()) / 1000));
+  }
+
+  /**
+   * Descarga el XML de un CDC reutilizando el token en caché cuando está vigente.
+   * Si el servidor rechaza el token, lo invalida y reintenta una vez con token nuevo.
+   */
+  async descargarXml(cdc: string): Promise<XmlDownloadResult> {
+    logger.debug('Descargando XML', {
+      cdc,
+      token_segundos_restantes: this.tokenSecondsRemaining(),
+    });
 
     const xmlUrl = `${EKUATIA_BASE}/docs/documento-electronico-xml/${cdc}`;
 
-    const response = await axios.get<string>(xmlUrl, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-          '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': CONSULTAS_URL,
-        'Accept': 'application/xml, text/xml, */*',
-      },
-      params: {
-        'g-recaptcha-response': token,
-      },
-      responseType: 'text',
-      timeout: 30000,
-    });
+    for (let intento = 1; intento <= 2; intento++) {
+      const token = await this.getToken();
 
-    const xmlContenido = response.data;
+      try {
+        const response = await axios.get<string>(xmlUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+              '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': CONSULTAS_URL,
+            'Accept': 'application/xml, text/xml, */*',
+          },
+          params: {
+            'g-recaptcha-response': token,
+          },
+          responseType: 'text',
+          timeout: 30000,
+        });
 
-    if (!xmlContenido || !xmlContenido.includes('<')) {
-      throw new Error(`Respuesta inválida del servidor eKuatia para CDC ${cdc}`);
+        const xmlContenido = response.data;
+
+        if (!xmlContenido || !xmlContenido.includes('<')) {
+          throw new Error(`Respuesta vacía o no-XML del servidor eKuatia para CDC ${cdc}`);
+        }
+
+        if (xmlContenido.toLowerCase().includes('captcha') && !xmlContenido.includes('<?xml')) {
+          logger.warn('eKuatia rechazó el token, invalidando caché', { cdc, intento });
+          this.invalidateToken();
+          if (intento === 2) {
+            throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
+          }
+          continue;
+        }
+
+        const detalles = parsearXml(xmlContenido, cdc);
+
+        logger.info('XML descargado y parseado', {
+          cdc,
+          emisor: detalles.emisor.ruc,
+          total: detalles.totales.total,
+          items: detalles.items.length,
+          token_segundos_restantes: this.tokenSecondsRemaining(),
+        });
+
+        return { cdc, xmlContenido, xmlUrl, detalles };
+      } catch (err) {
+        const error = err as { response?: { status?: number } } & Error;
+        if (error.response?.status === 403 && intento === 1) {
+          logger.warn('HTTP 403 de eKuatia, invalidando token y reintentando', { cdc });
+          this.invalidateToken();
+          continue;
+        }
+        throw err;
+      }
     }
 
-    const detalles = parsearXml(xmlContenido, cdc);
-
-    logger.info('XML descargado y parseado exitosamente', {
-      cdc,
-      emisor: detalles.emisor.ruc,
-      total: detalles.totales.total,
-      items: detalles.items.length,
-    });
-
-    return { cdc, xmlContenido, xmlUrl, detalles };
+    throw new Error(`No se pudo descargar el XML para CDC ${cdc}`);
   }
 }
 

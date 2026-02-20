@@ -18,7 +18,7 @@ export class SyncService {
   private ekuatiaService: EkuatiaService | null = null;
 
   private getEkuatiaService(solvecaptchaApiKey: string): EkuatiaService {
-    if (!this.ekuatiaService) {
+    if (!this.ekuatiaService || this.ekuatiaService.solveCaptchaApiKey !== solvecaptchaApiKey) {
       this.ekuatiaService = new EkuatiaService(solvecaptchaApiKey);
     }
     return this.ekuatiaService;
@@ -169,15 +169,24 @@ export class SyncService {
     logger.info('Iniciando descarga de XMLs', {
       tenant_id: tenantId,
       cantidad: pendientes.length,
+      nota: 'El token captcha se reutiliza ~110s entre descargas',
     });
 
     const ekuatia = this.getEkuatiaService(solvecaptchaApiKey);
     let exitosos = 0;
     let fallidos = 0;
+    let captchasResueltos = 0;
+    let prevTokenSeconds = 0;
 
     for (const pendiente of pendientes) {
       try {
+        const tokenAntes = ekuatia.tokenSecondsRemaining();
         const result = await ekuatia.descargarXml(pendiente.cdc);
+        const tokenDespues = ekuatia.tokenSecondsRemaining();
+
+        const nuevoToken = tokenAntes === 0 && tokenDespues > 0;
+        if (nuevoToken) captchasResueltos++;
+
         await guardarXmlDescargado(
           pendiente.comprobante_id,
           result.xmlContenido,
@@ -185,9 +194,15 @@ export class SyncService {
           result.detalles
         );
         exitosos++;
-        logger.info('XML descargado y guardado', {
-          comprobante_id: pendiente.comprobante_id,
+
+        if (prevTokenSeconds !== tokenDespues) {
+          prevTokenSeconds = tokenDespues;
+        }
+
+        logger.debug('XML descargado y guardado', {
           cdc: pendiente.cdc,
+          token_reutilizado: !nuevoToken,
+          token_segundos_restantes: tokenDespues,
         });
       } catch (err) {
         const errorMsg = (err as Error).message;
@@ -205,6 +220,7 @@ export class SyncService {
       tenant_id: tenantId,
       exitosos,
       fallidos,
+      captchas_resueltos: captchasResueltos,
     });
 
     const restantes = await obtenerPendientesXml(tenantId, 1);
