@@ -82,6 +82,11 @@ export async function findComprobantesByTenant(
     conditions.push(`ruc_vendedor = $${i++}`);
     params.push(filters.ruc_vendedor);
   }
+  if (filters.xml_descargado === true) {
+    conditions.push(`xml_descargado_at IS NOT NULL`);
+  } else if (filters.xml_descargado === false) {
+    conditions.push(`xml_descargado_at IS NULL`);
+  }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
 

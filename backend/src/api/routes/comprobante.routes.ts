@@ -14,6 +14,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       fecha_hasta?: string;
       tipo_comprobante?: string;
       ruc_vendedor?: string;
+      xml_descargado?: string;
       page?: string;
       limit?: string;
     };
@@ -28,12 +29,18 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       fecha_hasta,
       tipo_comprobante,
       ruc_vendedor,
+      xml_descargado,
       page = '1',
       limit = '20',
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+
+    const xmlDescargadoFilter =
+      xml_descargado === 'true' ? true :
+      xml_descargado === 'false' ? false :
+      undefined;
 
     const { data, total } = await findComprobantesByTenant(
       req.params.id,
@@ -42,6 +49,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         fecha_hasta,
         tipo_comprobante: tipo_comprobante as TipoComprobante | undefined,
         ruc_vendedor,
+        xml_descargado: xmlDescargadoFilter,
       },
       { page: pageNum, limit: limitNum }
     );
