@@ -67,14 +67,45 @@ export async function findJobs(filters: JobFilters): Promise<Job[]> {
   );
 }
 
+/**
+ * Recoge el siguiente job pendiente respetando el orden de ejecución por tenant:
+ *   SYNC_COMPROBANTES (prioridad 1) → DESCARGAR_XML (prioridad 2) → ENVIAR_A_ORDS (prioridad 3)
+ *
+ * Un job de tipo X no se ejecuta si existe un job ACTIVO (PENDING o RUNNING)
+ * de menor prioridad numérica para el mismo tenant. Esto garantiza que:
+ *   - DESCARGAR_XML espera a que SYNC_COMPROBANTES termine
+ *   - ENVIAR_A_ORDS espera a que DESCARGAR_XML (y SYNC) terminen
+ */
 export async function claimNextPendingJob(client: PoolClient): Promise<Job | null> {
   const result = await client.query<Job>(
-    `SELECT * FROM jobs
-     WHERE estado = 'PENDING'
-       AND next_run_at <= NOW()
-     ORDER BY next_run_at ASC
+    `SELECT j.*
+     FROM jobs j
+     WHERE j.estado = 'PENDING'
+       AND j.next_run_at <= NOW()
+       AND NOT EXISTS (
+         SELECT 1 FROM jobs blocker
+         WHERE blocker.tenant_id = j.tenant_id
+           AND blocker.estado IN ('PENDING', 'RUNNING')
+           AND blocker.id <> j.id
+           AND (
+             CASE blocker.tipo_job
+               WHEN 'SYNC_COMPROBANTES' THEN 1
+               WHEN 'DESCARGAR_XML'     THEN 2
+               WHEN 'ENVIAR_A_ORDS'     THEN 3
+               ELSE 99
+             END
+           ) < (
+             CASE j.tipo_job
+               WHEN 'SYNC_COMPROBANTES' THEN 1
+               WHEN 'DESCARGAR_XML'     THEN 2
+               WHEN 'ENVIAR_A_ORDS'     THEN 3
+               ELSE 99
+             END
+           )
+       )
+     ORDER BY j.next_run_at ASC
      LIMIT 1
-     FOR UPDATE SKIP LOCKED`
+     FOR UPDATE OF j SKIP LOCKED`
   );
 
   if (!result.rows[0]) return null;

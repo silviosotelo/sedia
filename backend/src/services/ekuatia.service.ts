@@ -5,11 +5,12 @@ import { logger } from '../config/logger';
 import { resolverCaptcha } from './captcha.service';
 import { DetallesXml, DetallesXmlItem } from '../types';
 import { query } from '../db/connection';
+import { config } from '../config/env';
 
-const EKUATIA_BASE = 'https://ekuatia.set.gov.py';
+const EKUATIA_BASE = process.env['EKUATIA_BASE_URL'] ?? 'https://ekuatia.set.gov.py';
 const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
 
-const RECAPTCHA_SITE_KEY = '6LchFioUAAAAAL1JVkV0YFmLd0nMEd_C5P60eaTi';
+const RECAPTCHA_SITE_KEY = process.env['EKUATIA_RECAPTCHA_SITE_KEY'] ?? '6Ldcb-wrAAAAAGp5mRQLnbGW0GFsKyi71OhYDImu';
 
 const TOKEN_TTL_MS = 110_000;
 
@@ -77,12 +78,18 @@ export class EkuatiaService {
   /**
    * Abre /consultas/ con Puppeteer y extrae el valor dinámico del
    * <input id="recaptcha-token"> que el servidor inyecta en cada carga.
-   * Ese valor es el token de reCAPTCHA v2/enterprise que SolveCaptcha
-   * necesita resolver junto con el RECAPTCHA_SITE_KEY.
+   *
+   * El input existe en el DOM desde el inicio pero su value se rellena de
+   * forma asíncrona por el script de reCAPTCHA. Por eso usamos
+   * waitForFunction en lugar de waitForSelector: esperamos hasta que el
+   * value sea una cadena no vacía antes de leerlo.
    */
   private async obtenerRecaptchaTokenDePagina(): Promise<string> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+
+    const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
+    const tokenWaitTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
 
     try {
       await page.setUserAgent(
@@ -90,22 +97,35 @@ export class EkuatiaService {
         '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
       );
 
-      logger.debug('Puppeteer: navegando a página de consultas eKuatia');
-      await page.goto(CONSULTAS_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+      logger.debug('Puppeteer: navegando a página de consultas eKuatia', {
+        url: CONSULTAS_URL,
+        nav_timeout_ms: navTimeout,
+      });
 
-      await page.waitForSelector('#recaptcha-token', { timeout: 15000 });
+      await page.goto(CONSULTAS_URL, { waitUntil: 'domcontentloaded', timeout: navTimeout });
+
+      logger.debug('Puppeteer: esperando que recaptcha-token tenga valor...');
+
+      await page.waitForFunction(
+        () => {
+          const el = document.getElementById('recaptcha-token') as HTMLInputElement | null;
+          return el !== null && el.value !== null && el.value.length > 10;
+        },
+        { timeout: tokenWaitTimeout, polling: 500 }
+      );
 
       const recaptchaToken = await page.$eval(
         '#recaptcha-token',
         (el: Element) => (el as HTMLInputElement).value
       );
 
-      if (!recaptchaToken) {
-        throw new Error('recaptcha-token vacío en la página de eKuatia');
+      if (!recaptchaToken || recaptchaToken.length < 10) {
+        throw new Error('recaptcha-token vacío o demasiado corto en la página de eKuatia');
       }
 
-      logger.debug('Puppeteer: recaptcha-token extraído de la página', {
+      logger.debug('Puppeteer: recaptcha-token extraído exitosamente', {
         token_prefix: recaptchaToken.substring(0, 20) + '...',
+        token_length: recaptchaToken.length,
       });
 
       return recaptchaToken;

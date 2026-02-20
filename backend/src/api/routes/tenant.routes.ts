@@ -85,7 +85,9 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
     if (configInput) {
       if (!configInput.ruc_login || !configInput.usuario_marangatu || !configInput.clave_marangatu) {
-        return reply.status(400).send({ error: 'Config requiere ruc_login, usuario_marangatu y clave_marangatu' });
+        return reply.status(400).send({
+          error: 'Al crear un tenant, config requiere ruc_login, usuario_marangatu y clave_marangatu',
+        });
       }
       await upsertTenantConfig(tenant.id, {
         ruc_login: configInput.ruc_login,
@@ -121,7 +123,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     const { config: configInput, ...tenantInput } = parsed.data;
     const tenant = await updateTenant(req.params.id, tenantInput);
 
-    if (configInput && configInput.ruc_login && configInput.usuario_marangatu && configInput.clave_marangatu) {
+    if (configInput) {
       await upsertTenantConfig(req.params.id, {
         ruc_login: configInput.ruc_login,
         usuario_marangatu: configInput.usuario_marangatu,

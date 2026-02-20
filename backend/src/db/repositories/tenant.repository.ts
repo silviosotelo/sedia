@@ -17,9 +17,9 @@ export interface UpdateTenantInput {
 }
 
 export interface UpsertTenantConfigInput {
-  ruc_login: string;
-  usuario_marangatu: string;
-  clave_marangatu: string;
+  ruc_login?: string;
+  usuario_marangatu?: string;
+  clave_marangatu?: string;
   marangatu_base_url?: string;
   ords_base_url?: string;
   ords_endpoint_facturas?: string;
@@ -114,7 +114,7 @@ export async function upsertTenantConfig(
   tenantId: string,
   input: UpsertTenantConfigInput
 ): Promise<TenantConfig> {
-  const claveEncrypted = encrypt(input.clave_marangatu);
+  const claveEncrypted = input.clave_marangatu ? encrypt(input.clave_marangatu) : null;
   const passwordEncrypted = input.ords_password ? encrypt(input.ords_password) : null;
   const tokenEncrypted = input.ords_token ? encrypt(input.ords_token) : null;
 
@@ -128,35 +128,35 @@ export async function upsertTenantConfig(
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (tenant_id) DO UPDATE SET
-       ruc_login                       = EXCLUDED.ruc_login,
-       usuario_marangatu               = EXCLUDED.usuario_marangatu,
-       clave_marangatu_encrypted       = EXCLUDED.clave_marangatu_encrypted,
-       marangatu_base_url              = EXCLUDED.marangatu_base_url,
-       ords_base_url                   = EXCLUDED.ords_base_url,
-       ords_endpoint_facturas          = EXCLUDED.ords_endpoint_facturas,
-       ords_tipo_autenticacion         = EXCLUDED.ords_tipo_autenticacion,
-       ords_usuario                    = EXCLUDED.ords_usuario,
-       ords_password_encrypted         = EXCLUDED.ords_password_encrypted,
-       ords_token_encrypted            = EXCLUDED.ords_token_encrypted,
-       enviar_a_ords_automaticamente   = EXCLUDED.enviar_a_ords_automaticamente,
-       frecuencia_sincronizacion_minutos = EXCLUDED.frecuencia_sincronizacion_minutos,
-       extra_config                    = EXCLUDED.extra_config
+       ruc_login                       = COALESCE(EXCLUDED.ruc_login, tenant_config.ruc_login),
+       usuario_marangatu               = COALESCE(EXCLUDED.usuario_marangatu, tenant_config.usuario_marangatu),
+       clave_marangatu_encrypted       = COALESCE(EXCLUDED.clave_marangatu_encrypted, tenant_config.clave_marangatu_encrypted),
+       marangatu_base_url              = COALESCE(EXCLUDED.marangatu_base_url, tenant_config.marangatu_base_url),
+       ords_base_url                   = COALESCE(EXCLUDED.ords_base_url, tenant_config.ords_base_url),
+       ords_endpoint_facturas          = COALESCE(EXCLUDED.ords_endpoint_facturas, tenant_config.ords_endpoint_facturas),
+       ords_tipo_autenticacion         = COALESCE(EXCLUDED.ords_tipo_autenticacion, tenant_config.ords_tipo_autenticacion),
+       ords_usuario                    = COALESCE(EXCLUDED.ords_usuario, tenant_config.ords_usuario),
+       ords_password_encrypted         = COALESCE(EXCLUDED.ords_password_encrypted, tenant_config.ords_password_encrypted),
+       ords_token_encrypted            = COALESCE(EXCLUDED.ords_token_encrypted, tenant_config.ords_token_encrypted),
+       enviar_a_ords_automaticamente   = COALESCE(EXCLUDED.enviar_a_ords_automaticamente, tenant_config.enviar_a_ords_automaticamente),
+       frecuencia_sincronizacion_minutos = COALESCE(EXCLUDED.frecuencia_sincronizacion_minutos, tenant_config.frecuencia_sincronizacion_minutos),
+       extra_config                    = COALESCE(EXCLUDED.extra_config, tenant_config.extra_config)
      RETURNING *`,
     [
       tenantId,
-      input.ruc_login,
-      input.usuario_marangatu,
+      input.ruc_login ?? null,
+      input.usuario_marangatu ?? null,
       claveEncrypted,
-      input.marangatu_base_url ?? 'https://marangatu.set.gov.py',
+      input.marangatu_base_url ?? null,
       input.ords_base_url ?? null,
       input.ords_endpoint_facturas ?? null,
-      input.ords_tipo_autenticacion ?? 'NONE',
+      input.ords_tipo_autenticacion ?? null,
       input.ords_usuario ?? null,
       passwordEncrypted,
       tokenEncrypted,
-      input.enviar_a_ords_automaticamente ?? false,
-      input.frecuencia_sincronizacion_minutos ?? 60,
-      JSON.stringify(input.extra_config ?? {}),
+      input.enviar_a_ords_automaticamente ?? null,
+      input.frecuencia_sincronizacion_minutos ?? null,
+      input.extra_config ? JSON.stringify(input.extra_config) : null,
     ]
   );
   if (!rows[0]) throw new Error('Error al guardar configuración del tenant');
