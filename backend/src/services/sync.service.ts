@@ -51,45 +51,49 @@ export class SyncService {
       resultado: syncResult,
     });
 
-    if ((syncResult.inserted > 0 || syncResult.updated > 0) && tenantConfig.enviar_a_ords_automaticamente) {
-      const total = syncResult.inserted + syncResult.updated;
-      const comprobantesNuevos = await findComprobantesByTenant(
-        tenantId,
-        {},
-        { page: 1, limit: total }
-      );
-      const ids = comprobantesNuevos.data.map((c) => c.id);
-      await markEnviosOrdsPendingAfterSync(tenantId, ids);
+    const hayNuevos = syncResult.inserted > 0 || syncResult.updated > 0;
 
-      const activeOrds = await countActiveJobsForTenant(tenantId, 'ENVIAR_A_ORDS');
-      if (activeOrds === 0) {
-        await createJob({
-          tenant_id: tenantId,
-          tipo_job: 'ENVIAR_A_ORDS',
-          payload: { batch_size: 100 } as unknown as Record<string, unknown>,
-          next_run_at: new Date(),
-        });
-        logger.info('Job ENVIAR_A_ORDS encolado automáticamente post-sync', {
-          tenant_id: tenantId,
-        });
+    if (hayNuevos) {
+      await enqueueXmlDownloads(tenantId, 200);
+
+      const pendientesXml = await obtenerPendientesXml(tenantId, 1);
+      if (pendientesXml.length > 0) {
+        const activeXml = await countActiveJobsForTenant(tenantId, 'DESCARGAR_XML');
+        if (activeXml === 0) {
+          await createJob({
+            tenant_id: tenantId,
+            tipo_job: 'DESCARGAR_XML',
+            payload: { batch_size: 50 } as unknown as Record<string, unknown>,
+            next_run_at: new Date(),
+          });
+          logger.info('Job DESCARGAR_XML encolado automáticamente post-sync', {
+            tenant_id: tenantId,
+          });
+        }
       }
-    }
 
-    await enqueueXmlDownloads(tenantId, 200);
+      if (tenantConfig.enviar_a_ords_automaticamente) {
+        const total = syncResult.inserted + syncResult.updated;
+        const comprobantesNuevos = await findComprobantesByTenant(
+          tenantId,
+          {},
+          { page: 1, limit: total }
+        );
+        const ids = comprobantesNuevos.data.map((c) => c.id);
+        await markEnviosOrdsPendingAfterSync(tenantId, ids);
 
-    const pendientesXml = await obtenerPendientesXml(tenantId, 1);
-    if (pendientesXml.length > 0) {
-      const activeXml = await countActiveJobsForTenant(tenantId, 'DESCARGAR_XML');
-      if (activeXml === 0) {
-        await createJob({
-          tenant_id: tenantId,
-          tipo_job: 'DESCARGAR_XML',
-          payload: { batch_size: 50 } as unknown as Record<string, unknown>,
-          next_run_at: new Date(),
-        });
-        logger.info('Job DESCARGAR_XML encolado automáticamente post-sync', {
-          tenant_id: tenantId,
-        });
+        const activeOrds = await countActiveJobsForTenant(tenantId, 'ENVIAR_A_ORDS');
+        if (activeOrds === 0) {
+          await createJob({
+            tenant_id: tenantId,
+            tipo_job: 'ENVIAR_A_ORDS',
+            payload: { batch_size: 100 } as unknown as Record<string, unknown>,
+            next_run_at: new Date(),
+          });
+          logger.info('Job ENVIAR_A_ORDS encolado automáticamente post-sync', {
+            tenant_id: tenantId,
+          });
+        }
       }
     }
   }
