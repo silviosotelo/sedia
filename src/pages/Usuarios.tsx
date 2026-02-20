@@ -154,7 +154,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
         subtitle="Gestión de usuarios y permisos del sistema"
         onRefresh={() => void load(true)}
         refreshing={refreshing}
-        action={
+        actions={
           <button onClick={openCreate} className="btn-md btn-primary gap-2">
             <Plus className="w-3.5 h-3.5" />Nuevo usuario
           </button>
