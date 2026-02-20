@@ -46,6 +46,7 @@ export const config = {
   worker: {
     pollIntervalMs: optionalEnvInt('WORKER_POLL_INTERVAL_MS', 5000),
     maxConcurrentJobs: optionalEnvInt('WORKER_MAX_CONCURRENT_JOBS', 3),
+    cronSchedule: optionalEnv('CRON_SCHEDULE', '*/5 * * * *'),
   },
   puppeteer: {
     headless: optionalEnvBool('PUPPETEER_HEADLESS', true),

@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { logger } from '../config/logger';
+import { config } from '../config/env';
 import { findActiveTenants } from '../db/repositories/tenant.repository';
 import { findTenantConfig } from '../db/repositories/tenant.repository';
 import { createJob, countActiveJobsForTenant } from '../db/repositories/job.repository';
@@ -51,11 +52,13 @@ async function enqueueScheduledSyncs(): Promise<void> {
 }
 
 export function startScheduler(): void {
-  // Corre cada 5 minutos. El job en sí controla si debe ejecutar según
-  // la frecuencia_sincronizacion_minutos del tenant.
-  // Para mayor granularidad, ajustar la expresión cron o evaluar next_run_at
-  // a nivel de DB en la función enqueueScheduledSyncs.
-  cron.schedule('*/5 * * * *', async () => {
+  const schedule = config.worker.cronSchedule;
+
+  if (!cron.validate(schedule)) {
+    throw new Error(`CRON_SCHEDULE inválido: "${schedule}". Ejemplo válido: "*/5 * * * *"`);
+  }
+
+  cron.schedule(schedule, async () => {
     try {
       await enqueueScheduledSyncs();
     } catch (err) {
@@ -65,5 +68,5 @@ export function startScheduler(): void {
     }
   });
 
-  logger.info('Scheduler iniciado (cron: cada 5 minutos)');
+  logger.info(`Scheduler iniciado (cron: ${schedule})`);
 }

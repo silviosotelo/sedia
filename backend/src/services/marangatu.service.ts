@@ -162,14 +162,14 @@ export class MarangatuService {
    *   Campo clave:   input[name="clave"]    (id="clave")
    *   Botón submit:  button[type="submit"]
    *
-   * La URL de login es: {marangatu_base_url}/eset/login.do
+   * La URL de login es: {marangatu_base_url}/eset/login
    * Tras el login exitoso redirige al dashboard del portal.
    */
   private async loginMarangatu(
     page: Page,
     tenantConfig: TenantConfig & { clave_marangatu: string }
   ): Promise<void> {
-    const loginUrl = `${tenantConfig.marangatu_base_url}/eset/login.do`;
+    const loginUrl = `${tenantConfig.marangatu_base_url}/eset/login`;
     logger.debug('Navegando al login de Marangatu', { url: loginUrl });
 
     await page.goto(loginUrl, { waitUntil: 'networkidle2' });
@@ -196,7 +196,7 @@ export class MarangatuService {
       return el ? (el as HTMLElement).offsetParent !== null : false;
     }, SELECTORS.login.errorMsg);
 
-    if (errorVisible || urlDespues.includes('login') || urlDespues.includes('authenticate')) {
+    if (errorVisible || urlDespues.endsWith('/login') || urlDespues.includes('/login?') || urlDespues.includes('authenticate')) {
       const errorText = await page.evaluate((errSel: string) => {
         const el = document.querySelector(errSel);
         return el?.textContent?.trim() ?? '';
@@ -312,37 +312,53 @@ export class MarangatuService {
       throw new Error('No se encontró la card "Obtener Comprob. Elect. y Virtuales"');
     }
 
-    const registroUrl = `${baseUrl}/eset/gdi/registroComprobantesVirtuales.do`;
+    const registroUrl = `${baseUrl}/eset/gdi/registroComprobantesVirtuales`;
 
     let registroPage: Page;
+
     const newTarget = await this.browser!.waitForTarget(
-      (t: import('puppeteer').Target) => t.url().includes('registroComprobantesVirtuales'),
-      { timeout: 5000 }
+      (t: import('puppeteer').Target) =>
+        t.url().includes('registroComprobantesVirtuales') ||
+        t.url().includes('gdi/registro'),
+      { timeout: 6000 }
     ).catch(() => null);
 
     if (newTarget) {
-      logger.debug('Se abrió nueva pestaña registroComprobantesVirtuales');
-      registroPage = (await newTarget.page()) as Page;
+      logger.debug('Se abrió nueva pestaña con registroComprobantesVirtuales');
+      const p = await newTarget.page();
+      if (!p) throw new Error('No se pudo obtener la nueva pestaña de registro');
+      registroPage = p;
+      await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
     } else {
-      logger.debug('Esperando navegación en misma pestaña a registroComprobantesVirtuales');
-      await gestionPage.waitForFunction(
-        () => window.location.href.includes('registroComprobantesVirtuales'),
-        { timeout: config.puppeteer.timeoutMs }
-      ).catch(async () => {
-        logger.warn('No navegó automáticamente, abriendo URL directo');
+      logger.debug('No se abrió nueva pestaña; esperando navegación interna o carga de sección');
+      const navigated = await gestionPage.waitForFunction(
+        () =>
+          window.location.href.includes('registroComprobantesVirtuales') ||
+          window.location.href.includes('gdi/registro') ||
+          document.querySelector('[data-ng-click*="seccion"]') !== null,
+        { timeout: 8000 }
+      ).catch(() => null);
+
+      if (!navigated) {
+        logger.warn('La card no navegó, intentando URL directa');
         await gestionPage.goto(registroUrl, { waitUntil: 'networkidle2' });
-      });
+      }
+
       registroPage = gestionPage;
     }
 
-    await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
     await registroPage.setDefaultTimeout(config.puppeteer.timeoutMs);
     await registroPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
+    await this.waitForAngular(registroPage, 600);
 
-    logger.debug('Pestaña registroComprobantesVirtuales abierta, seleccionando "Compras a Imputar"');
-    await registroPage.waitForSelector(SELECTORS.registro.comprasLink, { visible: true, timeout: 15000 });
+    logger.debug('Seleccionando "Compras a Imputar"');
+    await registroPage.waitForFunction(
+      (sel: string) => document.querySelector(sel) !== null,
+      { timeout: 15000 },
+      SELECTORS.registro.comprasLink
+    );
     await registroPage.click(SELECTORS.registro.comprasLink);
-    await this.waitForAngular(registroPage, 500);
+    await this.waitForAngular(registroPage, 600);
 
     logger.debug(`Seleccionando año ${anio}`);
     await registroPage.waitForSelector(SELECTORS.registro.selectAnio, { visible: true, timeout: 10000 });
