@@ -21,6 +21,33 @@ const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
 
 const RECAPTCHA_SITE_KEY = process.env['EKUATIA_RECAPTCHA_SITE_KEY'] ?? '6Ldcb-wrAAAAAGp5mRQLnbGW0GFsKyi71OhYDImu';
 
+function parseFechaHora(raw: string | undefined | null): Date | null {
+  if (!raw || !raw.trim()) return null;
+  const s = raw.trim();
+
+  const isoDate = new Date(s);
+  if (!isNaN(isoDate.getTime())) return isoDate;
+
+  const ddmmyyyyHHmmss = s.match(
+    /^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/
+  );
+  if (ddmmyyyyHHmmss) {
+    const [, dd, mm, yyyy, hh, mi, ss] = ddmmyyyyHHmmss;
+    const d = new Date(`${yyyy}-${mm!.padStart(2, '0')}-${dd!.padStart(2, '0')}T${hh!.padStart(2, '0')}:${mi}:${ss ?? '00'}-04:00`);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  const ddmmyyyy = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (ddmmyyyy) {
+    const [, dd, mm, yyyy] = ddmmyyyy;
+    const d = new Date(`${yyyy}-${mm!.padStart(2, '0')}-${dd!.padStart(2, '0')}T00:00:00-04:00`);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  logger.warn('No se pudo parsear fechaHora SIFEN', { raw: s });
+  return null;
+}
+
 export interface SifenStatus {
   nroTransaccion: string;
   estadoCdc: string;
@@ -541,7 +568,7 @@ export async function guardarXmlDescargado(
       JSON.stringify(detalles),
       sifenStatus?.estadoCdc ?? null,
       sifenStatus?.nroTransaccion ?? null,
-      sifenStatus?.fechaHora ? new Date(sifenStatus.fechaHora) : null,
+      parseFechaHora(sifenStatus?.fechaHora),
       sifenStatus?.sistemaFacturacion ?? null,
     ]
   );
@@ -572,7 +599,7 @@ export async function guardarEstadoSifen(
       comprobanteId,
       sifenStatus.estadoCdc,
       sifenStatus.nroTransaccion || null,
-      sifenStatus.fechaHora ? new Date(sifenStatus.fechaHora) : null,
+      parseFechaHora(sifenStatus.fechaHora),
       sifenStatus.sistemaFacturacion || null,
     ]
   );
