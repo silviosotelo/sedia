@@ -117,7 +117,7 @@ export class MarangatuService {
    * Espera a que AngularJS termine el digest cycle y no haya solicitudes pendientes.
    * Útil después de interacciones con elementos ng-change o ng-click.
    */
-  private async waitForAngular(page: Page, extraDelayMs = 800): Promise<void> {
+  private async waitForAngular(page: Page, extraDelayMs = 400): Promise<void> {
     await page.waitForFunction(
       () => {
         try {
@@ -131,7 +131,7 @@ export class MarangatuService {
           return true;
         }
       },
-      { timeout: 10000 }
+      { timeout: config.puppeteer.timeoutMs }
     );
     await new Promise((r) => setTimeout(r, extraDelayMs));
   }
@@ -173,7 +173,7 @@ export class MarangatuService {
     logger.debug('Navegando al login de Marangatu', { url: loginUrl });
 
     await page.goto(loginUrl, { waitUntil: 'networkidle2' });
-    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: 15000 });
+    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: config.puppeteer.timeoutMs });
 
     await page.click(SELECTORS.login.usuario, { clickCount: 3 });
     await page.type(SELECTORS.login.usuario, tenantConfig.usuario_marangatu, { delay: 40 });
@@ -229,7 +229,7 @@ export class MarangatuService {
     const baseUrl = tenantConfig.marangatu_base_url;
 
     logger.debug('Buscando "Gestion De Comprobantes Informativos" en el menú');
-    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: 15000 });
+    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: config.puppeteer.timeoutMs });
     await page.click(SELECTORS.menu.busqueda);
     await page.type(SELECTORS.menu.busqueda, 'Gestion De Comprobantes Informativos', { delay: 50 });
 
@@ -242,7 +242,7 @@ export class MarangatuService {
           el.textContent?.toLowerCase().includes('comprobantes informativos')
         );
       },
-      { timeout: 10000 }
+      { timeout: config.puppeteer.timeoutMs }
     );
     await new Promise((r) => setTimeout(r, 400));
 
@@ -293,7 +293,7 @@ export class MarangatuService {
         const cards = Array.from(document.querySelectorAll('.card h4, .card-body h4'));
         return cards.some((el) => el.textContent?.includes(text));
       },
-      { timeout: 15000 },
+      { timeout: config.puppeteer.timeoutMs },
       SELECTORS.gestionComprobantes.obtenerComprobantesText
     );
 
@@ -320,7 +320,7 @@ export class MarangatuService {
       (t: import('puppeteer').Target) =>
         t.url().includes('registroComprobantesVirtuales') ||
         t.url().includes('gdi/registro'),
-      { timeout: 6000 }
+      { timeout: config.puppeteer.timeoutMs }
     ).catch(() => null);
 
     if (newTarget) {
@@ -336,7 +336,7 @@ export class MarangatuService {
           window.location.href.includes('registroComprobantesVirtuales') ||
           window.location.href.includes('gdi/registro') ||
           document.querySelector('[data-ng-click*="seccion"]') !== null,
-        { timeout: 8000 }
+        { timeout: config.puppeteer.timeoutMs }
       ).catch(() => null);
 
       if (!navigated) {
@@ -354,41 +354,45 @@ export class MarangatuService {
     logger.debug('Seleccionando "Compras a Imputar"');
     await registroPage.waitForFunction(
       (sel: string) => document.querySelector(sel) !== null,
-      { timeout: 15000 },
+      { timeout: config.puppeteer.timeoutMs },
       SELECTORS.registro.comprasLink
     );
     await registroPage.click(SELECTORS.registro.comprasLink);
-    await this.waitForAngular(registroPage, 600);
+    await this.waitForAngular(registroPage, 400);
 
     logger.debug(`Seleccionando año ${anio}`);
-    await registroPage.waitForSelector(SELECTORS.registro.selectAnio, { visible: true, timeout: 10000 });
+    await registroPage.waitForSelector(SELECTORS.registro.selectAnio, { visible: true, timeout: config.puppeteer.timeoutMs });
     await this.angularSelect(registroPage, SELECTORS.registro.selectAnio, String(anio));
-    await this.waitForAngular(registroPage, 600);
+    await this.waitForAngular(registroPage, 400);
 
     logger.debug(`Seleccionando mes ${mes}`);
-    await registroPage.waitForSelector(SELECTORS.registro.selectMes, { visible: true, timeout: 10000 });
+    await registroPage.waitForSelector(SELECTORS.registro.selectMes, { visible: true, timeout: config.puppeteer.timeoutMs });
     await this.angularSelect(registroPage, SELECTORS.registro.selectMes, String(mes));
-    await this.waitForAngular(registroPage, 600);
+    await this.waitForAngular(registroPage, 400);
 
     logger.debug('Marcando "Seleccionar comprobantes"');
-    await registroPage.waitForSelector(SELECTORS.registro.checkboxSeleccionar, { visible: true, timeout: 10000 });
-    const yaChecked = await registroPage.evaluate((sel: string) => {
+    await registroPage.waitForFunction(
+      (sel: string) => document.querySelector(sel) !== null,
+      { timeout: config.puppeteer.timeoutMs },
+      SELECTORS.registro.checkboxSeleccionar
+    );
+    await registroPage.evaluate((sel: string) => {
       const el = document.querySelector(sel) as HTMLInputElement | null;
-      return el ? el.checked : false;
+      if (!el) throw new Error('Checkbox seleccionar no encontrado');
+      if (el.checked) return;
+      el.checked = true;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+      el.dispatchEvent(new Event('click', { bubbles: true }));
     }, SELECTORS.registro.checkboxSeleccionar);
-
-    if (!yaChecked) {
-      await registroPage.click(SELECTORS.registro.checkboxSeleccionar);
-      await this.waitForAngular(registroPage, 500);
-    }
+    await this.waitForAngular(registroPage, 400);
 
     logger.debug('Click en "Siguiente"');
-    await registroPage.waitForSelector(SELECTORS.registro.btnSiguiente, { visible: true, timeout: 10000 });
+    await registroPage.waitForSelector(SELECTORS.registro.btnSiguiente, { visible: true, timeout: config.puppeteer.timeoutMs });
     await registroPage.click(SELECTORS.registro.btnSiguiente);
 
     logger.debug('Esperando tabla de comprobantes');
-    await registroPage.waitForSelector(SELECTORS.registro.tabla, { visible: true, timeout: 25000 });
-    await this.waitForAngular(registroPage, 800);
+    await registroPage.waitForSelector(SELECTORS.registro.tabla, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await this.waitForAngular(registroPage, 400);
 
     logger.info('Tabla de comprobantes cargada', { mes, anio });
     return registroPage;
@@ -408,7 +412,7 @@ export class MarangatuService {
    *   7: Total de la Operación (formato guaraní: puntos como separadores de miles)
    */
   private async extraerFilasDeComprobantes(page: Page): Promise<ComprobanteRow[]> {
-    await page.waitForSelector(SELECTORS.registro.tablaFilas, { visible: true, timeout: 15000 });
+    await page.waitForSelector(SELECTORS.registro.tablaFilas, { visible: true, timeout: config.puppeteer.timeoutMs });
 
     const rawRows = await page.evaluate(() => {
       const rows = Array.from(document.querySelectorAll('table.table-responsive tbody tr'));
@@ -514,7 +518,7 @@ export class MarangatuService {
           ? parseInt(active.textContent?.trim() ?? '0', 10) === expected
           : false;
       },
-      { timeout: 15000 },
+      { timeout: config.puppeteer.timeoutMs },
       SELECTORS.registro.paginaActiva,
       siguientePagina
     );

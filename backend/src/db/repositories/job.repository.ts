@@ -137,3 +137,17 @@ export async function countActiveJobsForTenant(
   );
   return parseInt(rows[0]?.count ?? '0', 10);
 }
+
+export async function resetStuckRunningJobs(stuckAfterMinutes = 60): Promise<number> {
+  const rows = await query<{ id: string }>(
+    `UPDATE jobs
+     SET estado = 'PENDING',
+         next_run_at = NOW(),
+         error_message = 'Job reiniciado: estaba RUNNING por más de ' || $1 || ' minutos sin completarse'
+     WHERE estado = 'RUNNING'
+       AND last_run_at < NOW() - ($1 || ' minutes')::INTERVAL
+     RETURNING id`,
+    [stuckAfterMinutes]
+  );
+  return rows.length;
+}

@@ -1,9 +1,8 @@
 import cron from 'node-cron';
 import { logger } from '../config/logger';
 import { config } from '../config/env';
-import { findActiveTenants } from '../db/repositories/tenant.repository';
-import { findTenantConfig } from '../db/repositories/tenant.repository';
-import { createJob, countActiveJobsForTenant } from '../db/repositories/job.repository';
+import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.repository';
+import { createJob, countActiveJobsForTenant, resetStuckRunningJobs } from '../db/repositories/job.repository';
 
 /**
  * Verifica todos los tenants activos con sincronización automática habilitada
@@ -14,6 +13,11 @@ import { createJob, countActiveJobsForTenant } from '../db/repositories/job.repo
  */
 async function enqueueScheduledSyncs(): Promise<void> {
   logger.debug('Scheduler: evaluando tenants para sync automático');
+
+  const resetCount = await resetStuckRunningJobs(config.worker.stuckJobTimeoutMinutes);
+  if (resetCount > 0) {
+    logger.warn(`Scheduler: ${resetCount} job(s) RUNNING atascados fueron reiniciados a PENDING`);
+  }
 
   const tenants = await findActiveTenants();
 

@@ -47,6 +47,7 @@ export const config = {
     pollIntervalMs: optionalEnvInt('WORKER_POLL_INTERVAL_MS', 5000),
     maxConcurrentJobs: optionalEnvInt('WORKER_MAX_CONCURRENT_JOBS', 3),
     cronSchedule: optionalEnv('CRON_SCHEDULE', '*/5 * * * *'),
+    stuckJobTimeoutMinutes: optionalEnvInt('STUCK_JOB_TIMEOUT_MINUTES', 60),
   },
   puppeteer: {
     headless: optionalEnvBool('PUPPETEER_HEADLESS', true),
