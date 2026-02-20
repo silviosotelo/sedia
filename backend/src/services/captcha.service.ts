@@ -19,6 +19,7 @@ export interface SolveCaptchaOptions {
   apiKey: string;
   siteKey: string;
   pageUrl: string;
+  recaptchaTokenPagina?: string;
   timeoutMs?: number;
 }
 
@@ -26,30 +27,43 @@ export interface SolveCaptchaOptions {
  * Resuelve un reCAPTCHA v2 usando SolveCaptcha (api.solvecaptcha.com).
  *
  * Flujo:
- *   1. POST /in.php con el sitekey y la URL de la página → obtiene task ID
+ *   1. POST /in.php con el sitekey, la URL de la página y opcionalmente el
+ *      recaptcha-token dinámico extraído por Puppeteer → obtiene task ID
  *   2. Polling GET /res.php?action=get&id=<taskId> hasta recibir el token
  *   3. Retorna el g-recaptcha-response token para inyectar en el formulario
  *
- * La API key se configura en tenant_config.extra_config.solvecaptcha_api_key
- * o como variable de entorno SOLVECAPTCHA_API_KEY.
+ * recaptchaTokenPagina:
+ *   eKuatia inyecta en cada carga de /consultas/ un <input id="recaptcha-token">
+ *   con un valor dinámico que el backend usa para validar la sesión. Se debe
+ *   extraer con Puppeteer y enviarlo a SolveCaptcha como parámetro adicional
+ *   para que el worker pueda resolver el challenge correctamente.
  */
 export async function resolverCaptcha(opts: SolveCaptchaOptions): Promise<string> {
   const timeout = opts.timeoutMs ?? 120000;
   const started = Date.now();
 
-  logger.debug('Enviando reCAPTCHA a SolveCaptcha', { pageUrl: opts.pageUrl });
+  logger.debug('Enviando reCAPTCHA a SolveCaptcha', {
+    pageUrl: opts.pageUrl,
+    con_token_pagina: !!opts.recaptchaTokenPagina,
+  });
+
+  const params: Record<string, unknown> = {
+    key: opts.apiKey,
+    method: 'userrecaptcha',
+    googlekey: opts.siteKey,
+    pageurl: opts.pageUrl,
+    json: 1,
+  };
+
+  if (opts.recaptchaTokenPagina) {
+    params['recaptcha_token'] = opts.recaptchaTokenPagina;
+  }
 
   const submitResp = await axios.post<CaptchaInResponse>(
     `${SOLVECAPTCHA_BASE}/in.php`,
     null,
     {
-      params: {
-        key: opts.apiKey,
-        method: 'userrecaptcha',
-        googlekey: opts.siteKey,
-        pageurl: opts.pageUrl,
-        json: 1,
-      },
+      params,
       timeout: 30000,
     }
   );

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import puppeteer, { Browser } from 'puppeteer';
 import { DOMParser } from '@xmldom/xmldom';
 import { logger } from '../config/logger';
 import { resolverCaptcha } from './captcha.service';
@@ -44,6 +45,7 @@ export class EkuatiaService {
   readonly solveCaptchaApiKey: string;
   private cachedToken: CachedToken | null = null;
   private resolvingToken: Promise<string> | null = null;
+  private browser: Browser | null = null;
 
   constructor(solveCaptchaApiKey: string) {
     this.solveCaptchaApiKey = solveCaptchaApiKey;
@@ -56,10 +58,70 @@ export class EkuatiaService {
     );
   }
 
+  private async getBrowser(): Promise<Browser> {
+    if (this.browser && this.browser.connected) {
+      return this.browser;
+    }
+    this.browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
+    });
+    return this.browser;
+  }
+
   /**
-   * Obtiene un token válido. Si el caché aún no expiró lo retorna directamente.
-   * Si hay una resolución en curso (p.ej. descargas concurrentes), la espera
-   * en lugar de lanzar un segundo captcha.
+   * Abre /consultas/ con Puppeteer y extrae el valor dinámico del
+   * <input id="recaptcha-token"> que el servidor inyecta en cada carga.
+   * Ese valor es el token de reCAPTCHA v2/enterprise que SolveCaptcha
+   * necesita resolver junto con el RECAPTCHA_SITE_KEY.
+   */
+  private async obtenerRecaptchaTokenDePagina(): Promise<string> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+
+    try {
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+      );
+
+      logger.debug('Puppeteer: navegando a página de consultas eKuatia');
+      await page.goto(CONSULTAS_URL, { waitUntil: 'networkidle2', timeout: 30000 });
+
+      await page.waitForSelector('#recaptcha-token', { timeout: 15000 });
+
+      const recaptchaToken = await page.$eval(
+        '#recaptcha-token',
+        (el: Element) => (el as HTMLInputElement).value
+      );
+
+      if (!recaptchaToken) {
+        throw new Error('recaptcha-token vacío en la página de eKuatia');
+      }
+
+      logger.debug('Puppeteer: recaptcha-token extraído de la página', {
+        token_prefix: recaptchaToken.substring(0, 20) + '...',
+      });
+
+      return recaptchaToken;
+    } finally {
+      await page.close();
+    }
+  }
+
+  /**
+   * Obtiene un token resuelto por SolveCaptcha.
+   * 1. Puppeteer carga /consultas/ y extrae el recaptcha-token dinámico
+   * 2. Se envía ese token + RECAPTCHA_SITE_KEY a SolveCaptcha
+   * 3. El resultado se cachea por TOKEN_TTL_MS
+   *
+   * Si hay una resolución en curso (descargas concurrentes), espera la misma
+   * Promise en lugar de lanzar un segundo captcha.
    */
   private async getToken(): Promise<string> {
     if (this.tokenIsValid()) {
@@ -72,19 +134,26 @@ export class EkuatiaService {
 
     this.cachedToken = null;
 
-    this.resolvingToken = resolverCaptcha({
-      apiKey: this.solveCaptchaApiKey,
-      siteKey: RECAPTCHA_SITE_KEY,
-      pageUrl: CONSULTAS_URL,
-      timeoutMs: 120000,
-    }).then((token) => {
-      this.cachedToken = { token, expiresAt: Date.now() + TOKEN_TTL_MS };
+    this.resolvingToken = (async () => {
+      const recaptchaTokenPagina = await this.obtenerRecaptchaTokenDePagina();
+
+      const tokenResuelto = await resolverCaptcha({
+        apiKey: this.solveCaptchaApiKey,
+        siteKey: RECAPTCHA_SITE_KEY,
+        pageUrl: CONSULTAS_URL,
+        recaptchaTokenPagina,
+        timeoutMs: 120000,
+      });
+
+      this.cachedToken = { token: tokenResuelto, expiresAt: Date.now() + TOKEN_TTL_MS };
       this.resolvingToken = null;
+
       logger.info('Captcha resuelto y cacheado', {
         expira_en_segundos: TOKEN_TTL_MS / 1000,
       });
-      return token;
-    }).catch((err) => {
+
+      return tokenResuelto;
+    })().catch((err) => {
       this.resolvingToken = null;
       throw err;
     });
