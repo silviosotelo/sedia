@@ -24,6 +24,7 @@
     "node-cron": "^3.0.3",
     "pg": "^8.11.3",
     "puppeteer": "^22.6.0",
+    "solvecaptcha-javascript": "^1.0.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

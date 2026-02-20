@@ -1,4 +1,3 @@
-import axios from 'axios';
 import puppeteer, { Browser } from 'puppeteer';
 import { DOMParser } from '@xmldom/xmldom';
 import { logger } from '../config/logger';
@@ -29,18 +28,13 @@ interface CachedToken {
 /**
  * Descarga y parsea XMLs de comprobantes electrónicos desde eKuatia.
  *
- * Estrategia de captcha:
- *   eKuatia requiere resolver un reCAPTCHA v2 en /consultas/ para acceder
- *   al endpoint de descarga XML. Un token resuelto es válido ~2 minutos.
+ * Flujo:
+ *   1. SolveCaptcha SDK resuelve el reCAPTCHA v2 de /consultas/
+ *   2. Puppeteer navega a /consultas/, inyecta el g-recaptcha-response en el textarea oculto
+ *   3. Inserta el CDC en el input, hace clic en "Consultar"
+ *   4. Hace clic en "Descargar XML" para obtener el contenido
  *
- *   Para aprovechar esa ventana, EkuatiaService mantiene un token en caché
- *   con TTL conservador de 110 segundos. Todos los CDCs descargados en ese
- *   lapso reutilizan el mismo token sin pagar el costo de resolver un captcha
- *   nuevo (~20–60 s). Cuando el token expira (o nunca existió), se resuelve
- *   uno nuevo de forma transparente antes del siguiente download.
- *
- *   En la práctica, un token de 110 s permite descargar 10–30 XMLs por
- *   resolución de captcha dependiendo de la velocidad de la red.
+ * El token resuelto se cachea por 110 segundos para reutilizarlo en múltiples CDCs.
  */
 export class EkuatiaService {
   readonly solveCaptchaApiKey: string;
@@ -64,7 +58,7 @@ export class EkuatiaService {
       return this.browser;
     }
     this.browser = await puppeteer.launch({
-      headless: true,
+      headless: config.puppeteer.headless,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -76,72 +70,9 @@ export class EkuatiaService {
   }
 
   /**
-   * Abre /consultas/ con Puppeteer y extrae el valor dinámico del
-   * <input id="recaptcha-token"> que el servidor inyecta en cada carga.
-   *
-   * El input existe en el DOM desde el inicio pero su value se rellena de
-   * forma asíncrona por el script de reCAPTCHA. Por eso usamos
-   * waitForFunction en lugar de waitForSelector: esperamos hasta que el
-   * value sea una cadena no vacía antes de leerlo.
-   */
-  private async obtenerRecaptchaTokenDePagina(): Promise<string> {
-    const browser = await this.getBrowser();
-    const page = await browser.newPage();
-
-    const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
-    const tokenWaitTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
-
-    try {
-      await page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-      );
-
-      logger.debug('Puppeteer: navegando a página de consultas eKuatia', {
-        url: CONSULTAS_URL,
-        nav_timeout_ms: navTimeout,
-      });
-
-      await page.goto(CONSULTAS_URL, { waitUntil: 'domcontentloaded', timeout: navTimeout });
-
-      logger.debug('Puppeteer: esperando que recaptcha-token tenga valor...');
-
-      await page.waitForFunction(
-        () => {
-          const el = document.getElementById('recaptcha-token') as HTMLInputElement | null;
-          return el !== null && el.value !== null && el.value.length > 10;
-        },
-        { timeout: tokenWaitTimeout, polling: 500 }
-      );
-
-      const recaptchaToken = await page.$eval(
-        '#recaptcha-token',
-        (el: Element) => (el as HTMLInputElement).value
-      );
-
-      if (!recaptchaToken || recaptchaToken.length < 10) {
-        throw new Error('recaptcha-token vacío o demasiado corto en la página de eKuatia');
-      }
-
-      logger.debug('Puppeteer: recaptcha-token extraído exitosamente', {
-        token_prefix: recaptchaToken.substring(0, 20) + '...',
-        token_length: recaptchaToken.length,
-      });
-
-      return recaptchaToken;
-    } finally {
-      await page.close();
-    }
-  }
-
-  /**
-   * Obtiene un token resuelto por SolveCaptcha.
-   * 1. Puppeteer carga /consultas/ y extrae el recaptcha-token dinámico
-   * 2. Se envía ese token + RECAPTCHA_SITE_KEY a SolveCaptcha
-   * 3. El resultado se cachea por TOKEN_TTL_MS
-   *
-   * Si hay una resolución en curso (descargas concurrentes), espera la misma
-   * Promise en lugar de lanzar un segundo captcha.
+   * Obtiene un token g-recaptcha-response resuelto por SolveCaptcha SDK.
+   * Se cachea por TOKEN_TTL_MS para reutilizar en múltiples descargas.
+   * Si hay una resolución en curso, espera la misma Promise.
    */
   private async getToken(): Promise<string> {
     if (this.tokenIsValid()) {
@@ -155,13 +86,10 @@ export class EkuatiaService {
     this.cachedToken = null;
 
     this.resolvingToken = (async () => {
-      const recaptchaTokenPagina = await this.obtenerRecaptchaTokenDePagina();
-
       const tokenResuelto = await resolverCaptcha({
         apiKey: this.solveCaptchaApiKey,
         siteKey: RECAPTCHA_SITE_KEY,
         pageUrl: CONSULTAS_URL,
-        recaptchaTokenPagina,
         timeoutMs: 120000,
       });
 
@@ -181,10 +109,6 @@ export class EkuatiaService {
     return this.resolvingToken;
   }
 
-  /**
-   * Invalida el token en caché. Se llama cuando eKuatia rechaza el token
-   * (p.ej. HTTP 403 con cuerpo que indica captcha inválido).
-   */
   invalidateToken(): void {
     this.cachedToken = null;
     logger.debug('Token de captcha invalidado');
@@ -196,8 +120,14 @@ export class EkuatiaService {
   }
 
   /**
-   * Descarga el XML de un CDC reutilizando el token en caché cuando está vigente.
-   * Si el servidor rechaza el token, lo invalida y reintenta una vez con token nuevo.
+   * Descarga el XML de un CDC usando Puppeteer:
+   *   1. Navega a /consultas/
+   *   2. Inyecta el g-recaptcha-response resuelto en el textarea oculto
+   *   3. Inserta el CDC en el input correspondiente
+   *   4. Hace clic en "Consultar"
+   *   5. Hace clic en "Descargar XML" y captura el contenido
+   *
+   * Si el token es rechazado, lo invalida y reintenta una vez con token nuevo.
    */
   async descargarXml(cdc: string): Promise<XmlDownloadResult> {
     logger.debug('Descargando XML', {
@@ -206,29 +136,79 @@ export class EkuatiaService {
     });
 
     const xmlUrl = `${EKUATIA_BASE}/docs/documento-electronico-xml/${cdc}`;
+    const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
 
     for (let intento = 1; intento <= 2; intento++) {
       const token = await this.getToken();
+      const browser = await this.getBrowser();
+      const page = await browser.newPage();
 
       try {
-        const response = await axios.get<string>(xmlUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-              '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Referer': CONSULTAS_URL,
-            'Accept': 'application/xml, text/xml, */*',
-          },
-          params: {
-            'g-recaptcha-response': token,
-          },
-          responseType: 'text',
-          timeout: 30000,
-        });
+        await page.setUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+          '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        );
 
-        const xmlContenido = response.data;
+        logger.debug('Puppeteer: navegando a /consultas/', { cdc, intento });
+        await page.goto(CONSULTAS_URL, { waitUntil: 'domcontentloaded', timeout: navTimeout });
+
+        await page.waitForSelector('#g-recaptcha-response', { timeout: navTimeout });
+        await page.evaluate((t: string) => {
+          const el = document.getElementById('g-recaptcha-response') as HTMLTextAreaElement | null;
+          if (el) {
+            el.value = t;
+            el.style.display = 'block';
+          }
+        }, token);
+
+        logger.debug('Puppeteer: token inyectado, insertando CDC', { cdc });
+
+        await page.waitForSelector('input[name="cdc"]', { timeout: navTimeout });
+        await page.evaluate(() => {
+          const input = document.querySelector('input[name="cdc"]') as HTMLInputElement | null;
+          if (input) input.value = '';
+        });
+        await page.type('input[name="cdc"]', cdc, { delay: 30 });
+
+        logger.debug('Puppeteer: haciendo clic en Consultar', { cdc });
+        await page.click('#boton[ng-click*="guardarcdc"]');
+
+        await page.waitForFunction(
+          () => {
+            const btn = document.querySelector('#boton[ng-click*="descargarxml"]') as HTMLElement | null;
+            return btn !== null && !btn.hasAttribute('disabled');
+          },
+          { timeout: navTimeout, polling: 500 }
+        );
+
+        logger.debug('Puppeteer: haciendo clic en Descargar XML', { cdc });
+
+        const [xmlResponse] = await Promise.all([
+          page.waitForResponse(
+            (resp) => resp.url().includes('/docs/documento-electronico-xml/') || resp.url().includes(cdc),
+            { timeout: navTimeout }
+          ),
+          page.click('#boton[ng-click*="descargarxml"]'),
+        ]);
+
+        let xmlContenido: string;
+
+        if (xmlResponse && xmlResponse.ok()) {
+          xmlContenido = await xmlResponse.text();
+        } else {
+          xmlContenido = await page.evaluate(() => document.body?.innerText ?? '');
+        }
 
         if (!xmlContenido || !xmlContenido.includes('<')) {
+          if (xmlContenido.toLowerCase().includes('captcha') || xmlContenido.toLowerCase().includes('error')) {
+            logger.warn('eKuatia rechazó el token, invalidando caché', { cdc, intento });
+            this.invalidateToken();
+            if (intento === 2) {
+              throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
+            }
+            await page.close();
+            continue;
+          }
           throw new Error(`Respuesta vacía o no-XML del servidor eKuatia para CDC ${cdc}`);
         }
 
@@ -238,6 +218,7 @@ export class EkuatiaService {
           if (intento === 2) {
             throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
           }
+          await page.close();
           continue;
         }
 
@@ -251,14 +232,18 @@ export class EkuatiaService {
           token_segundos_restantes: this.tokenSecondsRemaining(),
         });
 
+        await page.close();
         return { cdc, xmlContenido, xmlUrl, detalles };
       } catch (err) {
-        const error = err as { response?: { status?: number } } & Error;
-        if (error.response?.status === 403 && intento === 1) {
-          logger.warn('HTTP 403 de eKuatia, invalidando token y reintentando', { cdc });
+        await page.close().catch(() => undefined);
+        const error = err as Error;
+
+        if (intento === 1 && (error.message?.includes('captcha') || error.message?.includes('403'))) {
+          logger.warn('Error en intento 1, invalidando token y reintentando', { cdc, error: error.message });
           this.invalidateToken();
           continue;
         }
+
         throw err;
       }
     }
@@ -270,20 +255,6 @@ export class EkuatiaService {
 /**
  * Parsea el XML de un DE (Documento Electrónico) de la SET Paraguay.
  * Estructura basada en el estándar sifen-schema versión 150.
- *
- * Los namespaces del XML de la SET son:
- *   xmlns="http://ekuatia.set.gov.py/sifen/xsd"
- *   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
- *
- * Elementos clave:
- *   DE/Id  → CDC
- *   gOpeDE → datos de operación (tipoDocumento, etc.)
- *   gTimb  → datos de timbrado
- *   gDatGralOpe → datos generales de la operación
- *   gEmis  → datos del emisor
- *   gDest  → datos del destinatario (receptor)
- *   gDtipDE → detalle del tipo de DE (gCamFE para facturas)
- *   gTotSub → totales
  */
 export function parsearXml(xmlText: string, cdc: string): DetallesXml {
   const parser = new DOMParser();
