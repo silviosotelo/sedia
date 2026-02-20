@@ -74,8 +74,10 @@ export class SyncService {
       }
     }
 
-    const enqueuedXml = await enqueueXmlDownloads(tenantId, 200);
-    if (enqueuedXml > 0) {
+    await enqueueXmlDownloads(tenantId, 200);
+
+    const pendientesXml = await obtenerPendientesXml(tenantId, 1);
+    if (pendientesXml.length > 0) {
       const activeXml = await countActiveJobsForTenant(tenantId, 'DESCARGAR_XML');
       if (activeXml === 0) {
         await createJob({
@@ -86,7 +88,6 @@ export class SyncService {
         });
         logger.info('Job DESCARGAR_XML encolado automáticamente post-sync', {
           tenant_id: tenantId,
-          pendientes_xml: enqueuedXml,
         });
       }
     }

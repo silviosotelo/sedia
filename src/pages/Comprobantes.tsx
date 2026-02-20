@@ -71,6 +71,7 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
       setComprobantes([]);
       setTotal(0);
       setTotalPages(1);
+      setLoading(false);
       return;
     }
     if (!silent) setLoading(true);
@@ -123,21 +124,6 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
   };
 
   const activeFilters = [tipoFilter, xmlFilter, fechaDesde, fechaHasta].filter(Boolean).length;
-
-  if (loading && !selectedTenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="Comprobantes" subtitle="Comprobantes fiscales sincronizados" />
-        <div className="card p-8">
-          <EmptyState
-            icon={<Building2 className="w-5 h-5" />}
-            title="Seleccioná una empresa"
-            description="Elegí una empresa para ver sus comprobantes fiscales"
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="animate-fade-in">
