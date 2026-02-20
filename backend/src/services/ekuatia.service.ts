@@ -11,8 +11,6 @@ const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
 
 const RECAPTCHA_SITE_KEY = process.env['EKUATIA_RECAPTCHA_SITE_KEY'] ?? '6Ldcb-wrAAAAAGp5mRQLnbGW0GFsKyi71OhYDImu';
 
-const TOKEN_TTL_MS = 110_000;
-
 export interface XmlDownloadResult {
   cdc: string;
   xmlContenido: string;
@@ -20,37 +18,21 @@ export interface XmlDownloadResult {
   detalles: DetallesXml;
 }
 
-interface CachedToken {
-  token: string;
-  expiresAt: number;
-}
-
 /**
  * Descarga y parsea XMLs de comprobantes electrónicos desde eKuatia.
  *
- * Flujo:
- *   1. SolveCaptcha SDK resuelve el reCAPTCHA v2 de /consultas/
+ * Flujo por cada CDC:
+ *   1. SolveCaptcha SDK resuelve el reCAPTCHA v2 de /consultas/ (fresco por cada descarga)
  *   2. Puppeteer navega a /consultas/, inyecta el g-recaptcha-response en el textarea oculto
- *   3. Inserta el CDC en el input, hace clic en "Consultar"
- *   4. Hace clic en "Descargar XML" para obtener el contenido
- *
- * El token resuelto se cachea por 110 segundos para reutilizarlo en múltiples CDCs.
+ *   3. Inserta el CDC en el input y dispara el submit via AngularJS $scope
+ *   4. Espera el botón "Descargar XML", lo clickea y captura la respuesta de red
  */
 export class EkuatiaService {
   readonly solveCaptchaApiKey: string;
-  private cachedToken: CachedToken | null = null;
-  private resolvingToken: Promise<string> | null = null;
   private browser: Browser | null = null;
 
   constructor(solveCaptchaApiKey: string) {
     this.solveCaptchaApiKey = solveCaptchaApiKey;
-  }
-
-  private tokenIsValid(): boolean {
-    return (
-      this.cachedToken !== null &&
-      Date.now() < this.cachedToken.expiresAt
-    );
   }
 
   private async getBrowser(): Promise<Browser> {
@@ -70,76 +52,27 @@ export class EkuatiaService {
   }
 
   /**
-   * Obtiene un token g-recaptcha-response resuelto por SolveCaptcha SDK.
-   * Se cachea por TOKEN_TTL_MS para reutilizar en múltiples descargas.
-   * Si hay una resolución en curso, espera la misma Promise.
+   * Descarga el XML de un CDC.
+   *
+   * Resuelve un captcha fresco por cada descarga (los tokens quedan invalidados
+   * al recargar la página de consultas).
+   *
+   * Reintenta una vez si la respuesta indica rechazo del captcha.
    */
-  private async getToken(): Promise<string> {
-    if (this.tokenIsValid()) {
-      return this.cachedToken!.token;
-    }
+  async descargarXml(cdc: string): Promise<XmlDownloadResult> {
+    logger.debug('Descargando XML', { cdc });
 
-    if (this.resolvingToken) {
-      return this.resolvingToken;
-    }
+    const xmlUrl = `${EKUATIA_BASE}/docs/documento-electronico-xml/${cdc}`;
+    const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
 
-    this.cachedToken = null;
-
-    this.resolvingToken = (async () => {
-      const tokenResuelto = await resolverCaptcha({
+    for (let intento = 1; intento <= 2; intento++) {
+      const token = await resolverCaptcha({
         apiKey: this.solveCaptchaApiKey,
         siteKey: RECAPTCHA_SITE_KEY,
         pageUrl: CONSULTAS_URL,
         timeoutMs: 120000,
       });
 
-      this.cachedToken = { token: tokenResuelto, expiresAt: Date.now() + TOKEN_TTL_MS };
-      this.resolvingToken = null;
-
-      logger.info('Captcha resuelto y cacheado', {
-        expira_en_segundos: TOKEN_TTL_MS / 1000,
-      });
-
-      return tokenResuelto;
-    })().catch((err) => {
-      this.resolvingToken = null;
-      throw err;
-    });
-
-    return this.resolvingToken;
-  }
-
-  invalidateToken(): void {
-    this.cachedToken = null;
-    logger.debug('Token de captcha invalidado');
-  }
-
-  tokenSecondsRemaining(): number {
-    if (!this.cachedToken) return 0;
-    return Math.max(0, Math.round((this.cachedToken.expiresAt - Date.now()) / 1000));
-  }
-
-  /**
-   * Descarga el XML de un CDC usando Puppeteer:
-   *   1. Navega a /consultas/
-   *   2. Inyecta el g-recaptcha-response resuelto en el textarea oculto
-   *   3. Inserta el CDC en el input correspondiente
-   *   4. Hace clic en "Consultar"
-   *   5. Hace clic en "Descargar XML" y captura el contenido
-   *
-   * Si el token es rechazado, lo invalida y reintenta una vez con token nuevo.
-   */
-  async descargarXml(cdc: string): Promise<XmlDownloadResult> {
-    logger.debug('Descargando XML', {
-      cdc,
-      token_segundos_restantes: this.tokenSecondsRemaining(),
-    });
-
-    const xmlUrl = `${EKUATIA_BASE}/docs/documento-electronico-xml/${cdc}`;
-    const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
-
-    for (let intento = 1; intento <= 2; intento++) {
-      const token = await this.getToken();
       const browser = await this.getBrowser();
       const page = await browser.newPage();
 
@@ -150,7 +83,7 @@ export class EkuatiaService {
         );
 
         logger.debug('Puppeteer: navegando a /consultas/', { cdc, intento });
-        await page.goto(CONSULTAS_URL, { waitUntil: 'domcontentloaded', timeout: navTimeout });
+        await page.goto(CONSULTAS_URL, { waitUntil: 'networkidle2', timeout: navTimeout });
 
         await page.waitForSelector('#g-recaptcha-response', { timeout: navTimeout });
         await page.evaluate((t: string) => {
@@ -163,32 +96,46 @@ export class EkuatiaService {
 
         logger.debug('Puppeteer: token inyectado, insertando CDC', { cdc });
 
-        await page.waitForSelector('input[name="cdc"]', { timeout: navTimeout });
-        await page.evaluate(() => {
+        await page.waitForSelector('input[name="cdc"]', { visible: true, timeout: navTimeout });
+        await page.evaluate((cdcValue: string) => {
           const input = document.querySelector('input[name="cdc"]') as HTMLInputElement | null;
-          if (input) input.value = '';
-        });
-        await page.type('input[name="cdc"]', cdc, { delay: 30 });
+          if (input) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+            if (nativeInputValueSetter) nativeInputValueSetter.call(input, cdcValue);
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, cdc);
 
-        logger.debug('Puppeteer: haciendo clic en Consultar', { cdc });
-        await page.click('#boton[ng-click*="guardarcdc"]');
+        logger.debug('Puppeteer: disparando guardarcdc via evaluate', { cdc });
+        await page.evaluate(() => {
+          const btn = document.querySelector<HTMLElement>('#boton[ng-click*="guardarcdc"]');
+          if (!btn) throw new Error('Botón Consultar no encontrado en DOM');
+          btn.click();
+        });
 
         await page.waitForFunction(
           () => {
-            const btn = document.querySelector('#boton[ng-click*="descargarxml"]') as HTMLElement | null;
-            return btn !== null && !btn.hasAttribute('disabled');
+            const btn = document.querySelector<HTMLButtonElement>('#boton[ng-click*="descargarxml"]');
+            return btn !== null && !btn.disabled && !btn.hasAttribute('disabled');
           },
           { timeout: navTimeout, polling: 500 }
         );
 
-        logger.debug('Puppeteer: haciendo clic en Descargar XML', { cdc });
+        logger.debug('Puppeteer: disparando descargarxml via evaluate', { cdc });
 
         const [xmlResponse] = await Promise.all([
           page.waitForResponse(
-            (resp) => resp.url().includes('/docs/documento-electronico-xml/') || resp.url().includes(cdc),
+            (resp) =>
+              resp.url().includes('/docs/documento-electronico-xml/') ||
+              resp.url().includes(cdc),
             { timeout: navTimeout }
           ),
-          page.click('#boton[ng-click*="descargarxml"]'),
+          page.evaluate(() => {
+            const btn = document.querySelector<HTMLElement>('#boton[ng-click*="descargarxml"]');
+            if (!btn) throw new Error('Botón Descargar XML no encontrado en DOM');
+            btn.click();
+          }),
         ]);
 
         let xmlContenido: string;
@@ -199,26 +146,21 @@ export class EkuatiaService {
           xmlContenido = await page.evaluate(() => document.body?.innerText ?? '');
         }
 
+        await page.close();
+
+        const xmlLower = xmlContenido.toLowerCase();
         if (!xmlContenido || !xmlContenido.includes('<')) {
-          if (xmlContenido.toLowerCase().includes('captcha') || xmlContenido.toLowerCase().includes('error')) {
-            logger.warn('eKuatia rechazó el token, invalidando caché', { cdc, intento });
-            this.invalidateToken();
-            if (intento === 2) {
-              throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
-            }
-            await page.close();
+          if (xmlLower.includes('captcha') || xmlLower.includes('error')) {
+            logger.warn('eKuatia rechazó el token', { cdc, intento });
+            if (intento === 2) throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
             continue;
           }
           throw new Error(`Respuesta vacía o no-XML del servidor eKuatia para CDC ${cdc}`);
         }
 
-        if (xmlContenido.toLowerCase().includes('captcha') && !xmlContenido.includes('<?xml')) {
-          logger.warn('eKuatia rechazó el token, invalidando caché', { cdc, intento });
-          this.invalidateToken();
-          if (intento === 2) {
-            throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
-          }
-          await page.close();
+        if (xmlLower.includes('captcha') && !xmlContenido.includes('<?xml')) {
+          logger.warn('eKuatia rechazó el token', { cdc, intento });
+          if (intento === 2) throw new Error(`eKuatia rechazó el captcha para CDC ${cdc} después de reintento`);
           continue;
         }
 
@@ -229,18 +171,15 @@ export class EkuatiaService {
           emisor: detalles.emisor.ruc,
           total: detalles.totales.total,
           items: detalles.items.length,
-          token_segundos_restantes: this.tokenSecondsRemaining(),
         });
 
-        await page.close();
         return { cdc, xmlContenido, xmlUrl, detalles };
       } catch (err) {
         await page.close().catch(() => undefined);
         const error = err as Error;
 
         if (intento === 1 && (error.message?.includes('captcha') || error.message?.includes('403'))) {
-          logger.warn('Error en intento 1, invalidando token y reintentando', { cdc, error: error.message });
-          this.invalidateToken();
+          logger.warn('Error en intento 1, reintentando con nuevo captcha', { cdc, error: error.message });
           continue;
         }
 
