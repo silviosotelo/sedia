@@ -289,42 +289,52 @@ export class MarangatuService {
 
     logger.debug('Pestaña gestionComprobantesVirtuales abierta, buscando "Obtener Comprob. Elect. y Virtuales"');
     await gestionPage.waitForFunction(
-      (text: string) =>
-        Array.from(document.querySelectorAll('a, button')).some((el) =>
-          el.textContent?.includes(text)
-        ),
+      (text: string) => {
+        const cards = Array.from(document.querySelectorAll('.card h4, .card-body h4'));
+        return cards.some((el) => el.textContent?.includes(text));
+      },
       { timeout: 15000 },
       SELECTORS.gestionComprobantes.obtenerComprobantesText
     );
 
-    const registroUrl = `${baseUrl}/eset/gdi/registroComprobantesVirtuales.do`;
-    logger.debug('Click en "Obtener Comprob. Elect. y Virtuales"');
+    logger.debug('Click en la card "Obtener Comprob. Elect. y Virtuales"');
+    const clickedCard = await gestionPage.evaluate((text: string) => {
+      const cards = Array.from(document.querySelectorAll('.card'));
+      const card = cards.find((el) => el.querySelector('h4')?.textContent?.includes(text));
+      if (card) {
+        (card as HTMLElement).click();
+        return true;
+      }
+      return false;
+    }, SELECTORS.gestionComprobantes.obtenerComprobantesText);
 
-    const registroTarget = await Promise.all([
-      this.browser!.waitForTarget(
-        (t) => t.url().includes('registroComprobantesVirtuales'),
-        { timeout: config.puppeteer.timeoutMs }
-      ),
-      gestionPage.evaluate(
-        (text: string, url: string) => {
-          const el = Array.from(document.querySelectorAll('a, button')).find((e) =>
-            e.textContent?.includes(text)
-          );
-          if (el) {
-            (el as HTMLElement).click();
-          } else {
-            window.open(url, '_blank');
-          }
-        },
-        SELECTORS.gestionComprobantes.obtenerComprobantesText,
-        registroUrl
-      ),
-    ]);
-
-    const registroPage = await registroTarget[0].page();
-    if (!registroPage) {
-      throw new Error('No se pudo abrir la pestaña de registroComprobantesVirtuales');
+    if (!clickedCard) {
+      throw new Error('No se encontró la card "Obtener Comprob. Elect. y Virtuales"');
     }
+
+    const registroUrl = `${baseUrl}/eset/gdi/registroComprobantesVirtuales.do`;
+
+    let registroPage: Page;
+    const newTarget = await this.browser!.waitForTarget(
+      (t: import('puppeteer').Target) => t.url().includes('registroComprobantesVirtuales'),
+      { timeout: 5000 }
+    ).catch(() => null);
+
+    if (newTarget) {
+      logger.debug('Se abrió nueva pestaña registroComprobantesVirtuales');
+      registroPage = (await newTarget.page()) as Page;
+    } else {
+      logger.debug('Esperando navegación en misma pestaña a registroComprobantesVirtuales');
+      await gestionPage.waitForFunction(
+        () => window.location.href.includes('registroComprobantesVirtuales'),
+        { timeout: config.puppeteer.timeoutMs }
+      ).catch(async () => {
+        logger.warn('No navegó automáticamente, abriendo URL directo');
+        await gestionPage.goto(registroUrl, { waitUntil: 'networkidle2' });
+      });
+      registroPage = gestionPage;
+    }
+
     await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
     await registroPage.setDefaultTimeout(config.puppeteer.timeoutMs);
     await registroPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
