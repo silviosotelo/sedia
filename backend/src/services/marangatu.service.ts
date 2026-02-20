@@ -86,6 +86,8 @@ export class MarangatuService {
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu',
+        '--disable-features=PasswordLeakDetection',
+        '--password-store=basic',
       ],
       defaultViewport: { width: 1280, height: 900 },
     });

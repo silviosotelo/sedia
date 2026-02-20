@@ -46,6 +46,8 @@ export class EkuatiaService {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--disable-features=PasswordLeakDetection',
+        '--password-store=basic',
       ],
     });
     return this.browser;
