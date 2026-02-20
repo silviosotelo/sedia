@@ -1,4 +1,14 @@
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import UserPreferencesPlugin from 'puppeteer-extra-plugin-user-preferences';
+import { Browser, Page } from 'puppeteer';
+
+puppeteer.use(UserPreferencesPlugin({
+  userPrefs: {
+    'profile.password_manager_leak_detection': false,
+    'credentials_enable_service': false,
+    'credentials_enable_autosign': false,
+  },
+}));
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { TenantConfig } from '../types';

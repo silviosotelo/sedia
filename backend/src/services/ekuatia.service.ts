@@ -1,4 +1,14 @@
-import puppeteer, { Browser } from 'puppeteer';
+import puppeteer from 'puppeteer-extra';
+import UserPreferencesPlugin from 'puppeteer-extra-plugin-user-preferences';
+import { Browser } from 'puppeteer';
+
+puppeteer.use(UserPreferencesPlugin({
+  userPrefs: {
+    'profile.password_manager_leak_detection': false,
+    'credentials_enable_service': false,
+    'credentials_enable_autosign': false,
+  },
+}));
 import { DOMParser } from '@xmldom/xmldom';
 import { logger } from '../config/logger';
 import { resolverCaptcha } from './captcha.service';
