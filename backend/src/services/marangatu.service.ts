@@ -232,38 +232,50 @@ export class MarangatuService {
     await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: 15000 });
     await page.click(SELECTORS.menu.busqueda);
     await page.type(SELECTORS.menu.busqueda, 'Gestion De Comprobantes Informativos', { delay: 50 });
-    await new Promise((r) => setTimeout(r, 800));
+
+    logger.debug('Esperando resultado de búsqueda en el menú');
+    await page.waitForFunction(
+      () => {
+        const items = Array.from(document.querySelectorAll('.list-group-item'));
+        return items.some((el) =>
+          el.textContent?.toLowerCase().includes('gestion de comprobantes informativos') ||
+          el.textContent?.toLowerCase().includes('comprobantes informativos')
+        );
+      },
+      { timeout: 10000 }
+    );
+    await new Promise((r) => setTimeout(r, 400));
 
     const gestionUrl = `${baseUrl}/eset/gestionComprobantesVirtuales.do`;
 
-    logger.debug('Esperando nueva pestaña de gestión de comprobantes');
-    const gestionTarget = await Promise.race([
+    logger.debug('Haciendo click en el resultado del menú');
+    const gestionTarget = await Promise.all([
       this.browser!.waitForTarget(
-        (t) => t.url().includes('gestionComprobantesVirtuales'),
+        (t: import('puppeteer').Target) => t.url().includes('gestionComprobantesVirtuales'),
         { timeout: config.puppeteer.timeoutMs }
       ),
-      (async () => {
-        await page.evaluate((url: string) => {
-          const links = Array.from(document.querySelectorAll('a'));
-          const link = links.find((l) =>
-            l.href?.includes('gestionComprobantesVirtuales') ||
-            l.textContent?.toLowerCase().includes('comprobantes informativos')
-          );
-          if (link) {
-            link.click();
-          } else {
-            window.open(url, '_blank');
-          }
-        }, gestionUrl);
-
-        return this.browser!.waitForTarget(
-          (t) => t.url().includes('gestionComprobantesVirtuales'),
-          { timeout: config.puppeteer.timeoutMs }
+      page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll('.list-group-item'));
+        const item = items.find((el) =>
+          el.textContent?.toLowerCase().includes('gestion de comprobantes informativos') ||
+          el.textContent?.toLowerCase().includes('comprobantes informativos')
         );
-      })(),
+        if (item) {
+          (item as HTMLElement).click();
+          return true;
+        }
+        return false;
+      }).then((clicked: boolean) => {
+        if (!clicked) {
+          logger.warn('No se encontró el item del menú, navegando directamente');
+          return page.evaluate((url: string) => { window.open(url, '_blank'); }, gestionUrl);
+        }
+      }),
     ]);
 
-    const gestionPage = await gestionTarget.page();
+    const gestionTargetResult = gestionTarget[0];
+
+    const gestionPage = await gestionTargetResult.page();
     if (!gestionPage) {
       throw new Error('No se pudo obtener la pestaña de gestión de comprobantes');
     }
