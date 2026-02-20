@@ -12,6 +12,9 @@ interface AuthContextValue {
   hasPermission: (recurso: string, accion: string) => boolean;
   isSuperAdmin: boolean;
   isAdminEmpresa: boolean;
+  isUsuarioEmpresa: boolean;
+  isReadonly: boolean;
+  userTenantId: string | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -85,9 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isSuperAdmin = user?.rol.nombre === 'super_admin';
   const isAdminEmpresa = user?.rol.nombre === 'admin_empresa' || isSuperAdmin;
+  const isUsuarioEmpresa = user?.rol.nombre === 'usuario_empresa';
+  const isReadonly = user?.rol.nombre === 'readonly';
+  const userTenantId = user?.tenant_id ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, hasPermission, isSuperAdmin, isAdminEmpresa }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, hasPermission, isSuperAdmin, isAdminEmpresa, isUsuarioEmpresa, isReadonly, userTenantId }}>
       {children}
     </AuthContext.Provider>
   );

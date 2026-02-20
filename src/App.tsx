@@ -12,6 +12,16 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
 import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
+import type { RolNombre } from './types';
+
+const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
+  dashboard: null,
+  tenants: ['super_admin', 'admin_empresa'],
+  jobs: null,
+  comprobantes: null,
+  usuarios: ['super_admin', 'admin_empresa'],
+  metricas: ['super_admin'],
+};
 
 interface NavParams {
   tenant_id?: string;
@@ -19,7 +29,7 @@ interface NavParams {
 }
 
 function AppInner() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isSuperAdmin, userTenantId } = useAuth();
   const [page, setPage] = useState<Page>('dashboard');
   const [navParams, setNavParams] = useState<NavParams>({});
   const [apiStatus, setApiStatus] = useState<'ok' | 'error' | 'checking'>('checking');
@@ -44,10 +54,29 @@ function AppInner() {
     return () => clearInterval(interval);
   }, [checkApi]);
 
+  const canAccessPage = useCallback((p: Page): boolean => {
+    const allowed = PAGE_ACCESS[p];
+    if (!allowed) return true;
+    const rol = user?.rol.nombre as RolNombre | undefined;
+    return !!rol && allowed.includes(rol);
+  }, [user]);
+
   const navigate = useCallback((p: Page, params?: Record<string, string>) => {
+    if (!canAccessPage(p)) {
+      setPage('dashboard');
+      setNavParams({});
+      return;
+    }
     setPage(p);
     setNavParams(params || {});
-  }, []);
+  }, [canAccessPage]);
+
+  useEffect(() => {
+    if (user && !canAccessPage(page)) {
+      setPage('dashboard');
+      setNavParams({});
+    }
+  }, [user, page, canAccessPage]);
 
   if (authLoading) {
     return (
@@ -77,7 +106,7 @@ function AppInner() {
         {page === 'dashboard' && (
           <Dashboard onNavigate={navigate} />
         )}
-        {page === 'tenants' && (
+        {page === 'tenants' && canAccessPage('tenants') && (
           <Tenants
             onNavigate={navigate}
             toastSuccess={success}
@@ -90,12 +119,16 @@ function AppInner() {
           <Jobs toastError={error} />
         )}
         {page === 'comprobantes' && (
-          <Comprobantes toastError={error} toastSuccess={success} />
+          <Comprobantes
+            toastError={error}
+            toastSuccess={success}
+            tenantIdForzado={!isSuperAdmin && userTenantId ? userTenantId : undefined}
+          />
         )}
-        {page === 'usuarios' && (
+        {page === 'usuarios' && canAccessPage('usuarios') && (
           <Usuarios toastError={error} toastSuccess={success} />
         )}
-        {page === 'metricas' && (
+        {page === 'metricas' && canAccessPage('metricas') && (
           <Metricas toastError={error} />
         )}
       </Shell>

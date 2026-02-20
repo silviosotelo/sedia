@@ -16,6 +16,7 @@ import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageLoader } from '../components/ui/Spinner';
+import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { formatRelative, formatDateTime, JOB_TYPE_LABELS } from '../lib/utils';
 import type { Job, Tenant, JobStatus, JobType } from '../types';
@@ -212,6 +213,9 @@ function MiniRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function Jobs({ toastError }: JobsProps) {
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const isTenantUser = !isSuperAdmin && !!userTenantId;
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,11 +233,14 @@ export function Jobs({ toastError }: JobsProps) {
     try {
       const [jobsData, tenantsData] = await Promise.all([
         api.jobs.list({
+          tenant_id: isTenantUser ? userTenantId! : undefined,
           estado: statusFilter || undefined,
           tipo_job: typeFilter || undefined,
           limit: 100,
         }),
-        api.tenants.list(),
+        isTenantUser
+          ? api.tenants.get(userTenantId!).then((t) => [t])
+          : api.tenants.list(),
       ]);
       setJobs(jobsData);
       setTenants(tenantsData);
@@ -243,7 +250,7 @@ export function Jobs({ toastError }: JobsProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [statusFilter, typeFilter, toastError]);
+  }, [statusFilter, typeFilter, toastError, isTenantUser, userTenantId]);
 
   useEffect(() => {
     load();

@@ -22,6 +22,7 @@ import { PageLoader, Spinner } from '../components/ui/Spinner';
 import { TenantForm, type TenantFormData } from '../components/tenants/TenantForm';
 import { SyncModal } from '../components/tenants/SyncModal';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDateTime, formatRelative } from '../lib/utils';
 import type { Tenant, TenantWithConfig } from '../types';
 import type { Page } from '../components/layout/Sidebar';
@@ -43,12 +44,17 @@ export function Tenants({
   initialAction,
   onNavigate,
 }: TenantsProps) {
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const isAdminEmpresaOnly = !isSuperAdmin && !!userTenantId;
+
+  const effectiveInitialId = isAdminEmpresaOnly ? userTenantId : initialTenantId;
+
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<PanelView>(initialTenantId ? 'detail' : 'list');
-  const [selectedId, setSelectedId] = useState<string | null>(initialTenantId || null);
+  const [view, setView] = useState<PanelView>(effectiveInitialId ? 'detail' : 'list');
+  const [selectedId, setSelectedId] = useState<string | null>(effectiveInitialId || null);
   const [selectedTenant, setSelectedTenant] = useState<TenantWithConfig | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -85,8 +91,13 @@ export function Tenants({
   }, [toastError]);
 
   useEffect(() => {
-    loadList();
-  }, [loadList]);
+    if (isAdminEmpresaOnly) {
+      setSelectedId(userTenantId);
+      setView('detail');
+    } else {
+      loadList();
+    }
+  }, [loadList, isAdminEmpresaOnly, userTenantId]);
 
   useEffect(() => {
     if (selectedId && (view === 'detail' || view === 'edit')) {
@@ -181,15 +192,17 @@ export function Tenants({
   return (
     <div className="animate-fade-in">
       <Header
-        title="Empresas"
-        subtitle="Gestión de tenants multitenant"
-        onRefresh={() => loadList(true)}
+        title={isAdminEmpresaOnly ? 'Mi Empresa' : 'Empresas'}
+        subtitle={isAdminEmpresaOnly ? 'Información y configuración de tu empresa' : 'Gestión de tenants multitenant'}
+        onRefresh={() => isAdminEmpresaOnly && selectedId ? loadDetail(selectedId) : loadList(true)}
         refreshing={refreshing}
         actions={
-          <button onClick={() => setView('create')} className="btn-md btn-primary">
-            <Plus className="w-3.5 h-3.5" />
-            Nueva empresa
-          </button>
+          isSuperAdmin ? (
+            <button onClick={() => setView('create')} className="btn-md btn-primary">
+              <Plus className="w-3.5 h-3.5" />
+              Nueva empresa
+            </button>
+          ) : undefined
         }
       />
 
@@ -326,7 +339,7 @@ export function Tenants({
         </>
       )}
 
-      {view === 'create' && (
+      {view === 'create' && isSuperAdmin && (
         <div>
           <button onClick={() => setView('list')} className="btn-sm btn-ghost mb-6 -ml-1">
             <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
@@ -345,9 +358,11 @@ export function Tenants({
 
       {(view === 'detail' || view === 'edit') && selectedTenant && (
         <div>
-          <button onClick={() => setView('list')} className="btn-sm btn-ghost mb-6 -ml-1">
-            <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
-          </button>
+          {!isAdminEmpresaOnly && (
+            <button onClick={() => setView('list')} className="btn-sm btn-ghost mb-6 -ml-1">
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
+            </button>
+          )}
 
           {view === 'detail' && (
             <div className="space-y-6">

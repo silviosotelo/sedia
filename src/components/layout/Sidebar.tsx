@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import type { RolNombre } from '../../types';
 
 export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'usuarios' | 'metricas';
 
@@ -21,18 +22,19 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   badge?: string;
+  allowedRoles?: RolNombre[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-  { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" /> },
+  { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" /> },
-  { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" /> },
+  { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" />, allowedRoles: ['super_admin'] },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
-  { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" /> },
+  { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
 ];
 
 interface SidebarProps {
@@ -43,8 +45,16 @@ interface SidebarProps {
 }
 
 export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarProps) {
-  const { user, logout, isSuperAdmin, isAdminEmpresa } = useAuth();
-  const canManageUsers = isSuperAdmin || isAdminEmpresa;
+  const { user, logout, isSuperAdmin } = useAuth();
+  const rolNombre = user?.rol.nombre as RolNombre | undefined;
+
+  const visibleNavItems = ALL_NAV_ITEMS.filter(
+    (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
+  );
+
+  const visibleAdminItems = ADMIN_NAV_ITEMS.filter(
+    (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
+  );
 
   return (
     <aside className="w-60 flex-shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-zinc-200">
@@ -62,7 +72,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
 
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-0.5">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
@@ -85,12 +95,12 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
           ))}
         </div>
 
-        {canManageUsers && (
+        {visibleAdminItems.length > 0 && (
           <div className="mt-4 pt-4 border-t border-zinc-100">
             <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
               Administración
             </p>
-            {ADMIN_NAV_ITEMS.map((item) => (
+            {visibleAdminItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id)}
@@ -109,20 +119,22 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
           </div>
         )}
 
-        <div className="mt-4 pt-4 border-t border-zinc-100">
-          <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-            Recursos
-          </p>
-          <a
-            href="http://localhost:4000/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sidebar-item-inactive w-full text-left flex"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>API Docs</span>
-          </a>
-        </div>
+        {isSuperAdmin && (
+          <div className="mt-4 pt-4 border-t border-zinc-100">
+            <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+              Recursos
+            </p>
+            <a
+              href="http://localhost:4000/docs"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sidebar-item-inactive w-full text-left flex"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>API Docs</span>
+            </a>
+          </div>
+        )}
       </nav>
 
       <div className="px-4 py-4 border-t border-zinc-100 space-y-3">
