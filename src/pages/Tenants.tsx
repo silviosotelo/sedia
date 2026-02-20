@@ -94,6 +94,7 @@ export function Tenants({
     if (isAdminEmpresaOnly) {
       setSelectedId(userTenantId);
       setView('detail');
+      setLoading(false);
     } else {
       loadList();
     }
