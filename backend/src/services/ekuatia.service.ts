@@ -21,11 +21,26 @@ const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
 
 const RECAPTCHA_SITE_KEY = process.env['EKUATIA_RECAPTCHA_SITE_KEY'] ?? '6Ldcb-wrAAAAAGp5mRQLnbGW0GFsKyi71OhYDImu';
 
+export interface SifenStatus {
+  nroTransaccion: string;
+  estadoCdc: string;
+  fechaHora: string;
+  sistemaFacturacion: string;
+}
+
 export interface XmlDownloadResult {
   cdc: string;
   xmlContenido: string;
   xmlUrl: string;
   detalles: DetallesXml;
+  sifenStatus: SifenStatus;
+}
+
+export class SifenDocumentoNoAprobadoError extends Error {
+  constructor(public readonly estadoCdc: string, cdc: string) {
+    super(`Documento CDC ${cdc} no está Aprobado en SIFEN. Estado: ${estadoCdc}`);
+    this.name = 'SifenDocumentoNoAprobadoError';
+  }
 }
 
 /**
@@ -134,6 +149,37 @@ export class EkuatiaService {
           { timeout: navTimeout, polling: 500 }
         );
 
+        logger.debug('Puppeteer: haciendo click en "Más información" para obtener estado SIFEN', { cdc });
+        await page.evaluate(() => {
+          const btn = document.querySelector<HTMLElement>('#boton[ng-click*="gotopestanhas"]');
+          if (btn) btn.click();
+        });
+
+        await page.waitForFunction(
+          () => {
+            const el = document.getElementById('estadocdc') as HTMLInputElement | null;
+            return el !== null && el.value !== '' && el.value !== undefined;
+          },
+          { timeout: navTimeout, polling: 300 }
+        );
+
+        const sifenStatus = await page.evaluate(() => {
+          const v = (id: string) => (document.getElementById(id) as HTMLInputElement | null)?.value?.trim() ?? '';
+          return {
+            nroTransaccion: v('transaccioncdc'),
+            estadoCdc: v('estadocdc'),
+            fechaHora: v('fechacdc'),
+            sistemaFacturacion: v('cSisFact'),
+          };
+        }) as SifenStatus;
+
+        logger.info('Estado SIFEN obtenido', { cdc, estado: sifenStatus.estadoCdc, nroTransaccion: sifenStatus.nroTransaccion });
+
+        if (!sifenStatus.estadoCdc.toLowerCase().includes('aprobado')) {
+          await page.close();
+          throw new SifenDocumentoNoAprobadoError(sifenStatus.estadoCdc, cdc);
+        }
+
         logger.debug('Puppeteer: disparando descargarxml via evaluate', { cdc });
 
         const [xmlResponse] = await Promise.all([
@@ -183,9 +229,10 @@ export class EkuatiaService {
           emisor: detalles.emisor.ruc,
           total: detalles.totales.total,
           items: detalles.items.length,
+          estadoSifen: sifenStatus.estadoCdc,
         });
 
-        return { cdc, xmlContenido, xmlUrl, detalles };
+        return { cdc, xmlContenido, xmlUrl, detalles, sifenStatus };
       } catch (err) {
         await page.close().catch(() => undefined);
         const error = err as Error;
@@ -473,16 +520,30 @@ export async function guardarXmlDescargado(
   comprobanteId: string,
   xmlContenido: string,
   xmlUrl: string,
-  detalles: DetallesXml
+  detalles: DetallesXml,
+  sifenStatus?: SifenStatus
 ): Promise<void> {
   await query(
     `UPDATE comprobantes
-     SET xml_contenido      = $2,
-         xml_url            = $3,
-         xml_descargado_at  = NOW(),
-         detalles_xml       = $4
+     SET xml_contenido              = $2,
+         xml_url                    = $3,
+         xml_descargado_at          = NOW(),
+         detalles_xml               = $4,
+         estado_sifen               = $5,
+         nro_transaccion_sifen      = $6,
+         fecha_estado_sifen         = $7,
+         sistema_facturacion_sifen  = $8
      WHERE id = $1`,
-    [comprobanteId, xmlContenido, xmlUrl, JSON.stringify(detalles)]
+    [
+      comprobanteId,
+      xmlContenido,
+      xmlUrl,
+      JSON.stringify(detalles),
+      sifenStatus?.estadoCdc ?? null,
+      sifenStatus?.nroTransaccion ?? null,
+      sifenStatus?.fechaHora ? new Date(sifenStatus.fechaHora) : null,
+      sifenStatus?.sistemaFacturacion ?? null,
+    ]
   );
 
   await query(
@@ -493,6 +554,37 @@ export async function guardarXmlDescargado(
          error_message   = NULL
      WHERE comprobante_id = $1`,
     [comprobanteId]
+  );
+}
+
+export async function guardarEstadoSifen(
+  comprobanteId: string,
+  sifenStatus: SifenStatus
+): Promise<void> {
+  await query(
+    `UPDATE comprobantes
+     SET estado_sifen              = $2,
+         nro_transaccion_sifen     = $3,
+         fecha_estado_sifen        = $4,
+         sistema_facturacion_sifen = $5
+     WHERE id = $1`,
+    [
+      comprobanteId,
+      sifenStatus.estadoCdc,
+      sifenStatus.nroTransaccion || null,
+      sifenStatus.fechaHora ? new Date(sifenStatus.fechaHora) : null,
+      sifenStatus.sistemaFacturacion || null,
+    ]
+  );
+
+  await query(
+    `UPDATE comprobante_xml_jobs
+     SET estado          = 'DONE',
+         intentos        = intentos + 1,
+         last_attempt_at = NOW(),
+         error_message   = 'No descargado: estado SIFEN = ' || $2
+     WHERE comprobante_id = $1`,
+    [comprobanteId, sifenStatus.estadoCdc]
   );
 }
 

@@ -4,6 +4,7 @@ import {
   findComprobanteById,
 } from '../../db/repositories/comprobante.repository';
 import { findTenantById } from '../../db/repositories/tenant.repository';
+import { query } from '../../db/connection';
 import { Comprobante, TipoComprobante } from '../../types';
 
 function comprobanteToTxtLines(c: Comprobante): string {
@@ -328,6 +329,52 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         .header('Content-Type', 'application/json; charset=utf-8')
         .header('Content-Disposition', `attachment; filename="${filename}.json"`)
         .send(JSON.stringify(jsonExport, null, 2));
+    }
+  );
+
+  app.patch<{
+    Params: { id: string; comprobanteId: string };
+    Body: { nro_ot?: string | null; sincronizar?: boolean; usuario?: string };
+  }>(
+    '/tenants/:id/comprobantes/:comprobanteId',
+    async (req, reply) => {
+      const tenant = await findTenantById(req.params.id);
+      if (!tenant) return reply.status(404).send({ error: 'Tenant no encontrado' });
+
+      const comprobante = await findComprobanteById(req.params.id, req.params.comprobanteId);
+      if (!comprobante) return reply.status(404).send({ error: 'Comprobante no encontrado' });
+
+      const { nro_ot, sincronizar, usuario } = req.body ?? {};
+
+      const sets: string[] = [];
+      const params: unknown[] = [req.params.comprobanteId];
+      let i = 2;
+
+      if (nro_ot !== undefined) {
+        sets.push(`nro_ot = $${i++}`);
+        params.push(nro_ot);
+      }
+
+      if (sincronizar !== undefined) {
+        sets.push(`sincronizar = $${i++}`);
+        params.push(sincronizar);
+        sets.push(`sincronizar_actualizado_at = NOW()`);
+        if (usuario) {
+          sets.push(`sincronizar_actualizado_por = $${i++}`);
+          params.push(usuario);
+        }
+      }
+
+      if (sets.length === 0) {
+        return reply.send({ data: comprobante });
+      }
+
+      const rows = await query<Comprobante>(
+        `UPDATE comprobantes SET ${sets.join(', ')} WHERE id = $1 AND tenant_id = $${i} RETURNING *`,
+        [...params, req.params.id]
+      );
+
+      return reply.send({ data: rows[0] ?? comprobante });
     }
   );
 }

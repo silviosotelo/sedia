@@ -2,9 +2,16 @@ import { buildServer } from './api/server';
 import { config } from './config/env';
 import { logger } from './config/logger';
 import { closePool } from './db/connection';
+import { ensureSuperAdmin } from './services/auth.service';
 
 async function main(): Promise<void> {
   const server = await buildServer();
+
+  try {
+    await ensureSuperAdmin();
+  } catch (err) {
+    logger.warn('No se pudo verificar super admin', { error: (err as Error).message });
+  }
 
   try {
     await server.listen({

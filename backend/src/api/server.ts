@@ -8,6 +8,8 @@ import { errorHandler } from './middleware/error.middleware';
 import { tenantRoutes } from './routes/tenant.routes';
 import { jobRoutes } from './routes/job.routes';
 import { comprobanteRoutes } from './routes/comprobante.routes';
+import { authRoutes, usuarioRoutes } from './routes/auth.routes';
+import { metricsRoutes } from './routes/metrics.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -17,7 +19,7 @@ export async function buildServer() {
 
   await app.register(cors, {
     origin: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   await app.register(swagger, {
@@ -54,6 +56,9 @@ export async function buildServer() {
   await app.register(tenantRoutes);
   await app.register(jobRoutes);
   await app.register(comprobanteRoutes);
+  await app.register(authRoutes);
+  await app.register(usuarioRoutes);
+  await app.register(metricsRoutes);
 
   logger.info('Servidor Fastify configurado');
   return app;

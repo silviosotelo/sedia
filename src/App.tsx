@@ -5,6 +5,10 @@ import { Dashboard } from './pages/Dashboard';
 import { Tenants } from './pages/Tenants';
 import { Jobs } from './pages/Jobs';
 import { Comprobantes } from './pages/Comprobantes';
+import { Usuarios } from './pages/Usuarios';
+import { Metricas } from './pages/Metricas';
+import { Login } from './pages/Login';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
 import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
@@ -14,7 +18,8 @@ interface NavParams {
   action?: string;
 }
 
-export default function App() {
+function AppInner() {
+  const { user, loading: authLoading } = useAuth();
   const [page, setPage] = useState<Page>('dashboard');
   const [navParams, setNavParams] = useState<NavParams>({});
   const [apiStatus, setApiStatus] = useState<'ok' | 'error' | 'checking'>('checking');
@@ -44,6 +49,23 @@ export default function App() {
     setNavParams(params || {});
   }, []);
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-zinc-300 border-t-zinc-700 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <>
+        <Login />
+        <ToastContainer toasts={toasts} onRemove={remove} />
+      </>
+    );
+  }
+
   return (
     <>
       {MOCK_MODE && (
@@ -68,10 +90,24 @@ export default function App() {
           <Jobs toastError={error} />
         )}
         {page === 'comprobantes' && (
-          <Comprobantes toastError={error} />
+          <Comprobantes toastError={error} toastSuccess={success} />
+        )}
+        {page === 'usuarios' && (
+          <Usuarios toastError={error} toastSuccess={success} />
+        )}
+        {page === 'metricas' && (
+          <Metricas toastError={error} />
         )}
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 }

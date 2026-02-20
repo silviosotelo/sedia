@@ -4,6 +4,11 @@ import type {
   Job,
   Comprobante,
   PaginatedResponse,
+  Usuario,
+  Rol,
+  MetricsOverview,
+  MetricsTenant,
+  MetricsSaas,
 } from '../types';
 import { mockStore } from './mock-data';
 
@@ -11,10 +16,19 @@ export const MOCK_MODE = (import.meta.env.VITE_MOCK_MODE as string) === 'true';
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000';
 
+function getToken(): string | null {
+  return localStorage.getItem('saas_token');
+}
+
+function authHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
     ...options,
   });
 
@@ -158,6 +172,83 @@ export const api = {
       if (params?.ruc_vendedor) q.set('ruc_vendedor', params.ruc_vendedor);
       if (params?.xml_descargado !== undefined) q.set('xml_descargado', String(params.xml_descargado));
       return `${BASE_URL}/tenants/${tenantId}/comprobantes/exportar?${q.toString()}`;
+    },
+    patch: (
+      tenantId: string,
+      comprobanteId: string,
+      body: { nro_ot?: string | null; sincronizar?: boolean; usuario?: string }
+    ): Promise<Comprobante> => {
+      return request<{ data: Comprobante }>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }).then((r) => r.data);
+    },
+  },
+
+  usuarios: {
+    list: (): Promise<Usuario[]> => {
+      return request<{ data: Usuario[] }>('/usuarios').then((r) => r.data ?? []);
+    },
+    create: (body: {
+      nombre: string;
+      email: string;
+      password: string;
+      rol_id: string;
+      tenant_id?: string;
+      activo?: boolean;
+    }): Promise<Usuario> => {
+      return request<{ data: Usuario }>('/usuarios', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }).then((r) => r.data);
+    },
+    update: (id: string, body: {
+      nombre?: string;
+      email?: string;
+      password?: string;
+      activo?: boolean;
+      rol_id?: string;
+    }): Promise<Usuario> => {
+      return request<{ data: Usuario }>(`/usuarios/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }).then((r) => r.data);
+    },
+    delete: (id: string): Promise<void> => {
+      return request<void>(`/usuarios/${id}`, { method: 'DELETE' });
+    },
+  },
+
+  roles: {
+    list: (): Promise<Rol[]> => {
+      return request<{ data: Rol[] }>('/roles').then((r) => r.data ?? []);
+    },
+  },
+
+  metrics: {
+    overview: (): Promise<MetricsOverview> => {
+      if (MOCK_MODE) return Promise.resolve({
+        tenants: { total: 3, activos: 2 },
+        jobs: { total: 15, pendientes: 2, ejecutando: 1, exitosos: 10, fallidos: 2 },
+        comprobantes: { total: 1250, electronicos: 980, virtuales: 270, sin_sincronizar: 45 },
+        xml: { con_xml: 830, sin_xml: 150, aprobados: 810, no_aprobados: 20 },
+        ords: { enviados: 750, pendientes: 30, fallidos: 12 },
+        actividad_reciente: [],
+      });
+      return request<{ data: MetricsOverview }>('/metrics/overview').then((r) => r.data);
+    },
+    tenant: (id: string, dias?: number): Promise<MetricsTenant> => {
+      const q = dias ? `?dias=${dias}` : '';
+      return request<{ data: MetricsTenant }>(`/metrics/tenants/${id}${q}`).then((r) => r.data);
+    },
+    saas: (): Promise<MetricsSaas> => {
+      if (MOCK_MODE) return Promise.resolve({
+        tenants_por_mes: [],
+        top_tenants: [],
+        jobs_ultimos_7_dias: [],
+        xml_stats: { total: 1250, descargados: 830, pendientes: 420, tasa_descarga: 66.4 },
+      });
+      return request<{ data: MetricsSaas }>('/metrics/saas').then((r) => r.data);
     },
   },
 };

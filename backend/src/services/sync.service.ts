@@ -7,7 +7,7 @@ import {
 import { createJob, countActiveJobsForTenant } from '../db/repositories/job.repository';
 import { MarangatuService } from './marangatu.service';
 import { OrdsService } from './ords.service';
-import { EkuatiaService, enqueueXmlDownloads, obtenerPendientesXml, guardarXmlDescargado, marcarXmlJobFallido } from './ekuatia.service';
+import { EkuatiaService, SifenDocumentoNoAprobadoError, enqueueXmlDownloads, obtenerPendientesXml, guardarXmlDescargado, marcarXmlJobFallido, guardarEstadoSifen } from './ekuatia.service';
 import { SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload } from '../types';
 import { queryOne } from '../db/connection';
 import { Tenant } from '../types';
@@ -187,16 +187,32 @@ export class SyncService {
           pendiente.comprobante_id,
           result.xmlContenido,
           result.xmlUrl,
-          result.detalles
+          result.detalles,
+          result.sifenStatus
         );
         exitosos++;
 
         logger.debug('XML descargado y guardado', {
           cdc: pendiente.cdc,
+          estadoSifen: result.sifenStatus.estadoCdc,
         });
       } catch (err) {
         const errorMsg = (err as Error).message;
-        await marcarXmlJobFallido(pendiente.comprobante_id, errorMsg);
+        if (err instanceof SifenDocumentoNoAprobadoError) {
+          await guardarEstadoSifen(pendiente.comprobante_id, {
+            nroTransaccion: '',
+            estadoCdc: err.estadoCdc,
+            fechaHora: new Date().toISOString(),
+            sistemaFacturacion: '',
+          });
+          logger.info('Documento no aprobado en SIFEN, estado guardado', {
+            comprobante_id: pendiente.comprobante_id,
+            cdc: pendiente.cdc,
+            estado: err.estadoCdc,
+          });
+        } else {
+          await marcarXmlJobFallido(pendiente.comprobante_id, errorMsg);
+        }
         fallidos++;
         logger.warn('Fallo al descargar XML', {
           comprobante_id: pendiente.comprobante_id,

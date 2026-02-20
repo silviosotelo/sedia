@@ -7,10 +7,14 @@ import {
   ChevronRight,
   Zap,
   FlaskConical,
+  Users,
+  BarChart3,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
-export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'settings';
+export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'usuarios' | 'metricas';
 
 interface NavItem {
   id: Page;
@@ -24,6 +28,11 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" /> },
   { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" /> },
+  { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" /> },
+];
+
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" /> },
 ];
 
 interface SidebarProps {
@@ -34,6 +43,9 @@ interface SidebarProps {
 }
 
 export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarProps) {
+  const { user, logout, isSuperAdmin, isAdminEmpresa } = useAuth();
+  const canManageUsers = isSuperAdmin || isAdminEmpresa;
+
   return (
     <aside className="w-60 flex-shrink-0 h-screen sticky top-0 flex flex-col bg-white border-r border-zinc-200">
       <div className="px-5 pt-6 pb-4 border-b border-zinc-100">
@@ -73,7 +85,31 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
           ))}
         </div>
 
-        <div className="mt-6 pt-4 border-t border-zinc-100">
+        {canManageUsers && (
+          <div className="mt-4 pt-4 border-t border-zinc-100">
+            <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+              Administración
+            </p>
+            {ADMIN_NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                className={cn(
+                  'w-full text-left',
+                  current === item.id ? 'sidebar-item-active' : 'sidebar-item-inactive'
+                )}
+              >
+                {item.icon}
+                <span className="flex-1">{item.label}</span>
+                {current === item.id && (
+                  <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-zinc-100">
           <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
             Recursos
           </p>
@@ -89,7 +125,25 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
         </div>
       </nav>
 
-      <div className="px-4 py-4 border-t border-zinc-100">
+      <div className="px-4 py-4 border-t border-zinc-100 space-y-3">
+        {user && (
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
+              <span className="text-[10px] font-bold text-white">{user.nombre.slice(0, 2).toUpperCase()}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-zinc-900 truncate">{user.nombre}</p>
+              <p className="text-[10px] text-zinc-400 truncate">{user.rol.nombre.replace('_', ' ')}</p>
+            </div>
+            <button
+              onClick={() => void logout()}
+              title="Cerrar sesión"
+              className="p-1 hover:bg-zinc-100 rounded-md transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5 text-zinc-400" />
+            </button>
+          </div>
+        )}
         {mockMode ? (
           <div className="flex items-center gap-2">
             <FlaskConical className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
@@ -116,9 +170,6 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
             </span>
           </div>
         )}
-        <p className="text-[10px] text-zinc-400 mt-1">
-          {mockMode ? 'datos de ejemplo en memoria' : ((import.meta.env.VITE_API_URL as string) || 'http://localhost:4000')}
-        </p>
       </div>
     </aside>
   );

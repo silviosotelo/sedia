@@ -13,6 +13,11 @@ import {
   Circle,
   FileJson,
   FileType2,
+  ShieldCheck,
+  ShieldX,
+  Clock4,
+  Hash,
+  RefreshCcw,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -28,10 +33,13 @@ import {
   formatNumber,
   TIPO_COMPROBANTE_LABELS,
 } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
 import type { Comprobante, Tenant, TipoComprobante } from '../types';
 
 interface ComprobantesProps {
+  tenantIdForzado?: string;
   toastError: (title: string, desc?: string) => void;
+  toastSuccess: (title: string, desc?: string) => void;
 }
 
 function TipoComprobanteBadge({ tipo }: { tipo: TipoComprobante }) {
@@ -45,19 +53,44 @@ function TipoComprobanteBadge({ tipo }: { tipo: TipoComprobante }) {
   return <Badge variant={map[tipo]}>{TIPO_COMPROBANTE_LABELS[tipo] || tipo}</Badge>;
 }
 
-const TIPO_OPTIONS: TipoComprobante[] = [
-  'FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'AUTOFACTURA', 'OTRO',
-];
+function SifenBadge({ estado }: { estado: string | null }) {
+  if (!estado) return <span className="text-zinc-400 text-xs">—</span>;
+  const aprobado = estado.toLowerCase().includes('aprobado');
+  const cancelado = estado.toLowerCase().includes('cancel') || estado.toLowerCase().includes('inutiliz');
+  if (aprobado) return (
+    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+      <ShieldCheck className="w-3.5 h-3.5" />{estado}
+    </span>
+  );
+  if (cancelado) return (
+    <span className="inline-flex items-center gap-1 text-xs text-rose-500">
+      <ShieldX className="w-3.5 h-3.5" />{estado}
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-amber-500">
+      <Clock4 className="w-3.5 h-3.5" />{estado}
+    </span>
+  );
+}
 
-export function Comprobantes({ toastError }: ComprobantesProps) {
+const TIPO_OPTIONS: TipoComprobante[] = ['FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'AUTOFACTURA', 'OTRO'];
+
+export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: ComprobantesProps) {
+  const { user, hasPermission } = useAuth();
+  const canEditOt = hasPermission('comprobantes', 'editar_ot');
+  const canEditSync = hasPermission('comprobantes', 'editar_sincronizar');
+
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState('');
+  const [selectedTenantId, setSelectedTenantId] = useState(tenantIdForzado ?? '');
   const [search, setSearch] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
   const [xmlFilter, setXmlFilter] = useState<'' | 'true' | 'false'>('');
+  const [sifenFilter, setSifenFilter] = useState<'' | 'aprobado' | 'no_aprobado' | 'sin_estado'>('');
+  const [sincronizarFilter, setSincronizarFilter] = useState<'' | 'true' | 'false'>('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [page, setPage] = useState(1);
@@ -67,10 +100,15 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
   const [showExport, setShowExport] = useState(false);
   const [selectedComprobante, setSelectedComprobante] = useState<Comprobante | null>(null);
   const [detailView, setDetailView] = useState<'info' | 'xml' | 'detalles'>('info');
+  const [editingOt, setEditingOt] = useState<string>('');
+  const [savingOt, setSavingOt] = useState(false);
+  const [savingSync, setSavingSync] = useState<string | null>(null);
   const LIMIT = 20;
 
+  const effectiveTenantId = tenantIdForzado ?? selectedTenantId;
+
   const load = useCallback(async (silent = false) => {
-    if (!selectedTenantId) {
+    if (!effectiveTenantId) {
       setComprobantes([]);
       setTotal(0);
       setTotalPages(1);
@@ -80,7 +118,7 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await api.comprobantes.list(selectedTenantId, {
+      const res = await api.comprobantes.list(effectiveTenantId, {
         page,
         limit: LIMIT,
         tipo_comprobante: tipoFilter as TipoComprobante || undefined,
@@ -89,7 +127,14 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
         fecha_hasta: fechaHasta || undefined,
         ruc_vendedor: search.match(/^\d/) ? search : undefined,
       });
-      setComprobantes(res.data);
+
+      let filtered = res.data;
+      if (sifenFilter === 'aprobado') filtered = filtered.filter((c) => c.estado_sifen?.toLowerCase().includes('aprobado'));
+      else if (sifenFilter === 'no_aprobado') filtered = filtered.filter((c) => c.estado_sifen && !c.estado_sifen.toLowerCase().includes('aprobado'));
+      else if (sifenFilter === 'sin_estado') filtered = filtered.filter((c) => !c.estado_sifen);
+      if (sincronizarFilter !== '') filtered = filtered.filter((c) => String(c.sincronizar) === sincronizarFilter);
+
+      setComprobantes(filtered);
       setTotal(res.pagination.total);
       setTotalPages(res.pagination.total_pages);
     } catch (e: unknown) {
@@ -98,24 +143,26 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedTenantId, page, tipoFilter, xmlFilter, fechaDesde, fechaHasta, search, toastError]);
+  }, [effectiveTenantId, page, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, search, toastError]);
 
   useEffect(() => {
-    api.tenants.list().then(setTenants).catch(() => {});
-  }, []);
+    if (!tenantIdForzado) {
+      api.tenants.list().then(setTenants).catch(() => {});
+    }
+  }, [tenantIdForzado]);
 
   useEffect(() => {
     setPage(1);
-  }, [selectedTenantId, tipoFilter, xmlFilter, fechaDesde, fechaHasta, search]);
+  }, [effectiveTenantId, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, search]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const openDetail = async (c: Comprobante) => {
-    if (!c.detalles_xml && selectedTenantId) {
+    if (!c.detalles_xml && effectiveTenantId) {
       try {
-        const full = await api.comprobantes.get(selectedTenantId, c.id);
+        const full = await api.comprobantes.get(effectiveTenantId, c.id);
         setSelectedComprobante(full);
       } catch {
         setSelectedComprobante(c);
@@ -123,209 +170,164 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
     } else {
       setSelectedComprobante(c);
     }
+    setEditingOt(c.nro_ot ?? '');
     setDetailView('info');
   };
 
-  const activeFilters = [tipoFilter, xmlFilter, fechaDesde, fechaHasta].filter(Boolean).length;
+  const handleSaveOt = async () => {
+    if (!selectedComprobante || !effectiveTenantId) return;
+    setSavingOt(true);
+    try {
+      const updated = await api.comprobantes.patch(effectiveTenantId, selectedComprobante.id, {
+        nro_ot: editingOt || null,
+        usuario: user?.email,
+      });
+      setSelectedComprobante(updated);
+      setComprobantes((prev) => prev.map((c) => c.id === updated.id ? { ...c, nro_ot: updated.nro_ot } : c));
+      toastSuccess('OT guardada');
+    } catch (e) {
+      toastError('Error al guardar OT', e instanceof Error ? e.message : undefined);
+    } finally {
+      setSavingOt(false);
+    }
+  };
+
+  const handleToggleSincronizar = async (c: Comprobante, value: boolean) => {
+    if (!effectiveTenantId) return;
+    setSavingSync(c.id);
+    try {
+      const updated = await api.comprobantes.patch(effectiveTenantId, c.id, {
+        sincronizar: value,
+        usuario: user?.email,
+      });
+      setComprobantes((prev) => prev.map((x) => x.id === updated.id ? { ...x, sincronizar: updated.sincronizar } : x));
+      if (selectedComprobante?.id === c.id) setSelectedComprobante(updated);
+      toastSuccess(value ? 'Marcado para sincronizar' : 'Excluido de sincronización');
+    } catch (e) {
+      toastError('Error al actualizar', e instanceof Error ? e.message : undefined);
+    } finally {
+      setSavingSync(null);
+    }
+  };
+
+  const activeFilters = [tipoFilter, xmlFilter, fechaDesde, fechaHasta, sifenFilter, sincronizarFilter].filter(Boolean).length;
 
   return (
     <div className="animate-fade-in">
       <Header
         title="Comprobantes"
         subtitle="Comprobantes fiscales sincronizados desde Marangatu"
-        onRefresh={selectedTenantId ? () => load(true) : undefined}
+        onRefresh={effectiveTenantId ? () => void load(true) : undefined}
         refreshing={refreshing}
       />
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <select
-          className="input w-auto min-w-[200px]"
-          value={selectedTenantId}
-          onChange={(e) => setSelectedTenantId(e.target.value)}
-        >
-          <option value="">— Seleccionar empresa —</option>
-          {tenants.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.nombre_fantasia} ({t.ruc})
-            </option>
-          ))}
-        </select>
+        {!tenantIdForzado && (
+          <select className="input w-auto min-w-[200px]" value={selectedTenantId} onChange={(e) => setSelectedTenantId(e.target.value)}>
+            <option value="">— Seleccionar empresa —</option>
+            {tenants.map((t) => (
+              <option key={t.id} value={t.id}>{t.nombre_fantasia} ({t.ruc})</option>
+            ))}
+          </select>
+        )}
 
-        {selectedTenantId && (
+        {effectiveTenantId && (
           <>
             <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
-              <input
-                className="input pl-9"
-                placeholder="RUC vendedor, número..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
+              <input className="input pl-9" placeholder="RUC vendedor..." value={search} onChange={(e) => setSearch(e.target.value)} />
+              {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400"><X className="w-3.5 h-3.5" /></button>}
             </div>
 
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`btn-md btn-secondary gap-2 ${showFilters ? 'bg-zinc-100' : ''}`}
-            >
+            <button onClick={() => setShowFilters(!showFilters)} className={`btn-md btn-secondary gap-2 ${showFilters ? 'bg-zinc-100' : ''}`}>
               <Filter className="w-3.5 h-3.5" />
               Filtros
-              {activeFilters > 0 && (
-                <span className="bg-zinc-900 text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center">
-                  {activeFilters}
-                </span>
-              )}
+              {activeFilters > 0 && <span className="bg-zinc-900 text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center">{activeFilters}</span>}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
 
-            {total > 0 && (
-              <p className="text-sm text-zinc-500">
-                {total.toLocaleString()} comprobante{total !== 1 ? 's' : ''}
-              </p>
-            )}
+            {total > 0 && <p className="text-sm text-zinc-500">{total.toLocaleString()} comprobante{total !== 1 ? 's' : ''}</p>}
 
-            {selectedTenantId && (
-              <div className="relative ml-auto">
-                <button
-                  onClick={() => setShowExport(!showExport)}
-                  className="btn-md btn-secondary gap-2"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Exportar
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showExport ? 'rotate-180' : ''}`} />
-                </button>
-                {showExport && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
-                    <a
-                      href={api.comprobantes.exportUrl(selectedTenantId, 'json', {
-                        fecha_desde: fechaDesde || undefined,
-                        fecha_hasta: fechaHasta || undefined,
-                        tipo_comprobante: tipoFilter || undefined,
-                        ruc_vendedor: search.match(/^\d/) ? search : undefined,
-                        xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
-                      })}
-                      download
-                      onClick={() => setShowExport(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
-                    >
-                      <FileJson className="w-3.5 h-3.5 text-zinc-400" />
-                      Exportar JSON
-                    </a>
-                    <a
-                      href={api.comprobantes.exportUrl(selectedTenantId, 'txt', {
-                        fecha_desde: fechaDesde || undefined,
-                        fecha_hasta: fechaHasta || undefined,
-                        tipo_comprobante: tipoFilter || undefined,
-                        ruc_vendedor: search.match(/^\d/) ? search : undefined,
-                        xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
-                      })}
-                      download
-                      onClick={() => setShowExport(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
-                    >
-                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />
-                      Exportar TXT
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
+            <div className="relative ml-auto">
+              <button onClick={() => setShowExport(!showExport)} className="btn-md btn-secondary gap-2">
+                <Download className="w-3.5 h-3.5" />Exportar
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showExport ? 'rotate-180' : ''}`} />
+              </button>
+              {showExport && (
+                <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
+                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json')} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                    <FileJson className="w-3.5 h-3.5 text-zinc-400" />Exportar JSON
+                  </a>
+                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt')} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                    <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Exportar TXT
+                  </a>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
 
-      {selectedTenantId && showFilters && (
+      {effectiveTenantId && showFilters && (
         <div className="card p-4 mb-5 animate-fade-in">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
-              <label className="label">Tipo comprobante</label>
-              <select
-                className="input"
-                value={tipoFilter}
-                onChange={(e) => setTipoFilter(e.target.value)}
-              >
+              <label className="label">Tipo</label>
+              <select className="input" value={tipoFilter} onChange={(e) => setTipoFilter(e.target.value)}>
                 <option value="">Todos</option>
-                {TIPO_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {TIPO_COMPROBANTE_LABELS[t]}
-                  </option>
-                ))}
+                {TIPO_OPTIONS.map((t) => <option key={t} value={t}>{TIPO_COMPROBANTE_LABELS[t]}</option>)}
               </select>
             </div>
             <div>
-              <label className="label">XML descargado</label>
-              <select
-                className="input"
-                value={xmlFilter}
-                onChange={(e) => setXmlFilter(e.target.value as typeof xmlFilter)}
-              >
+              <label className="label">XML</label>
+              <select className="input" value={xmlFilter} onChange={(e) => setXmlFilter(e.target.value as typeof xmlFilter)}>
                 <option value="">Todos</option>
                 <option value="true">Con XML</option>
                 <option value="false">Sin XML</option>
               </select>
             </div>
             <div>
-              <label className="label">Fecha desde</label>
-              <input
-                type="date"
-                className="input"
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-              />
+              <label className="label">Estado SIFEN</label>
+              <select className="input" value={sifenFilter} onChange={(e) => setSifenFilter(e.target.value as typeof sifenFilter)}>
+                <option value="">Todos</option>
+                <option value="aprobado">Aprobado</option>
+                <option value="no_aprobado">No aprobado</option>
+                <option value="sin_estado">Sin estado</option>
+              </select>
             </div>
             <div>
-              <label className="label">Fecha hasta</label>
-              <input
-                type="date"
-                className="input"
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-              />
+              <label className="label">Sincronizar</label>
+              <select className="input" value={sincronizarFilter} onChange={(e) => setSincronizarFilter(e.target.value as typeof sincronizarFilter)}>
+                <option value="">Todos</option>
+                <option value="true">Incluidos</option>
+                <option value="false">Excluidos</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Desde</label>
+              <input type="date" className="input" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Hasta</label>
+              <input type="date" className="input" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
             </div>
           </div>
           {activeFilters > 0 && (
-            <button
-              onClick={() => {
-                setTipoFilter('');
-                setXmlFilter('');
-                setFechaDesde('');
-                setFechaHasta('');
-              }}
-              className="mt-3 btn-sm btn-ghost text-zinc-500"
-            >
+            <button onClick={() => { setTipoFilter(''); setXmlFilter(''); setFechaDesde(''); setFechaHasta(''); setSifenFilter(''); setSincronizarFilter(''); }} className="mt-3 btn-sm btn-ghost text-zinc-500">
               <X className="w-3 h-3" /> Limpiar filtros
             </button>
           )}
         </div>
       )}
 
-      {!selectedTenantId ? (
+      {!effectiveTenantId ? (
         <div className="card p-12">
-          <EmptyState
-            icon={<Building2 className="w-5 h-5" />}
-            title="Seleccioná una empresa"
-            description="Elegí una empresa del selector para ver sus comprobantes"
-          />
+          <EmptyState icon={<Building2 className="w-5 h-5" />} title="Seleccioná una empresa" description="Elegí una empresa del selector para ver sus comprobantes" />
         </div>
       ) : loading ? (
         <PageLoader />
       ) : comprobantes.length === 0 ? (
-        <EmptyState
-          icon={<FileText className="w-5 h-5" />}
-          title="Sin comprobantes"
-          description={
-            activeFilters > 0
-              ? 'No hay comprobantes con los filtros aplicados'
-              : 'Esta empresa no tiene comprobantes sincronizados aún. Ejecutá una sincronización desde la página de Empresas.'
-          }
-        />
+        <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin comprobantes" description={activeFilters > 0 ? 'No hay comprobantes con los filtros aplicados' : 'Esta empresa no tiene comprobantes sincronizados aún.'} />
       ) : (
         <div className="card overflow-hidden">
           <table className="w-full">
@@ -334,100 +336,67 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                 <th className="table-th">Comprobante</th>
                 <th className="table-th">Vendedor</th>
                 <th className="table-th">Tipo</th>
-                <th className="table-th">Fecha emisión</th>
+                <th className="table-th">Fecha</th>
                 <th className="table-th text-right">Total</th>
+                <th className="table-th">SIFEN</th>
                 <th className="table-th">XML</th>
+                <th className="table-th">OT</th>
+                {canEditSync && <th className="table-th text-center">Sync</th>}
               </tr>
             </thead>
             <tbody>
               {comprobantes.map((c) => (
-                <tr
-                  key={c.id}
-                  className="table-tr cursor-pointer"
-                  onClick={() => openDetail(c)}
-                >
+                <tr key={c.id} className={`table-tr cursor-pointer ${!c.sincronizar ? 'opacity-50' : ''}`} onClick={() => void openDetail(c)}>
                   <td className="table-td">
                     <div>
-                      <p className="font-mono text-xs font-medium text-zinc-900">
-                        {c.numero_comprobante}
-                      </p>
-                      {c.cdc && (
-                        <p className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">
-                          {c.cdc.slice(0, 20)}...
-                        </p>
-                      )}
+                      <p className="font-mono text-xs font-medium text-zinc-900">{c.numero_comprobante}</p>
+                      {c.cdc && <p className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">{c.cdc.slice(0, 20)}...</p>}
                     </div>
                   </td>
                   <td className="table-td">
                     <div>
-                      <p className="text-sm text-zinc-900">
-                        {c.razon_social_vendedor || <span className="text-zinc-400">—</span>}
-                      </p>
+                      <p className="text-sm text-zinc-900">{c.razon_social_vendedor || <span className="text-zinc-400">—</span>}</p>
                       <p className="text-xs font-mono text-zinc-400">{c.ruc_vendedor}</p>
                     </div>
                   </td>
+                  <td className="table-td"><TipoComprobanteBadge tipo={c.tipo_comprobante} /></td>
+                  <td className="table-td text-xs text-zinc-600">{formatDate(c.fecha_emision)}</td>
+                  <td className="table-td text-right"><span className="font-mono text-sm font-medium text-zinc-900">{formatCurrency(c.total_operacion)}</span></td>
+                  <td className="table-td"><SifenBadge estado={c.estado_sifen} /></td>
                   <td className="table-td">
-                    <TipoComprobanteBadge tipo={c.tipo_comprobante} />
+                    {c.xml_descargado_at
+                      ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /><span className="text-xs">Desc.</span></span>
+                      : c.cdc
+                      ? <span className="flex items-center gap-1 text-zinc-400"><Circle className="w-3.5 h-3.5" /><span className="text-xs">Pend.</span></span>
+                      : <span className="flex items-center gap-1 text-zinc-300"><X className="w-3.5 h-3.5" /><span className="text-xs">S/CDC</span></span>
+                    }
                   </td>
-                  <td className="table-td text-xs text-zinc-600">
-                    {formatDate(c.fecha_emision)}
-                  </td>
-                  <td className="table-td text-right">
-                    <span className="font-mono text-sm font-medium text-zinc-900">
-                      {formatCurrency(c.total_operacion)}
-                    </span>
-                  </td>
-                  <td className="table-td">
-                    {c.xml_descargado_at ? (
-                      <span className="flex items-center gap-1 text-emerald-600">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span className="text-xs">Descargado</span>
-                      </span>
-                    ) : c.cdc ? (
-                      <span className="flex items-center gap-1 text-zinc-400">
-                        <Circle className="w-3.5 h-3.5" />
-                        <span className="text-xs">Pendiente</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1 text-zinc-300">
-                        <X className="w-3.5 h-3.5" />
-                        <span className="text-xs">Sin CDC</span>
-                      </span>
-                    )}
-                  </td>
+                  <td className="table-td">{c.nro_ot ? <span className="tag text-xs">{c.nro_ot}</span> : <span className="text-zinc-300 text-xs">—</span>}</td>
+                  {canEditSync && (
+                    <td className="table-td text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        disabled={savingSync === c.id}
+                        onClick={() => void handleToggleSincronizar(c, !c.sincronizar)}
+                        className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 inline-flex items-center ${c.sincronizar ? 'bg-emerald-500' : 'bg-zinc-300'} ${savingSync === c.id ? 'opacity-50' : ''}`}
+                        title={c.sincronizar ? 'Excluir' : 'Incluir'}
+                      >
+                        <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${c.sincronizar ? 'left-4' : 'left-0.5'}`} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
           </table>
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            total={total}
-            limit={LIMIT}
-            onPageChange={setPage}
-          />
+          <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
         </div>
       )}
 
       {selectedComprobante && (
-        <Modal
-          open={!!selectedComprobante}
-          onClose={() => setSelectedComprobante(null)}
-          title={selectedComprobante.numero_comprobante}
-          description={selectedComprobante.razon_social_vendedor || selectedComprobante.ruc_vendedor}
-          size="xl"
-        >
+        <Modal open={!!selectedComprobante} onClose={() => setSelectedComprobante(null)} title={selectedComprobante.numero_comprobante} description={selectedComprobante.razon_social_vendedor || selectedComprobante.ruc_vendedor} size="xl">
           <div className="flex gap-0 border border-zinc-200 rounded-lg overflow-hidden mb-5 -mt-1">
             {(['info', 'detalles', 'xml'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setDetailView(v)}
-                className={`flex-1 py-2 text-xs font-medium transition-colors duration-100 ${
-                  detailView === v
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-white text-zinc-500 hover:bg-zinc-50'
-                }`}
-              >
+              <button key={v} onClick={() => setDetailView(v)} className={`flex-1 py-2 text-xs font-medium transition-colors duration-100 ${detailView === v ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
                 {v === 'info' ? 'Información' : v === 'detalles' ? 'Items XML' : 'XML crudo'}
               </button>
             ))}
@@ -436,123 +405,80 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
           {detailView === 'info' && (
             <div className="grid grid-cols-2 gap-6">
               <div>
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                  Comprobante
-                </p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Comprobante</p>
                 <dl className="space-y-2.5">
                   <DR label="Número" value={<span className="tag">{selectedComprobante.numero_comprobante}</span>} />
-                  <DR
-                    label="Tipo"
-                    value={<TipoComprobanteBadge tipo={selectedComprobante.tipo_comprobante} />}
-                  />
-                  <DR
-                    label="Origen"
-                    value={
-                      <Badge variant={selectedComprobante.origen === 'ELECTRONICO' ? 'info' : 'neutral'}>
-                        {selectedComprobante.origen}
-                      </Badge>
-                    }
-                  />
+                  <DR label="Tipo" value={<TipoComprobanteBadge tipo={selectedComprobante.tipo_comprobante} />} />
+                  <DR label="Origen" value={<Badge variant={selectedComprobante.origen === 'ELECTRONICO' ? 'info' : 'neutral'}>{selectedComprobante.origen}</Badge>} />
                   <DR label="Fecha emisión" value={formatDate(selectedComprobante.fecha_emision)} />
-                  <DR
-                    label="Total"
-                    value={
-                      <span className="font-mono font-semibold">
-                        {formatCurrency(selectedComprobante.total_operacion)}
-                      </span>
-                    }
-                  />
-                  {selectedComprobante.cdc && (
-                    <DR
-                      label="CDC"
-                      value={
-                        <span className="tag text-[10px] break-all">{selectedComprobante.cdc}</span>
-                      }
-                    />
-                  )}
+                  <DR label="Total" value={<span className="font-mono font-semibold">{formatCurrency(selectedComprobante.total_operacion)}</span>} />
+                  {selectedComprobante.cdc && <DR label="CDC" value={<span className="tag text-[10px] break-all">{selectedComprobante.cdc}</span>} />}
+                </dl>
+
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">Estado SIFEN</p>
+                <dl className="space-y-2.5">
+                  <DR label="Estado" value={<SifenBadge estado={selectedComprobante.estado_sifen} />} />
+                  {selectedComprobante.nro_transaccion_sifen && <DR label="N° Transacción" value={<span className="tag">{selectedComprobante.nro_transaccion_sifen}</span>} />}
+                  {selectedComprobante.fecha_estado_sifen && <DR label="Fecha estado" value={formatDateTime(selectedComprobante.fecha_estado_sifen)} />}
+                  {selectedComprobante.sistema_facturacion_sifen && <DR label="Sist. Facturación" value={selectedComprobante.sistema_facturacion_sifen} />}
                 </dl>
               </div>
 
               <div>
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                  Vendedor
-                </p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Vendedor</p>
                 <dl className="space-y-2.5">
                   <DR label="Razón social" value={selectedComprobante.razon_social_vendedor || '—'} />
                   <DR label="RUC" value={<span className="tag">{selectedComprobante.ruc_vendedor}</span>} />
-                  {selectedComprobante.detalles_xml?.emisor && (
-                    <>
-                      {selectedComprobante.detalles_xml.emisor.timbrado && (
-                        <DR label="Timbrado" value={<span className="tag">{selectedComprobante.detalles_xml.emisor.timbrado}</span>} />
-                      )}
-                      {selectedComprobante.detalles_xml.emisor.establecimiento && (
-                        <DR
-                          label="Est. / Punto"
-                          value={`${selectedComprobante.detalles_xml.emisor.establecimiento}-${selectedComprobante.detalles_xml.emisor.punto}`}
-                        />
-                      )}
-                      {selectedComprobante.detalles_xml.emisor.direccion && (
-                        <DR label="Dirección" value={selectedComprobante.detalles_xml.emisor.direccion} />
-                      )}
-                    </>
-                  )}
+                  {selectedComprobante.detalles_xml?.emisor?.timbrado && <DR label="Timbrado" value={<span className="tag">{selectedComprobante.detalles_xml.emisor.timbrado}</span>} />}
+                  {selectedComprobante.detalles_xml?.emisor?.establecimiento && <DR label="Est. / Punto" value={`${selectedComprobante.detalles_xml.emisor.establecimiento}-${selectedComprobante.detalles_xml.emisor.punto}`} />}
                 </dl>
 
                 {selectedComprobante.detalles_xml?.receptor && (
                   <>
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">
-                      Receptor
-                    </p>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">Receptor</p>
                     <dl className="space-y-2.5">
-                      {selectedComprobante.detalles_xml.receptor.razonSocial && (
-                        <DR label="Nombre" value={selectedComprobante.detalles_xml.receptor.razonSocial} />
-                      )}
-                      {selectedComprobante.detalles_xml.receptor.ruc && (
-                        <DR label="RUC" value={<span className="tag">{selectedComprobante.detalles_xml.receptor.ruc}</span>} />
-                      )}
-                      {selectedComprobante.detalles_xml.receptor.numeroIdentificacion && !selectedComprobante.detalles_xml.receptor.ruc && (
-                        <DR
-                          label={selectedComprobante.detalles_xml.receptor.tipoIdentificacionDesc ?? 'Documento'}
-                          value={<span className="tag">{selectedComprobante.detalles_xml.receptor.numeroIdentificacion}</span>}
-                        />
-                      )}
-                      {selectedComprobante.detalles_xml.receptor.email && (
-                        <DR label="Email" value={selectedComprobante.detalles_xml.receptor.email} />
-                      )}
-                      {selectedComprobante.detalles_xml.receptor.pais && (
-                        <DR label="País" value={selectedComprobante.detalles_xml.receptor.pais} />
-                      )}
+                      {selectedComprobante.detalles_xml.receptor.razonSocial && <DR label="Nombre" value={selectedComprobante.detalles_xml.receptor.razonSocial} />}
+                      {selectedComprobante.detalles_xml.receptor.ruc && <DR label="RUC" value={<span className="tag">{selectedComprobante.detalles_xml.receptor.ruc}</span>} />}
                     </dl>
                   </>
                 )}
 
-                {selectedComprobante.detalles_xml?.pagos && selectedComprobante.detalles_xml.pagos.length > 0 && (
-                  <>
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">
-                      Pago
-                    </p>
-                    <dl className="space-y-2.5">
-                      {selectedComprobante.detalles_xml.pagos.map((p, i) => (
-                        <DR
-                          key={i}
-                          label={p.tipoPagoDesc ?? `Pago ${i + 1}`}
-                          value={
-                            <span className="font-mono font-medium">
-                              {formatCurrency(p.monto)} {p.moneda ?? ''}
-                            </span>
-                          }
-                        />
-                      ))}
-                    </dl>
-                  </>
+                {(canEditOt || canEditSync) && (
+                  <div className="mt-5 space-y-4">
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Gestión</p>
+                    {canEditOt && (
+                      <div>
+                        <label className="label flex items-center gap-1.5"><Hash className="w-3 h-3" />Nro. OT <span className="text-zinc-400">(opcional)</span></label>
+                        <div className="flex gap-2">
+                          <input className="input flex-1" value={editingOt} onChange={(e) => setEditingOt(e.target.value)} placeholder="Ej: OT-2024-001" />
+                          <button onClick={() => void handleSaveOt()} disabled={savingOt} className="btn-sm btn-primary gap-1.5">
+                            {savingOt ? <RefreshCcw className="w-3 h-3 animate-spin" /> : null}Guardar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {canEditSync && (
+                      <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+                        <div>
+                          <p className="text-sm font-medium text-zinc-900">Sincronizar a ORDS</p>
+                          <p className="text-xs text-zinc-500">{selectedComprobante.sincronizar ? 'Incluido en sincronización' : 'Excluido de sincronización'}</p>
+                        </div>
+                        <button
+                          disabled={savingSync === selectedComprobante.id}
+                          onClick={() => void handleToggleSincronizar(selectedComprobante, !selectedComprobante.sincronizar)}
+                          className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${selectedComprobante.sincronizar ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${selectedComprobante.sincronizar ? 'left-5' : 'left-0.5'}`} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
               {selectedComprobante.detalles_xml?.totales && (
                 <div className="col-span-2">
-                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
-                    Totales
-                  </p>
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Totales</p>
                   <div className="grid grid-cols-4 gap-3">
                     {[
                       { label: 'Gravado 5%', value: selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0, show: (selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0) > 0 },
@@ -566,9 +492,7 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                     ].filter(({ show }) => show).map(({ label, value }) => (
                       <div key={label} className={`card p-3 text-center ${label === 'Total' ? 'border-zinc-900' : ''}`}>
                         <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                        <p className={`font-mono font-semibold text-sm ${label === 'Total' ? 'text-zinc-900' : 'text-zinc-700'}`}>
-                          {formatCurrency(value)}
-                        </p>
+                        <p className={`font-mono font-semibold text-sm ${label === 'Total' ? 'text-zinc-900' : 'text-zinc-700'}`}>{formatCurrency(value)}</p>
                       </div>
                     ))}
                   </div>
@@ -580,49 +504,20 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                   <Download className="w-3.5 h-3.5 text-zinc-400" />
                   <p className="text-xs text-zinc-500">
                     XML:{' '}
-                    {selectedComprobante.xml_descargado_at ? (
-                      <span className="text-emerald-600 font-medium">
-                        Descargado {formatDateTime(selectedComprobante.xml_descargado_at)}
-                      </span>
-                    ) : (
-                      <span className="text-zinc-400">No descargado</span>
-                    )}
+                    {selectedComprobante.xml_descargado_at
+                      ? <span className="text-emerald-600 font-medium">Descargado {formatDateTime(selectedComprobante.xml_descargado_at)}</span>
+                      : <span className="text-zinc-400">No descargado</span>}
                   </p>
                   {selectedComprobante.xml_url && (
-                    <a
-                      href={selectedComprobante.xml_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ml-auto btn-sm btn-secondary"
-                    >
-                      <ExternalLink className="w-3 h-3" /> Ver en eKuatia
-                    </a>
+                    <a href={selectedComprobante.xml_url} target="_blank" rel="noopener noreferrer" className="ml-auto btn-sm btn-secondary"><ExternalLink className="w-3 h-3" /> Ver en eKuatia</a>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-zinc-400">Descargar:</span>
-                  <a
-                    href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')}
-                    download
-                    className="btn-sm btn-secondary gap-1.5"
-                  >
-                    <FileJson className="w-3 h-3" /> JSON
-                  </a>
-                  <a
-                    href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')}
-                    download
-                    className="btn-sm btn-secondary gap-1.5"
-                  >
-                    <FileType2 className="w-3 h-3" /> TXT
-                  </a>
+                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')} download className="btn-sm btn-secondary gap-1.5"><FileJson className="w-3 h-3" /> JSON</a>
+                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')} download className="btn-sm btn-secondary gap-1.5"><FileType2 className="w-3 h-3" /> TXT</a>
                   {selectedComprobante.xml_contenido && (
-                    <a
-                      href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')}
-                      download
-                      className="btn-sm btn-secondary gap-1.5"
-                    >
-                      <Code2 className="w-3 h-3" /> XML
-                    </a>
+                    <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')} download className="btn-sm btn-secondary gap-1.5"><Code2 className="w-3 h-3" /> XML</a>
                   )}
                 </div>
               </div>
@@ -647,31 +542,17 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                     {selectedComprobante.detalles_xml.items.map((item, i) => (
                       <tr key={i} className="table-tr">
                         <td className="table-td font-medium">{item.descripcion}</td>
-                        <td className="table-td text-right tabular-nums">
-                          {formatNumber(item.cantidad)}
-                        </td>
-                        <td className="table-td text-right tabular-nums font-mono">
-                          {formatCurrency(item.precioUnitario)}
-                        </td>
-                        <td className="table-td text-right tabular-nums font-mono">
-                          {item.descuento > 0 ? formatCurrency(item.descuento) : '—'}
-                        </td>
-                        <td className="table-td text-right">
-                          <span className="tag">{item.tasaIva}%</span>
-                        </td>
-                        <td className="table-td text-right tabular-nums font-mono font-medium">
-                          {formatCurrency(item.subtotal)}
-                        </td>
+                        <td className="table-td text-right tabular-nums">{formatNumber(item.cantidad)}</td>
+                        <td className="table-td text-right tabular-nums font-mono">{formatCurrency(item.precioUnitario)}</td>
+                        <td className="table-td text-right tabular-nums font-mono">{item.descuento > 0 ? formatCurrency(item.descuento) : '—'}</td>
+                        <td className="table-td text-right"><span className="tag">{item.tasaIva}%</span></td>
+                        <td className="table-td text-right tabular-nums font-mono font-medium">{formatCurrency(item.subtotal)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               ) : (
-                <EmptyState
-                  icon={<FileText className="w-5 h-5" />}
-                  title="Sin items"
-                  description="No hay items parseados del XML para este comprobante"
-                />
+                <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin items" description="No hay items parseados del XML para este comprobante" />
               )}
             </div>
           )}
@@ -686,11 +567,7 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                   </pre>
                 </div>
               ) : (
-                <EmptyState
-                  icon={<Code2 className="w-5 h-5" />}
-                  title="XML no disponible"
-                  description="El XML no fue descargado aún. Ejecutá un job de descarga XML desde la página de la empresa."
-                />
+                <EmptyState icon={<Code2 className="w-5 h-5" />} title="XML no disponible" description="El XML no fue descargado aún o el documento no está Aprobado en SIFEN." />
               )}
             </div>
           )}
@@ -703,10 +580,8 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
 function DR({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2">
-      <dt className="text-xs text-zinc-500 w-24 flex-shrink-0 pt-0.5">{label}</dt>
-      <dd className="text-sm text-zinc-900 flex-1 min-w-0">
-        {typeof value === 'string' ? value : value}
-      </dd>
+      <dt className="text-xs text-zinc-500 w-28 flex-shrink-0 pt-0.5">{label}</dt>
+      <dd className="text-sm text-zinc-900 flex-1 min-w-0">{value}</dd>
     </div>
   );
 }
