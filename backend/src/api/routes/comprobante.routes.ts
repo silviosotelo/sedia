@@ -361,7 +361,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
 
-      const { nro_ot, sincronizar } = req.body ?? {};
+      const { nro_ot, sincronizar, usuario } = req.body ?? {};
       const u = req.currentUser!;
 
       if (nro_ot !== undefined && !u.permisos.includes('comprobantes:editar_ot') && u.rol.nombre !== 'super_admin') {
@@ -376,8 +376,6 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
 
       const comprobante = await findComprobanteById(req.params.id, req.params.comprobanteId);
       if (!comprobante) return reply.status(404).send({ error: 'Comprobante no encontrado' });
-
-      const { nro_ot, sincronizar, usuario } = req.body ?? {};
 
       const sets: string[] = [];
       const params: unknown[] = [req.params.comprobanteId];
