@@ -8,6 +8,7 @@ import {
   upsertTenantConfig,
   findTenantWithConfig,
 } from '../../db/repositories/tenant.repository';
+import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 
 const createTenantSchema = z.object({
   nombre_fantasia: z.string().min(1).max(255),
@@ -54,12 +55,25 @@ const updateTenantSchema = z.object({
 });
 
 export async function tenantRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/tenants', async (_req, reply) => {
-    const tenants = await findAllTenants();
-    return reply.send({ data: tenants, total: tenants.length });
+  app.addHook('preHandler', requireAuth);
+
+  app.get('/tenants', async (req, reply) => {
+    const u = req.currentUser!;
+    if (u.rol.nombre === 'super_admin') {
+      const tenants = await findAllTenants();
+      return reply.send({ data: tenants, total: tenants.length });
+    }
+    if (!u.tenant_id) {
+      return reply.status(403).send({ error: 'Sin empresa asignada' });
+    }
+    const tenant = await findTenantById(u.tenant_id);
+    const data = tenant ? [tenant] : [];
+    return reply.send({ data, total: data.length });
   });
 
   app.get<{ Params: { id: string } }>('/tenants/:id', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+
     const tenant = await findTenantWithConfig(req.params.id);
     if (!tenant) {
       return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -75,6 +89,10 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post('/tenants', async (req, reply) => {
+    if (req.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo el super administrador puede crear empresas' });
+    }
+
     const parsed = createTenantSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Datos inválidos', details: parsed.error.errors });
@@ -110,6 +128,10 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.put<{ Params: { id: string } }>('/tenants/:id', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+
+    const u = req.currentUser!;
+
     const existing = await findTenantById(req.params.id);
     if (!existing) {
       return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -121,6 +143,11 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     }
 
     const { config: configInput, ...tenantInput } = parsed.data;
+
+    if (u.rol.nombre !== 'super_admin') {
+      delete (tenantInput as Record<string, unknown>).activo;
+    }
+
     const tenant = await updateTenant(req.params.id, tenantInput);
 
     if (configInput) {

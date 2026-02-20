@@ -6,6 +6,7 @@ import {
 import { findTenantById } from '../../db/repositories/tenant.repository';
 import { query } from '../../db/connection';
 import { Comprobante, TipoComprobante } from '../../types';
+import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 
 function comprobanteToTxtLines(c: Comprobante): string {
   const lines: string[] = [
@@ -106,6 +107,8 @@ function comprobanteToTxtLines(c: Comprobante): string {
 }
 
 export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
+  app.addHook('preHandler', requireAuth);
+
   app.get<{
     Params: { id: string };
     Querystring: {
@@ -118,6 +121,12 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       limit?: string;
     };
   }>('/tenants/:id/comprobantes', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+
+    if (!req.currentUser!.permisos.includes('comprobantes:ver') && req.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Sin permiso para ver comprobantes' });
+    }
+
     const tenant = await findTenantById(req.params.id);
     if (!tenant) {
       return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -167,6 +176,10 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string; comprobanteId: string } }>(
     '/tenants/:id/comprobantes/:comprobanteId',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('comprobantes:ver') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para ver comprobantes' });
+      }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
         return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -190,6 +203,10 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
   }>(
     '/tenants/:id/comprobantes/:comprobanteId/descargar',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('comprobantes:exportar') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para exportar comprobantes' });
+      }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
         return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -258,6 +275,10 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
   }>(
     '/tenants/:id/comprobantes/exportar',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('comprobantes:exportar') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para exportar comprobantes' });
+      }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
         return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -338,6 +359,18 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
   }>(
     '/tenants/:id/comprobantes/:comprobanteId',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+
+      const { nro_ot, sincronizar } = req.body ?? {};
+      const u = req.currentUser!;
+
+      if (nro_ot !== undefined && !u.permisos.includes('comprobantes:editar_ot') && u.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para editar número de OT' });
+      }
+      if (sincronizar !== undefined && !u.permisos.includes('comprobantes:editar_sincronizar') && u.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para cambiar flag de sincronización' });
+      }
+
       const tenant = await findTenantById(req.params.id);
       if (!tenant) return reply.status(404).send({ error: 'Tenant no encontrado' });
 

@@ -4,6 +4,7 @@ import { findJobs, findJobById, countActiveJobsForTenant, createJob } from '../.
 import { findTenantById } from '../../db/repositories/tenant.repository';
 import { SyncService } from '../../services/sync.service';
 import { enqueueXmlDownloads } from '../../services/ekuatia.service';
+import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 
 const syncJobSchema = z.object({
   mes: z.number().int().min(1).max(12).optional(),
@@ -18,9 +19,16 @@ const descargarXmlSchema = z.object({
 const syncService = new SyncService();
 
 export async function jobRoutes(app: FastifyInstance): Promise<void> {
+  app.addHook('preHandler', requireAuth);
+
   app.post<{ Params: { id: string } }>(
     '/tenants/:id/jobs/sync-comprobantes',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('jobs:ejecutar_sync') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para ejecutar sincronización' });
+      }
+
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
         return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -56,6 +64,11 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>(
     '/tenants/:id/jobs/descargar-xml',
     async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('jobs:ejecutar_xml') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para ejecutar descarga XML' });
+      }
+
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
         return reply.status(404).send({ error: 'Tenant no encontrado' });
@@ -109,9 +122,25 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       offset?: string;
     };
   }>('/jobs', async (req, reply) => {
-    const { tenant_id, tipo_job, estado, limit, offset } = req.query;
+    const u = req.currentUser!;
+    const { tipo_job, estado, limit, offset } = req.query;
+
+    if (!u.permisos.includes('jobs:ver') && u.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Sin permiso para ver jobs' });
+    }
+
+    let tenantFilter: string | undefined;
+    if (u.rol.nombre === 'super_admin') {
+      tenantFilter = req.query.tenant_id;
+    } else {
+      if (!u.tenant_id) {
+        return reply.status(403).send({ error: 'Sin empresa asignada' });
+      }
+      tenantFilter = u.tenant_id;
+    }
+
     const jobs = await findJobs({
-      tenant_id,
+      tenant_id: tenantFilter,
       tipo_job: tipo_job as 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | undefined,
       estado: estado as 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | undefined,
       limit: limit ? parseInt(limit, 10) : 50,
@@ -121,10 +150,21 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get<{ Params: { id: string } }>('/jobs/:id', async (req, reply) => {
+    const u = req.currentUser!;
+
+    if (!u.permisos.includes('jobs:ver') && u.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Sin permiso para ver jobs' });
+    }
+
     const job = await findJobById(req.params.id);
     if (!job) {
       return reply.status(404).send({ error: 'Job no encontrado' });
     }
+
+    if (u.rol.nombre !== 'super_admin' && job.tenant_id !== u.tenant_id) {
+      return reply.status(403).send({ error: 'Acceso denegado: este job no pertenece a tu empresa' });
+    }
+
     return reply.send({ data: job });
   });
 }

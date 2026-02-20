@@ -1,23 +1,28 @@
-/*
-  # Migration 003: Estado SIFEN, Número OT, Flag Sincronizar, Roles y Usuarios SaaS
-
-  ## Cambios en comprobantes
-  - estado_sifen: estado del documento en SIFEN (Aprobado, Cancelado, etc.)
-  - nro_transaccion_sifen: N° de transacción SIFEN
-  - fecha_estado_sifen: fecha y hora del estado en SIFEN
-  - sistema_facturacion_sifen: sistema de facturación reportado
-  - nro_ot: número de orden de trabajo (editable por usuario)
-  - sincronizar: flag para incluir/excluir de sincronización a ORDS
-  - sincronizar_actualizado_at / sincronizar_actualizado_por: auditoría del cambio
-
-  ## Nuevas tablas
-  1. roles: definición de roles del sistema (super_admin, admin_empresa, usuario_empresa, readonly)
-  2. permisos: permisos por recurso/acción
-  3. rol_permisos: relación N:N
-  4. usuarios: usuarios multi-tenant con roles
-  5. usuario_sesiones: tokens de sesión
-  6. metricas_sincronizacion: métricas diarias por tenant para dashboard SaaS
-*/
+-- =============================================================================
+-- Migración 003: Estado SIFEN, Número OT, Flag Sincronizar, Roles y Usuarios SaaS
+--
+-- Cambios en comprobantes:
+--   - estado_sifen, nro_transaccion_sifen, fecha_estado_sifen
+--   - sistema_facturacion_sifen
+--   - nro_ot: número de orden de trabajo (editable por usuario)
+--   - sincronizar: flag para incluir/excluir de sincronización a ORDS
+--   - sincronizar_actualizado_at / sincronizar_actualizado_por: auditoría
+--
+-- Nuevas tablas:
+--   1. roles            - super_admin, admin_empresa, usuario_empresa, readonly
+--   2. permisos         - permisos por recurso/acción
+--   3. rol_permisos     - relación N:N
+--   4. usuarios         - usuarios multi-tenant con roles
+--   5. usuario_sesiones - tokens de sesión activos
+--   6. metricas_sincronizacion - métricas diarias por tenant
+--
+-- Política de aislamiento:
+--   - super_admin:    acceso total (todos los tenants, métricas SaaS globales)
+--   - admin_empresa:  acceso completo SOLO dentro de su propio tenant
+--                     (comprobantes, jobs, usuarios, métricas de su empresa)
+--   - usuario_empresa: operaciones sobre comprobantes y jobs de su empresa
+--   - readonly:       solo lectura de comprobantes, jobs y métricas de su empresa
+-- =============================================================================
 
 -- ============================================================
 -- 1. CAMPOS EN COMPROBANTES
@@ -114,10 +119,12 @@ BEGIN
   SELECT id INTO v_usuario       FROM roles WHERE nombre = 'usuario_empresa';
   SELECT id INTO v_readonly      FROM roles WHERE nombre = 'readonly';
 
+  -- super_admin: todos los permisos sin excepción
   INSERT INTO rol_permisos (rol_id, permiso_id)
   SELECT v_super_admin, id FROM permisos ON CONFLICT DO NOTHING;
 
-  -- admin_empresa: gestiona su empresa y usuarios dentro de ella. No ve otros tenants ni métricas SaaS globales.
+  -- admin_empresa: gestiona su empresa (comprobantes, jobs, usuarios, métricas).
+  -- NO tiene acceso a tenants (no puede ver/crear/editar otras empresas).
   INSERT INTO rol_permisos (rol_id, permiso_id)
   SELECT v_admin_empresa, id FROM permisos
   WHERE (recurso = 'comprobantes' AND accion IN ('ver','editar_ot','editar_sincronizar','exportar'))
@@ -126,7 +133,8 @@ BEGIN
      OR (recurso = 'metricas'     AND accion IN ('ver','exportar'))
   ON CONFLICT DO NOTHING;
 
-  -- usuario_empresa: operaciones sobre comprobantes y jobs de su empresa. Solo lectura de métricas.
+  -- usuario_empresa: operaciones sobre comprobantes y jobs. Solo lectura de métricas.
+  -- NO gestiona usuarios ni accede a configuración de la empresa.
   INSERT INTO rol_permisos (rol_id, permiso_id)
   SELECT v_usuario, id FROM permisos
   WHERE (recurso = 'comprobantes' AND accion IN ('ver','editar_ot','editar_sincronizar','exportar'))

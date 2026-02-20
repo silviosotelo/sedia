@@ -1,8 +1,15 @@
 import { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../../db/connection';
+import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 
 export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
-  fastify.get('/metrics/overview', async (_request, reply) => {
+  fastify.addHook('preHandler', requireAuth);
+
+  fastify.get('/metrics/overview', async (request, reply) => {
+    if (request.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo el super administrador puede ver métricas globales' });
+    }
+
     const [
       tenantsRow,
       jobsRow,
@@ -113,6 +120,13 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.get('/metrics/tenants/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+
+    if (!assertTenantAccess(request, reply, id)) return;
+
+    if (!request.currentUser!.permisos.includes('metricas:ver') && request.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Sin permiso para ver métricas' });
+    }
+
     const { dias = '30' } = request.query as { dias?: string };
 
     const [comprobantesRow, xmlRow, jobsRow, ordsRow, porTipo, timeline] = await Promise.all([
@@ -193,7 +207,11 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     });
   });
 
-  fastify.get('/metrics/saas', async (_request, reply) => {
+  fastify.get('/metrics/saas', async (request, reply) => {
+    if (request.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo el super administrador puede ver métricas SaaS' });
+    }
+
     const [
       tenantsPorMes,
       topTenants,
