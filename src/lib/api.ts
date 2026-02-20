@@ -137,5 +137,27 @@ export const api = {
       if (MOCK_MODE) return mockStore.getComprobante(tenantId, comprobanteId);
       return request<{ data: Comprobante }>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`).then((r) => r.data);
     },
+    downloadUrl: (tenantId: string, comprobanteId: string, formato: 'json' | 'txt' | 'xml'): string => {
+      return `${BASE_URL}/tenants/${tenantId}/comprobantes/${comprobanteId}/descargar?formato=${formato}`;
+    },
+    exportUrl: (
+      tenantId: string,
+      formato: 'json' | 'txt',
+      params?: {
+        fecha_desde?: string;
+        fecha_hasta?: string;
+        tipo_comprobante?: string;
+        ruc_vendedor?: string;
+        xml_descargado?: boolean;
+      }
+    ): string => {
+      const q = new URLSearchParams({ formato });
+      if (params?.fecha_desde) q.set('fecha_desde', params.fecha_desde);
+      if (params?.fecha_hasta) q.set('fecha_hasta', params.fecha_hasta);
+      if (params?.tipo_comprobante) q.set('tipo_comprobante', params.tipo_comprobante);
+      if (params?.ruc_vendedor) q.set('ruc_vendedor', params.ruc_vendedor);
+      if (params?.xml_descargado !== undefined) q.set('xml_descargado', String(params.xml_descargado));
+      return `${BASE_URL}/tenants/${tenantId}/comprobantes/exportar?${q.toString()}`;
+    },
   },
 };

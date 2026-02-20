@@ -122,16 +122,35 @@ export function parsearXml(xmlText: string, cdc: string): DetallesXml {
     return el?.textContent?.trim() ?? '';
   };
 
-  const getNum = (parent: Element | Document, tag: string): number => {
-    return parseFloat(get(parent, tag).replace(/\./g, '').replace(',', '.')) || 0;
+  const getOr = (parent: Element | Document, ...tags: string[]): string => {
+    for (const tag of tags) {
+      const v = get(parent, tag);
+      if (v) return v;
+    }
+    return '';
   };
+
+  const getNum = (parent: Element | Document, tag: string): number => {
+    const v = get(parent, tag);
+    if (!v) return 0;
+    return parseFloat(v.replace(/[^\d.,\-]/g, '').replace(',', '.')) || 0;
+  };
+
+  const orUndef = (v: string): string | undefined => v || undefined;
 
   const root = doc.documentElement;
 
-  const cdcFromXml = get(root, 'Id') || get(root, 'CDC') || cdc;
-  const version = root.getAttribute('version') ?? '';
+  const cdcFromXml = orUndef(getOr(root, 'Id', 'CDC')) ?? cdc;
+  const version = getOr(root, 'dVerFor') || root.getAttribute('version') || '';
 
-  const tipoDE = get(root, 'iTiDE') || get(root, 'iTipoDocumentoElectronico');
+  const fechaFirma = orUndef(get(root, 'dFecFirma'));
+  const sistemaFacturacion = orUndef(get(root, 'dSisFact'));
+
+  const tipoEmisionCod = get(root, 'iTipEmi');
+  const tipoEmision = orUndef(getOr(root, 'dDesTipEmi'));
+  const codigoSeguridad = orUndef(get(root, 'dCodSeg'));
+
+  const tipoDE = getOr(root, 'iTiDE', 'iTipoDocumentoElectronico');
   const tipoMap: Record<string, string> = {
     '1': 'FACTURA',
     '2': 'NOTA_CREDITO',
@@ -144,86 +163,171 @@ export function parsearXml(xmlText: string, cdc: string): DetallesXml {
     '9': 'OTRO',
   };
   const tipoDocumento = tipoMap[tipoDE] ?? tipoDE;
+  const tipoDocumentoCodigo = orUndef(tipoDE);
 
-  const timbrado = get(root, 'dNumTim') || get(root, 'nroTimbrado');
+  const timbrado = getOr(root, 'dNumTim', 'nroTimbrado');
   const establecimiento = get(root, 'dEst');
   const punto = get(root, 'dPunExp');
   const numero = get(root, 'dNumDoc');
-  const numeroComprobante = [establecimiento, punto, numero]
-    .filter(Boolean)
-    .join('-') || undefined;
+  const serieNumero = orUndef(get(root, 'dSerieNum'));
+  const fechaInicioTimbrado = orUndef(get(root, 'dFeIniT'));
+  const numeroComprobante = [establecimiento, punto, numero].filter(Boolean).join('-') || undefined;
 
   const emisor: DetallesXml['emisor'] = {
-    ruc: get(root, 'dRucEm') || get(root, 'rucEmisor'),
-    razonSocial: get(root, 'dNomEmi') || get(root, 'razonSocialEmisor'),
-    nombreFantasia: get(root, 'dNomFanEmi') || undefined,
-    actividadEconomica: get(root, 'dDesCodActEco') || undefined,
-    timbrado,
-    establecimiento,
-    punto,
-    numero,
-    direccion: get(root, 'dDirEmi') || undefined,
-    ciudad: get(root, 'dDesCiuEmi') || undefined,
-    departamento: get(root, 'dDesDepEmi') || undefined,
-    telefono: get(root, 'dTelEmi') || undefined,
-    email: get(root, 'dEmailEmi') || undefined,
+    ruc: getOr(root, 'dRucEm', 'rucEmisor'),
+    digitoVerificador: orUndef(get(root, 'dDVEmi')),
+    razonSocial: getOr(root, 'dNomEmi', 'razonSocialEmisor'),
+    nombreFantasia: orUndef(getOr(root, 'dNomFanEmi')),
+    tipoContribuyente: orUndef(get(root, 'iTipCont')),
+    actividadEconomica: orUndef(getOr(root, 'dDesActEco', 'dDesCodActEco')),
+    codigoActividadEconomica: orUndef(get(root, 'cActEco')),
+    timbrado: orUndef(timbrado),
+    establecimiento: orUndef(establecimiento),
+    punto: orUndef(punto),
+    numero: orUndef(numero),
+    serieNumero,
+    fechaInicioTimbrado,
+    direccion: orUndef(get(root, 'dDirEmi')),
+    numeroCasa: orUndef(get(root, 'dNumCas')),
+    ciudad: orUndef(getOr(root, 'dDesCiuEmi')),
+    codigoCiudad: orUndef(get(root, 'cCiuEmi')),
+    departamento: orUndef(getOr(root, 'dDesDepEmi')),
+    codigoDepartamento: orUndef(get(root, 'cDepEmi')),
+    telefono: orUndef(get(root, 'dTelEmi')),
+    email: orUndef(getOr(root, 'dEmailE', 'dEmailEmi')),
   };
 
   const receptor: DetallesXml['receptor'] = {
-    ruc: get(root, 'dRucRec') || get(root, 'rucReceptor') || undefined,
-    razonSocial: get(root, 'dNomRec') || get(root, 'razonSocialReceptor') || undefined,
-    tipoContribuyente: get(root, 'iTiContRec') || undefined,
-    direccion: get(root, 'dDirRec') || undefined,
-    ciudad: get(root, 'dDesCiuRec') || undefined,
-    departamento: get(root, 'dDesDepRec') || undefined,
-    email: get(root, 'dEmailRec') || undefined,
+    naturaleza: orUndef(get(root, 'iNatRec')),
+    tipoOperacion: orUndef(get(root, 'iTiOpe')),
+    pais: orUndef(getOr(root, 'dDesPaisRe', 'cPaisRec')),
+    tipoIdentificacion: orUndef(get(root, 'iTipIDRec')),
+    tipoIdentificacionDesc: orUndef(get(root, 'dDTipIDRec')),
+    ruc: orUndef(getOr(root, 'dRucRec', 'rucReceptor')),
+    numeroIdentificacion: orUndef(get(root, 'dNumIDRec')),
+    razonSocial: orUndef(getOr(root, 'dNomRec', 'razonSocialReceptor')),
+    nombreFantasia: orUndef(get(root, 'dNomFanRec')),
+    tipoContribuyente: orUndef(get(root, 'iTiContRec')),
+    direccion: orUndef(get(root, 'dDirRec')),
+    ciudad: orUndef(get(root, 'dDesCiuRec')),
+    codigoCiudad: orUndef(get(root, 'cCiuRec')),
+    departamento: orUndef(get(root, 'dDesDepRec')),
+    codigoDepartamento: orUndef(get(root, 'cDepRec')),
+    telefono: orUndef(get(root, 'dTelRec')),
+    email: orUndef(get(root, 'dEmailRec')),
   };
 
-  const fechaEmision = get(root, 'dFeEmiDE') || get(root, 'fechaEmision');
-  const moneda = get(root, 'cMoneOpe') || 'PYG';
-  const condicionVenta = get(root, 'iCondOpe') === '1' ? 'CONTADO' : 'CREDITO';
+  const fechaEmision = getOr(root, 'dFeEmiDE', 'fechaEmision');
+  const moneda = getOr(root, 'cMoneOpe') || 'PYG';
+  const monedaDesc = orUndef(get(root, 'dDesMoneOpe'));
+  const condicionVentaCod = get(root, 'iCondOpe');
+  const condicionVentaDesc = get(root, 'dDCondOpe');
+  const condicionVenta = condicionVentaDesc || (condicionVentaCod === '1' ? 'CONTADO' : condicionVentaCod === '2' ? 'CREDITO' : condicionVentaCod);
+
+  const tipoTransaccion = orUndef(get(root, 'iTipTra'));
+  const tipoTransaccionDesc = orUndef(get(root, 'dDesTipTra'));
+  const tipoImpuesto = orUndef(get(root, 'iTImp'));
+  const tipoImpuestoDesc = orUndef(get(root, 'dDesTImp'));
+  const indicadorPresencia = orUndef(get(root, 'iIndPres'));
+  const indicadorPresenciaDesc = orUndef(get(root, 'dDesIndPres'));
+
+  const pagos: DetallesXml['pagos'] = [];
+  const pagoEls = root.getElementsByTagName('gPaConEIni');
+  for (let i = 0; i < pagoEls.length; i++) {
+    const p = pagoEls[i];
+    pagos.push({
+      tipoPago: get(p, 'iTiPago'),
+      tipoPagoDesc: orUndef(get(p, 'dDesTiPag')),
+      monto: getNum(p, 'dMonTiPag'),
+      moneda: orUndef(get(p, 'cMoneTiPag')),
+      monedaDesc: orUndef(get(p, 'dDMoneTiPag')),
+    });
+  }
 
   const items: DetallesXmlItem[] = [];
   const itemEls = root.getElementsByTagName('gCamItem');
   for (let i = 0; i < itemEls.length; i++) {
     const item = itemEls[i];
+    const subtotalBruto = getNum(item, 'dTotBruOpeItem');
+    const subtotal = getNum(item, 'dTotOpeItem') || subtotalBruto;
+    const baseGravadaIva = getNum(item, 'dBasGravIVA');
+    const liqIva = getNum(item, 'dLiqIVAItem');
     items.push({
-      descripcion: get(item, 'dDesProSer') || get(item, 'descripcion'),
-      cantidad: getNum(item, 'dCantProSer') || getNum(item, 'cantidad') || 1,
-      precioUnitario: getNum(item, 'dPUniProSer') || getNum(item, 'precioUnitario'),
-      descuento: getNum(item, 'dDescItem') || 0,
-      subtotal: getNum(item, 'dTotBruOpeItem') || getNum(item, 'subtotal'),
-      iva: getNum(item, 'dIVAItem') || getNum(item, 'iva'),
+      codigo: orUndef(get(item, 'dCodInt')),
+      descripcion: getOr(item, 'dDesProSer', 'descripcion'),
+      unidadMedida: orUndef(getOr(item, 'dDesUniMed')),
+      cantidad: getNum(item, 'dCantProSer') || 1,
+      precioUnitario: getNum(item, 'dPUniProSer'),
+      descuento: getNum(item, 'dDescItem'),
+      descuentoPorcentaje: getNum(item, 'dPorcDesIt') || undefined,
+      subtotalBruto,
+      subtotal,
+      afectacionIva: orUndef(getOr(item, 'dDesAfecIVA')),
+      baseGravadaIva,
+      iva: liqIva,
       tasaIva: getNum(item, 'dTasaIVA') || 10,
+      exento: getNum(item, 'dBasExe'),
     });
   }
 
+  const subtotalExento = getNum(root, 'dSubExe');
+  const subtotalExonerado = getNum(root, 'dSubExo');
+  const subtotalIva5 = getNum(root, 'dSub5');
+  const subtotalIva10 = getNum(root, 'dSub10');
+
   const totales: DetallesXml['totales'] = {
-    subtotal: getNum(root, 'dSubExe') + getNum(root, 'dSubExo') + getNum(root, 'dSub5') + getNum(root, 'dSub10'),
-    descuento: getNum(root, 'dDescTotGloItem') || 0,
-    anticipo: getNum(root, 'dAnticipo') || 0,
-    total: getNum(root, 'dTotGralOpe') || getNum(root, 'total'),
-    ivaTotal: getNum(root, 'dTotIVA') || getNum(root, 'ivaTotal'),
-    iva5: getNum(root, 'dIVA5') || 0,
-    iva10: getNum(root, 'dIVA10') || 0,
-    exentas: getNum(root, 'dSubExe') || 0,
+    subtotalExento,
+    subtotalExonerado,
+    subtotalIva5,
+    subtotalIva10,
+    subtotal: subtotalExento + subtotalExonerado + subtotalIva5 + subtotalIva10,
+    descuento: getNum(root, 'dTotDesc'),
+    descuentoGlobal: getNum(root, 'dTotDescGlotem'),
+    anticipo: getNum(root, 'dAnticipo'),
+    redondeo: getNum(root, 'dRedon'),
+    comision: getNum(root, 'dComi'),
+    total: getNum(root, 'dTotGralOpe'),
+    ivaTotal: getNum(root, 'dTotIVA'),
+    iva5: getNum(root, 'dIVA5'),
+    iva10: getNum(root, 'dIVA10'),
+    baseGravada5: getNum(root, 'dBaseGrav5'),
+    baseGravada10: getNum(root, 'dBaseGrav10'),
+    baseGravadaTotal: getNum(root, 'dTBasGraIVA'),
+    exentas: subtotalExento,
+    exoneradas: subtotalExonerado,
   };
 
-  const qrUrl = get(root, 'dURLQR') || undefined;
-  const xmlHash = get(root, 'dDigVal') || get(root, 'DigestValue') || undefined;
+  const qrUrl = orUndef(getOr(root, 'dCarQR', 'dURLQR'));
+  const xmlHash = orUndef(getOr(root, 'DigestValue', 'dDigVal'));
 
   return {
     cdc: cdcFromXml,
     tipoDocumento,
+    tipoDocumentoCodigo,
     version,
+    fechaFirma,
+    sistemaFacturacion,
+    tipoEmision: tipoEmision || (tipoEmisionCod ? `Tipo ${tipoEmisionCod}` : undefined),
+    codigoSeguridad,
     emisor,
     receptor,
+    operacion: {
+      tipoTransaccion,
+      tipoTransaccionDesc,
+      tipoImpuesto,
+      tipoImpuestoDesc,
+      moneda,
+      monedaDesc,
+      condicionVenta,
+      condicionVentaDesc: orUndef(condicionVentaDesc),
+      indicadorPresencia,
+      indicadorPresenciaDesc,
+    },
+    pagos,
     fechaEmision,
-    moneda,
-    condicionVenta,
     items,
     totales,
-    timbrado: timbrado || undefined,
+    timbrado: orUndef(timbrado),
     numeroComprobante,
     qrUrl,
     xmlHash,

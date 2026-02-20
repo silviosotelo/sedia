@@ -103,56 +103,114 @@ export interface ComprobanteEnvioOrds {
 }
 
 export interface DetallesXmlItem {
+  codigo?: string;
   descripcion: string;
+  unidadMedida?: string;
   cantidad: number;
   precioUnitario: number;
   descuento: number;
+  descuentoPorcentaje?: number;
+  subtotalBruto: number;
   subtotal: number;
+  afectacionIva?: string;
+  baseGravadaIva: number;
   iva: number;
   tasaIva: number;
+  exento: number;
 }
 
 export interface DetallesXml {
   cdc: string;
   tipoDocumento: string;
+  tipoDocumentoCodigo?: string;
   version: string;
+  fechaFirma?: string;
+  sistemaFacturacion?: string;
+  tipoEmision?: string;
+  codigoSeguridad?: string;
   emisor: {
     ruc: string;
+    digitoVerificador?: string;
     razonSocial: string;
     nombreFantasia?: string;
+    tipoContribuyente?: string;
     actividadEconomica?: string;
+    codigoActividadEconomica?: string;
     timbrado?: string;
     establecimiento?: string;
     punto?: string;
     numero?: string;
+    serieNumero?: string;
+    fechaInicioTimbrado?: string;
     direccion?: string;
+    numeroCasa?: string;
     ciudad?: string;
+    codigoCiudad?: string;
     departamento?: string;
+    codigoDepartamento?: string;
     telefono?: string;
     email?: string;
   };
   receptor: {
+    naturaleza?: string;
+    tipoOperacion?: string;
+    pais?: string;
+    tipoIdentificacion?: string;
+    tipoIdentificacionDesc?: string;
     ruc?: string;
+    numeroIdentificacion?: string;
     razonSocial?: string;
+    nombreFantasia?: string;
     tipoContribuyente?: string;
     direccion?: string;
     ciudad?: string;
+    codigoCiudad?: string;
     departamento?: string;
+    codigoDepartamento?: string;
+    telefono?: string;
     email?: string;
   };
+  operacion: {
+    tipoTransaccion?: string;
+    tipoTransaccionDesc?: string;
+    tipoImpuesto?: string;
+    tipoImpuestoDesc?: string;
+    moneda: string;
+    monedaDesc?: string;
+    condicionVenta: string;
+    condicionVentaDesc?: string;
+    indicadorPresencia?: string;
+    indicadorPresenciaDesc?: string;
+  };
+  pagos: Array<{
+    tipoPago: string;
+    tipoPagoDesc?: string;
+    monto: number;
+    moneda?: string;
+    monedaDesc?: string;
+  }>;
   fechaEmision: string;
-  moneda: string;
-  condicionVenta: string;
   items: DetallesXmlItem[];
   totales: {
+    subtotalExento: number;
+    subtotalExonerado: number;
+    subtotalIva5: number;
+    subtotalIva10: number;
     subtotal: number;
     descuento: number;
+    descuentoGlobal: number;
     anticipo: number;
+    redondeo: number;
+    comision: number;
     total: number;
     ivaTotal: number;
     iva5: number;
     iva10: number;
+    baseGravada5: number;
+    baseGravada10: number;
+    baseGravadaTotal: number;
     exentas: number;
+    exoneradas: number;
   };
   timbrado?: string;
   numeroComprobante?: string;

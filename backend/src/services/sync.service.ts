@@ -51,11 +51,12 @@ export class SyncService {
       resultado: syncResult,
     });
 
-    if (syncResult.inserted > 0 && tenantConfig.enviar_a_ords_automaticamente) {
+    if ((syncResult.inserted > 0 || syncResult.updated > 0) && tenantConfig.enviar_a_ords_automaticamente) {
+      const total = syncResult.inserted + syncResult.updated;
       const comprobantesNuevos = await findComprobantesByTenant(
         tenantId,
         {},
-        { page: 1, limit: syncResult.inserted }
+        { page: 1, limit: total }
       );
       const ids = comprobantesNuevos.data.map((c) => c.id);
       await markEnviosOrdsPendingAfterSync(tenantId, ids);

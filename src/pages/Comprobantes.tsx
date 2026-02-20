@@ -11,6 +11,8 @@ import {
   Code2,
   CheckCircle2,
   Circle,
+  FileJson,
+  FileType2,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -62,6 +64,7 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [selectedComprobante, setSelectedComprobante] = useState<Comprobante | null>(null);
   const [detailView, setDetailView] = useState<'info' | 'xml' | 'detalles'>('info');
   const LIMIT = 20;
@@ -183,9 +186,56 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
             </button>
 
             {total > 0 && (
-              <p className="text-sm text-zinc-500 ml-auto">
+              <p className="text-sm text-zinc-500">
                 {total.toLocaleString()} comprobante{total !== 1 ? 's' : ''}
               </p>
+            )}
+
+            {selectedTenantId && (
+              <div className="relative ml-auto">
+                <button
+                  onClick={() => setShowExport(!showExport)}
+                  className="btn-md btn-secondary gap-2"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Exportar
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showExport ? 'rotate-180' : ''}`} />
+                </button>
+                {showExport && (
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
+                    <a
+                      href={api.comprobantes.exportUrl(selectedTenantId, 'json', {
+                        fecha_desde: fechaDesde || undefined,
+                        fecha_hasta: fechaHasta || undefined,
+                        tipo_comprobante: tipoFilter || undefined,
+                        ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                        xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      })}
+                      download
+                      onClick={() => setShowExport(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                    >
+                      <FileJson className="w-3.5 h-3.5 text-zinc-400" />
+                      Exportar JSON
+                    </a>
+                    <a
+                      href={api.comprobantes.exportUrl(selectedTenantId, 'txt', {
+                        fecha_desde: fechaDesde || undefined,
+                        fecha_hasta: fechaHasta || undefined,
+                        tipo_comprobante: tipoFilter || undefined,
+                        ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                        xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      })}
+                      download
+                      onClick={() => setShowExport(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 transition-colors"
+                    >
+                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />
+                      Exportar TXT
+                    </a>
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
@@ -455,11 +505,44 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                     </p>
                     <dl className="space-y-2.5">
                       {selectedComprobante.detalles_xml.receptor.razonSocial && (
-                        <DR label="Razón social" value={selectedComprobante.detalles_xml.receptor.razonSocial} />
+                        <DR label="Nombre" value={selectedComprobante.detalles_xml.receptor.razonSocial} />
                       )}
                       {selectedComprobante.detalles_xml.receptor.ruc && (
                         <DR label="RUC" value={<span className="tag">{selectedComprobante.detalles_xml.receptor.ruc}</span>} />
                       )}
+                      {selectedComprobante.detalles_xml.receptor.numeroIdentificacion && !selectedComprobante.detalles_xml.receptor.ruc && (
+                        <DR
+                          label={selectedComprobante.detalles_xml.receptor.tipoIdentificacionDesc ?? 'Documento'}
+                          value={<span className="tag">{selectedComprobante.detalles_xml.receptor.numeroIdentificacion}</span>}
+                        />
+                      )}
+                      {selectedComprobante.detalles_xml.receptor.email && (
+                        <DR label="Email" value={selectedComprobante.detalles_xml.receptor.email} />
+                      )}
+                      {selectedComprobante.detalles_xml.receptor.pais && (
+                        <DR label="País" value={selectedComprobante.detalles_xml.receptor.pais} />
+                      )}
+                    </dl>
+                  </>
+                )}
+
+                {selectedComprobante.detalles_xml?.pagos && selectedComprobante.detalles_xml.pagos.length > 0 && (
+                  <>
+                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">
+                      Pago
+                    </p>
+                    <dl className="space-y-2.5">
+                      {selectedComprobante.detalles_xml.pagos.map((p, i) => (
+                        <DR
+                          key={i}
+                          label={p.tipoPagoDesc ?? `Pago ${i + 1}`}
+                          value={
+                            <span className="font-mono font-medium">
+                              {formatCurrency(p.monto)} {p.moneda ?? ''}
+                            </span>
+                          }
+                        />
+                      ))}
                     </dl>
                   </>
                 )}
@@ -472,14 +555,18 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                   </p>
                   <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label: 'Subtotal', value: selectedComprobante.detalles_xml.totales.subtotal },
-                      { label: 'Descuento', value: selectedComprobante.detalles_xml.totales.descuento },
-                      { label: 'IVA Total', value: selectedComprobante.detalles_xml.totales.ivaTotal },
-                      { label: 'Total', value: selectedComprobante.detalles_xml.totales.total },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="card p-3 text-center">
+                      { label: 'Gravado 5%', value: selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0, show: (selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0) > 0 },
+                      { label: 'Gravado 10%', value: selectedComprobante.detalles_xml.totales.subtotalIva10 ?? 0, show: (selectedComprobante.detalles_xml.totales.subtotalIva10 ?? 0) > 0 },
+                      { label: 'Exentas', value: selectedComprobante.detalles_xml.totales.exentas, show: selectedComprobante.detalles_xml.totales.exentas > 0 },
+                      { label: 'Descuento', value: selectedComprobante.detalles_xml.totales.descuento, show: selectedComprobante.detalles_xml.totales.descuento > 0 },
+                      { label: 'IVA 5%', value: selectedComprobante.detalles_xml.totales.iva5, show: selectedComprobante.detalles_xml.totales.iva5 > 0 },
+                      { label: 'IVA 10%', value: selectedComprobante.detalles_xml.totales.iva10, show: selectedComprobante.detalles_xml.totales.iva10 > 0 },
+                      { label: 'IVA Total', value: selectedComprobante.detalles_xml.totales.ivaTotal, show: true },
+                      { label: 'Total', value: selectedComprobante.detalles_xml.totales.total, show: true },
+                    ].filter(({ show }) => show).map(({ label, value }) => (
+                      <div key={label} className={`card p-3 text-center ${label === 'Total' ? 'border-zinc-900' : ''}`}>
                         <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                        <p className="font-mono font-semibold text-zinc-900 text-sm">
+                        <p className={`font-mono font-semibold text-sm ${label === 'Total' ? 'text-zinc-900' : 'text-zinc-700'}`}>
                           {formatCurrency(value)}
                         </p>
                       </div>
@@ -488,28 +575,56 @@ export function Comprobantes({ toastError }: ComprobantesProps) {
                 </div>
               )}
 
-              <div className="col-span-2 pt-3 border-t border-zinc-100 flex items-center gap-2">
-                <Download className="w-3.5 h-3.5 text-zinc-400" />
-                <p className="text-xs text-zinc-500">
-                  XML:{' '}
-                  {selectedComprobante.xml_descargado_at ? (
-                    <span className="text-emerald-600 font-medium">
-                      Descargado {formatDateTime(selectedComprobante.xml_descargado_at)}
-                    </span>
-                  ) : (
-                    <span className="text-zinc-400">No descargado</span>
+              <div className="col-span-2 pt-3 border-t border-zinc-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <Download className="w-3.5 h-3.5 text-zinc-400" />
+                  <p className="text-xs text-zinc-500">
+                    XML:{' '}
+                    {selectedComprobante.xml_descargado_at ? (
+                      <span className="text-emerald-600 font-medium">
+                        Descargado {formatDateTime(selectedComprobante.xml_descargado_at)}
+                      </span>
+                    ) : (
+                      <span className="text-zinc-400">No descargado</span>
+                    )}
+                  </p>
+                  {selectedComprobante.xml_url && (
+                    <a
+                      href={selectedComprobante.xml_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-auto btn-sm btn-secondary"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Ver en eKuatia
+                    </a>
                   )}
-                </p>
-                {selectedComprobante.xml_url && (
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400">Descargar:</span>
                   <a
-                    href={selectedComprobante.xml_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="ml-auto btn-sm btn-secondary"
+                    href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')}
+                    download
+                    className="btn-sm btn-secondary gap-1.5"
                   >
-                    <ExternalLink className="w-3 h-3" /> Ver en eKuatia
+                    <FileJson className="w-3 h-3" /> JSON
                   </a>
-                )}
+                  <a
+                    href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')}
+                    download
+                    className="btn-sm btn-secondary gap-1.5"
+                  >
+                    <FileType2 className="w-3 h-3" /> TXT
+                  </a>
+                  {selectedComprobante.xml_contenido && (
+                    <a
+                      href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')}
+                      download
+                      className="btn-sm btn-secondary gap-1.5"
+                    >
+                      <Code2 className="w-3 h-3" /> XML
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
           )}

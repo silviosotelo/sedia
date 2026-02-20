@@ -2,15 +2,8 @@ import cron from 'node-cron';
 import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.repository';
-import { createJob, countActiveJobsForTenant, resetStuckRunningJobs } from '../db/repositories/job.repository';
+import { createJob, countActiveJobsForTenant, resetStuckRunningJobs, findJobs } from '../db/repositories/job.repository';
 
-/**
- * Verifica todos los tenants activos con sincronización automática habilitada
- * y encola jobs de sincronización si corresponde según la frecuencia configurada.
- *
- * La tarea cron se ejecuta cada 5 minutos y evalúa por tenant si ya pasó
- * el intervalo de sincronización configurado (frecuencia_sincronizacion_minutos).
- */
 async function enqueueScheduledSyncs(): Promise<void> {
   logger.debug('Scheduler: evaluando tenants para sync automático');
 
@@ -23,8 +16,10 @@ async function enqueueScheduledSyncs(): Promise<void> {
 
   for (const tenant of tenants) {
     try {
-      const config = await findTenantConfig(tenant.id);
-      if (!config) continue;
+      const tenantConfig = await findTenantConfig(tenant.id);
+      if (!tenantConfig) continue;
+
+      const frecuenciaMinutos = tenantConfig.frecuencia_sincronizacion_minutos ?? 60;
 
       const active = await countActiveJobsForTenant(tenant.id, 'SYNC_COMPROBANTES');
       if (active > 0) {
@@ -32,6 +27,26 @@ async function enqueueScheduledSyncs(): Promise<void> {
           tenant_id: tenant.id,
         });
         continue;
+      }
+
+      const lastJobs = await findJobs({
+        tenant_id: tenant.id,
+        tipo_job: 'SYNC_COMPROBANTES',
+        limit: 1,
+      });
+
+      const lastJob = lastJobs[0];
+      if (lastJob) {
+        const lastRun = lastJob.last_run_at ?? lastJob.created_at;
+        const msSinceLastRun = Date.now() - new Date(lastRun).getTime();
+        const msFrequency = frecuenciaMinutos * 60 * 1000;
+        if (msSinceLastRun < msFrequency) {
+          logger.debug('Scheduler: frecuencia no alcanzada, saltando', {
+            tenant_id: tenant.id,
+            minutos_restantes: Math.ceil((msFrequency - msSinceLastRun) / 60000),
+          });
+          continue;
+        }
       }
 
       await createJob({
@@ -44,7 +59,7 @@ async function enqueueScheduledSyncs(): Promise<void> {
       logger.info('Scheduler: job SYNC_COMPROBANTES encolado', {
         tenant_id: tenant.id,
         nombre: tenant.nombre_fantasia,
-        frecuencia_minutos: config.frecuencia_sincronizacion_minutos,
+        frecuencia_minutos: frecuenciaMinutos,
       });
     } catch (err) {
       logger.error('Scheduler: error procesando tenant', {
