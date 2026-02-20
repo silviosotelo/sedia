@@ -110,11 +110,12 @@ export async function findTenantWithConfig(tenantId: string): Promise<TenantWith
   return { ...tenant, config };
 }
 
-export async function upsertTenantConfig(
+export async function createTenantConfig(
   tenantId: string,
-  input: UpsertTenantConfigInput
+  input: Required<Pick<UpsertTenantConfigInput, 'ruc_login' | 'usuario_marangatu' | 'clave_marangatu'>> &
+    Omit<UpsertTenantConfigInput, 'ruc_login' | 'usuario_marangatu' | 'clave_marangatu'>
 ): Promise<TenantConfig> {
-  const claveEncrypted = input.clave_marangatu ? encrypt(input.clave_marangatu) : null;
+  const claveEncrypted = encrypt(input.clave_marangatu);
   const passwordEncrypted = input.ords_password ? encrypt(input.ords_password) : null;
   const tokenEncrypted = input.ords_token ? encrypt(input.ords_token) : null;
 
@@ -127,40 +128,120 @@ export async function upsertTenantConfig(
        frecuencia_sincronizacion_minutos, extra_config
      )
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-     ON CONFLICT (tenant_id) DO UPDATE SET
-       ruc_login                       = COALESCE(EXCLUDED.ruc_login, tenant_config.ruc_login),
-       usuario_marangatu               = COALESCE(EXCLUDED.usuario_marangatu, tenant_config.usuario_marangatu),
-       clave_marangatu_encrypted       = COALESCE(EXCLUDED.clave_marangatu_encrypted, tenant_config.clave_marangatu_encrypted),
-       marangatu_base_url              = COALESCE(EXCLUDED.marangatu_base_url, tenant_config.marangatu_base_url),
-       ords_base_url                   = COALESCE(EXCLUDED.ords_base_url, tenant_config.ords_base_url),
-       ords_endpoint_facturas          = COALESCE(EXCLUDED.ords_endpoint_facturas, tenant_config.ords_endpoint_facturas),
-       ords_tipo_autenticacion         = COALESCE(EXCLUDED.ords_tipo_autenticacion, tenant_config.ords_tipo_autenticacion),
-       ords_usuario                    = COALESCE(EXCLUDED.ords_usuario, tenant_config.ords_usuario),
-       ords_password_encrypted         = COALESCE(EXCLUDED.ords_password_encrypted, tenant_config.ords_password_encrypted),
-       ords_token_encrypted            = COALESCE(EXCLUDED.ords_token_encrypted, tenant_config.ords_token_encrypted),
-       enviar_a_ords_automaticamente   = COALESCE(EXCLUDED.enviar_a_ords_automaticamente, tenant_config.enviar_a_ords_automaticamente),
-       frecuencia_sincronizacion_minutos = COALESCE(EXCLUDED.frecuencia_sincronizacion_minutos, tenant_config.frecuencia_sincronizacion_minutos),
-       extra_config                    = COALESCE(EXCLUDED.extra_config, tenant_config.extra_config)
      RETURNING *`,
     [
       tenantId,
-      input.ruc_login ?? null,
-      input.usuario_marangatu ?? null,
+      input.ruc_login,
+      input.usuario_marangatu,
       claveEncrypted,
-      input.marangatu_base_url ?? null,
+      input.marangatu_base_url ?? 'https://marangatu.set.gov.py',
       input.ords_base_url ?? null,
       input.ords_endpoint_facturas ?? null,
-      input.ords_tipo_autenticacion ?? null,
+      input.ords_tipo_autenticacion ?? 'NONE',
       input.ords_usuario ?? null,
       passwordEncrypted,
       tokenEncrypted,
-      input.enviar_a_ords_automaticamente ?? null,
-      input.frecuencia_sincronizacion_minutos ?? null,
-      input.extra_config ? JSON.stringify(input.extra_config) : null,
+      input.enviar_a_ords_automaticamente ?? false,
+      input.frecuencia_sincronizacion_minutos ?? 60,
+      JSON.stringify(input.extra_config ?? {}),
     ]
   );
-  if (!rows[0]) throw new Error('Error al guardar configuración del tenant');
+  if (!rows[0]) throw new Error('Error al crear configuración del tenant');
   return rows[0];
+}
+
+export async function updateTenantConfig(
+  tenantId: string,
+  input: UpsertTenantConfigInput
+): Promise<TenantConfig> {
+  const sets: string[] = [];
+  const params: unknown[] = [tenantId];
+  let i = 2;
+
+  if (input.ruc_login !== undefined) {
+    sets.push(`ruc_login = $${i++}`);
+    params.push(input.ruc_login);
+  }
+  if (input.usuario_marangatu !== undefined) {
+    sets.push(`usuario_marangatu = $${i++}`);
+    params.push(input.usuario_marangatu);
+  }
+  if (input.clave_marangatu !== undefined) {
+    sets.push(`clave_marangatu_encrypted = $${i++}`);
+    params.push(encrypt(input.clave_marangatu));
+  }
+  if (input.marangatu_base_url !== undefined) {
+    sets.push(`marangatu_base_url = $${i++}`);
+    params.push(input.marangatu_base_url);
+  }
+  if (input.ords_base_url !== undefined) {
+    sets.push(`ords_base_url = $${i++}`);
+    params.push(input.ords_base_url);
+  }
+  if (input.ords_endpoint_facturas !== undefined) {
+    sets.push(`ords_endpoint_facturas = $${i++}`);
+    params.push(input.ords_endpoint_facturas);
+  }
+  if (input.ords_tipo_autenticacion !== undefined) {
+    sets.push(`ords_tipo_autenticacion = $${i++}`);
+    params.push(input.ords_tipo_autenticacion);
+  }
+  if (input.ords_usuario !== undefined) {
+    sets.push(`ords_usuario = $${i++}`);
+    params.push(input.ords_usuario);
+  }
+  if (input.ords_password !== undefined) {
+    sets.push(`ords_password_encrypted = $${i++}`);
+    params.push(encrypt(input.ords_password));
+  }
+  if (input.ords_token !== undefined) {
+    sets.push(`ords_token_encrypted = $${i++}`);
+    params.push(encrypt(input.ords_token));
+  }
+  if (input.enviar_a_ords_automaticamente !== undefined) {
+    sets.push(`enviar_a_ords_automaticamente = $${i++}`);
+    params.push(input.enviar_a_ords_automaticamente);
+  }
+  if (input.frecuencia_sincronizacion_minutos !== undefined) {
+    sets.push(`frecuencia_sincronizacion_minutos = $${i++}`);
+    params.push(input.frecuencia_sincronizacion_minutos);
+  }
+  if (input.extra_config !== undefined) {
+    sets.push(`extra_config = $${i++}`);
+    params.push(JSON.stringify(input.extra_config));
+  }
+
+  if (sets.length === 0) {
+    const existing = await findTenantConfig(tenantId);
+    if (!existing) throw new Error('No existe configuración para este tenant');
+    return existing;
+  }
+
+  const rows = await query<TenantConfig>(
+    `UPDATE tenant_config SET ${sets.join(', ')} WHERE tenant_id = $1 RETURNING *`,
+    params
+  );
+  if (!rows[0]) throw new Error('No existe configuración para este tenant');
+  return rows[0];
+}
+
+export async function upsertTenantConfig(
+  tenantId: string,
+  input: UpsertTenantConfigInput
+): Promise<TenantConfig> {
+  const existing = await findTenantConfig(tenantId);
+  if (existing) {
+    return updateTenantConfig(tenantId, input);
+  }
+  if (!input.ruc_login || !input.usuario_marangatu || !input.clave_marangatu) {
+    throw new Error('Para crear la configuración se requieren ruc_login, usuario_marangatu y clave_marangatu');
+  }
+  return createTenantConfig(tenantId, {
+    ...input,
+    ruc_login: input.ruc_login,
+    usuario_marangatu: input.usuario_marangatu,
+    clave_marangatu: input.clave_marangatu,
+  });
 }
 
 export function decryptTenantConfig(config: TenantConfig): TenantConfig & {
