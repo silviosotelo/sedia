@@ -25,7 +25,7 @@ function comprobanteToTxtLines(c: Comprobante): string {
 
   const d = c.detalles_xml;
   if (d) {
-    const op = d.operacion ?? { moneda: d.moneda ?? 'PYG', condicionVenta: d.condicionVenta ?? '' };
+    const op = d.operacion ?? { moneda: 'PYG', condicionVenta: '' };
     lines.push(
       ``,
       `OPERACION`,
@@ -147,8 +147,8 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
 
     const xmlDescargadoFilter =
       xml_descargado === 'true' ? true :
-      xml_descargado === 'false' ? false :
-      undefined;
+        xml_descargado === 'false' ? false :
+          undefined;
 
     const { data, total } = await findComprobantesByTenant(
       req.params.id,
@@ -295,8 +295,8 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
 
       const xmlDescargadoFilter =
         xml_descargado === 'true' ? true :
-        xml_descargado === 'false' ? false :
-        undefined;
+          xml_descargado === 'false' ? false :
+            undefined;
 
       const { data } = await findComprobantesByTenant(
         req.params.id,

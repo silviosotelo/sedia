@@ -282,6 +282,7 @@ export class MarangatuService {
           logger.warn('No se encontró el item del menú, navegando directamente');
           return page.evaluate((url: string) => { window.open(url, '_blank'); }, gestionUrl);
         }
+        return Promise.resolve();
       }),
     ]);
 
@@ -291,7 +292,7 @@ export class MarangatuService {
     if (!gestionPage) {
       throw new Error('No se pudo obtener la pestaña de gestión de comprobantes');
     }
-    await gestionPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
+    await gestionPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
     await gestionPage.setDefaultTimeout(config.puppeteer.timeoutMs);
     await gestionPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
     await gestionPage.setUserAgent(
@@ -340,7 +341,7 @@ export class MarangatuService {
       const p = await newTarget.page();
       if (!p) throw new Error('No se pudo obtener la nueva pestaña de registro');
       registroPage = p;
-      await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
+      await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
     } else {
       logger.debug('No se abrió nueva pestaña; esperando navegación interna o carga de sección');
       const navigated = await gestionPage.waitForFunction(

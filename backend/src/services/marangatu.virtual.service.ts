@@ -13,7 +13,7 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { TenantConfig } from '../types';
 import { decrypt } from './crypto.service';
-import { parseVirtualInvoiceHtml, virtualInvoiceToDetallesXml, VirtualInvoiceData } from './virtual-invoice-parser';
+import { parseVirtualInvoiceHtml, virtualInvoiceToDetallesXml } from './virtual-invoice-parser';
 import { DetallesXml } from '../types';
 
 export interface VirtualComprobanteRow {
@@ -66,11 +66,6 @@ const SELECTORS = {
   },
 } as const;
 
-function parseFechaEmision(fecha: string): string {
-  const parts = fecha.trim().split('/');
-  if (parts.length !== 3) return fecha;
-  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-}
 
 function parseImporte(text: string): number {
   const cleaned = text.replace(/\./g, '').replace(/,/g, '').replace(/\s/g, '').trim();
@@ -239,6 +234,7 @@ export class MarangatuVirtualService {
           logger.warn('Virtual: item no encontrado, navegando directamente');
           return page.evaluate((url: string) => { window.open(url, '_blank'); }, consultaUrl);
         }
+        return Promise.resolve();
       }),
     ]);
 
@@ -246,7 +242,7 @@ export class MarangatuVirtualService {
     const consultaPage = await targetResult.page();
     if (!consultaPage) throw new Error('No se pudo obtener la pestana de consulta virtual');
 
-    await consultaPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
+    await consultaPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
     await consultaPage.setDefaultTimeout(config.puppeteer.timeoutMs);
     await consultaPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
     await consultaPage.setUserAgent(
@@ -333,33 +329,6 @@ export class MarangatuVirtualService {
     logger.info('Virtual: resultados encontrados');
   }
 
-  private async extraerFilasVirtuales(page: Page): Promise<VirtualComprobanteRow[]> {
-    return page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll('table.table-primary tbody tr'));
-      return rows.map((tr) => {
-        const tds = Array.from(tr.querySelectorAll('td'));
-        const linkEl = tr.querySelector('a[href*="consultarDocumentoVirtual"]');
-        return {
-          numero_comprobante: tds[0]?.textContent?.trim() ?? '',
-          ruc_informante: tds[1]?.textContent?.trim() ?? '',
-          nombre_informante: tds[2]?.textContent?.trim() ?? '',
-          fecha_emision: tds[3]?.textContent?.trim() ?? '',
-          numero_control: tds[4]?.textContent?.trim() ?? '',
-          estado: tds[5]?.textContent?.trim() ?? '',
-          identificacion_informado: tds[6]?.textContent?.trim() ?? '',
-          nombre_informado: tds[7]?.textContent?.trim() ?? '',
-          importe: 0,
-          detalle_url: linkEl ? (linkEl as HTMLAnchorElement).href : '',
-        };
-      }).filter((r) => r.numero_comprobante && r.detalle_url);
-    }).then((rows) =>
-      rows.map((r) => ({
-        ...r,
-        importe: parseImporte(r.numero_comprobante),
-      }))
-    );
-  }
-
   private async extraerFilasConImporte(page: Page): Promise<VirtualComprobanteRow[]> {
     return page.evaluate(() => {
       const rows = Array.from(document.querySelectorAll('table.table-primary tbody tr'));
@@ -436,7 +405,7 @@ export class MarangatuVirtualService {
     }
 
     try {
-      await detailPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => {});
+      await detailPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
       await detailPage.setDefaultTimeout(config.puppeteer.timeoutMs);
 
       await detailPage.waitForFunction(
@@ -472,7 +441,7 @@ export class MarangatuVirtualService {
 
       return { html: previewHtml, detalles };
     } finally {
-      await detailPage.close().catch(() => {});
+      await detailPage.close().catch(() => { });
     }
   }
 

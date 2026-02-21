@@ -48,10 +48,6 @@ function extractText(el: Element | null): string {
   return (el.textContent ?? '').trim();
 }
 
-function extractTextFromHtml(html: string, selector: string): string {
-  return '';
-}
-
 export function parseVirtualInvoiceHtml(html: string): VirtualInvoiceData {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
