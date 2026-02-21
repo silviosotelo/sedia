@@ -127,7 +127,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
               Recursos
             </p>
             <a
-              href="http://localhost:4000/docs"
+              href="/docs"
               target="_blank"
               rel="noopener noreferrer"
               className="sidebar-item-inactive w-full text-left flex"
