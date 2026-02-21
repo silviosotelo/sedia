@@ -10,6 +10,7 @@ import { jobRoutes } from './routes/job.routes';
 import { comprobanteRoutes } from './routes/comprobante.routes';
 import { authRoutes, usuarioRoutes } from './routes/auth.routes';
 import { metricsRoutes } from './routes/metrics.routes';
+import { notificationRoutes } from './routes/notification.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -59,6 +60,7 @@ export async function buildServer() {
   await app.register(authRoutes);
   await app.register(usuarioRoutes);
   await app.register(metricsRoutes);
+  await app.register(notificationRoutes);
 
   logger.info('Servidor Fastify configurado');
   return app;

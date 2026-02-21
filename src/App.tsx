@@ -7,6 +7,7 @@ import { Jobs } from './pages/Jobs';
 import { Comprobantes } from './pages/Comprobantes';
 import { Usuarios } from './pages/Usuarios';
 import { Metricas } from './pages/Metricas';
+import { Notificaciones } from './pages/Notificaciones';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
@@ -21,6 +22,7 @@ const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
   comprobantes: null,
   usuarios: ['super_admin', 'admin_empresa'],
   metricas: ['super_admin'],
+  notificaciones: null,
 };
 
 interface NavParams {
@@ -130,6 +132,9 @@ function AppInner() {
         )}
         {page === 'metricas' && canAccessPage('metricas') && (
           <Metricas toastError={error} />
+        )}
+        {page === 'notificaciones' && (
+          <Notificaciones toastSuccess={success} toastError={error} />
         )}
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />

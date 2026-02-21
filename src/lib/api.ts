@@ -14,7 +14,7 @@ import { mockStore } from './mock-data';
 
 export const MOCK_MODE = (import.meta.env.VITE_MOCK_MODE as string) === 'true';
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:4000';
+const BASE_URL = (import.meta.env.VITE_API_URL as string) || '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('saas_token');
@@ -256,6 +256,20 @@ export const api = {
         xml_stats: { total: 1250, descargados: 830, pendientes: 420, tasa_descarga: 66.4 },
       });
       return request<{ data: MetricsSaas }>('/metrics/saas').then((r) => r.data);
+    },
+  },
+
+  notifications: {
+    getLogs: (tenantId: string, page = 1, limit = 20) => {
+      if (MOCK_MODE) return Promise.resolve({ data: [], pagination: { page, limit, total: 0, total_pages: 0 } });
+      return request<{
+        data: unknown[];
+        pagination: { page: number; limit: number; total: number; total_pages: number };
+      }>(`/tenants/${tenantId}/notifications?page=${page}&limit=${limit}`);
+    },
+    sendTest: (tenantId: string): Promise<{ message: string }> => {
+      if (MOCK_MODE) return Promise.resolve({ message: 'Email de prueba enviado (demo)' });
+      return request<{ message: string }>(`/tenants/${tenantId}/notifications/test`, { method: 'POST' });
     },
   },
 };

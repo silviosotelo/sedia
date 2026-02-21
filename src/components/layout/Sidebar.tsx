@@ -9,13 +9,14 @@ import {
   FlaskConical,
   Users,
   BarChart3,
+  Bell,
   LogOut,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RolNombre } from '../../types';
 
-export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'usuarios' | 'metricas';
+export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'usuarios' | 'metricas' | 'notificaciones';
 
 interface NavItem {
   id: Page;
@@ -30,6 +31,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" /> },
+  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" /> },
   { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" />, allowedRoles: ['super_admin'] },
 ];
 
