@@ -3,12 +3,14 @@ import { findTenantConfig } from '../db/repositories/tenant.repository';
 import {
   markEnviosOrdsPendingAfterSync,
   findComprobantesByTenant,
+  upsertComprobanteVirtual,
 } from '../db/repositories/comprobante.repository';
 import { createJob, countActiveJobsForTenant } from '../db/repositories/job.repository';
 import { MarangatuService } from './marangatu.service';
+import { MarangatuVirtualService } from './marangatu.virtual.service';
 import { OrdsService } from './ords.service';
 import { EkuatiaService, SifenDocumentoNoAprobadoError, enqueueXmlDownloads, obtenerPendientesXml, guardarXmlDescargado, marcarXmlJobFallido, guardarEstadoSifen } from './ekuatia.service';
-import { SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload } from '../types';
+import { SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload } from '../types';
 import { queryOne } from '../db/connection';
 import { Tenant } from '../types';
 
@@ -243,6 +245,123 @@ export class SyncService {
         });
       }
     }
+  }
+
+  async ejecutarSyncFacturasVirtuales(
+    tenantId: string,
+    payload: SyncFacturasVirtualesJobPayload = {}
+  ): Promise<void> {
+    const tenantConfig = await findTenantConfig(tenantId);
+    if (!tenantConfig) {
+      throw new Error(`Configuracion no encontrada para tenant ${tenantId}`);
+    }
+
+    const virtualService = new MarangatuVirtualService();
+    let inserted = 0;
+    let updated = 0;
+
+    const syncResult = await virtualService.syncFacturasVirtuales(
+      tenantId,
+      tenantConfig,
+      {
+        mes: payload.mes,
+        anio: payload.anio,
+        numeroControl: payload.numero_control,
+      },
+      async (row, detalles, _htmlPreview) => {
+        const fechaEmisionIso = (() => {
+          const parts = row.fecha_emision.trim().split('/');
+          if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          return row.fecha_emision;
+        })();
+
+        const { created } = await upsertComprobanteVirtual({
+          tenant_id: tenantId,
+          origen: 'VIRTUAL',
+          ruc_vendedor: row.ruc_informante,
+          razon_social_vendedor: row.nombre_informante || undefined,
+          numero_comprobante: row.numero_comprobante,
+          tipo_comprobante: 'FACTURA',
+          fecha_emision: fechaEmisionIso,
+          total_operacion: row.importe,
+          numero_control: row.numero_control || undefined,
+          detalles_virtual: detalles ? (detalles as unknown as Record<string, unknown>) : undefined,
+          raw_payload: {
+            fuente: 'consulta_virtual_marangatu',
+            ruc_informante: row.ruc_informante,
+            nombre_informante: row.nombre_informante,
+            fecha_emision_raw: row.fecha_emision,
+            numero_control: row.numero_control,
+            estado: row.estado,
+            identificacion_informado: row.identificacion_informado,
+            nombre_informado: row.nombre_informado,
+          },
+        });
+
+        if (created) inserted++;
+        else updated++;
+      }
+    );
+
+    logger.info('Sync facturas virtuales completado', {
+      tenant_id: tenantId,
+      total_encontrados: syncResult.total_found,
+      procesados: syncResult.processed,
+      nuevos: inserted,
+      actualizados: updated,
+      errores: syncResult.errors.length,
+    });
+
+    if (tenantConfig.enviar_a_ords_automaticamente && (inserted > 0 || updated > 0)) {
+      const total = inserted + updated;
+      const comprobantesNuevos = await findComprobantesByTenant(
+        tenantId,
+        {},
+        { page: 1, limit: total }
+      );
+      const ids = comprobantesNuevos.data.map((c) => c.id);
+      await markEnviosOrdsPendingAfterSync(tenantId, ids);
+
+      const activeOrds = await countActiveJobsForTenant(tenantId, 'ENVIAR_A_ORDS');
+      if (activeOrds === 0) {
+        await createJob({
+          tenant_id: tenantId,
+          tipo_job: 'ENVIAR_A_ORDS',
+          payload: { batch_size: 100 } as unknown as Record<string, unknown>,
+          next_run_at: new Date(),
+        });
+        logger.info('Job ENVIAR_A_ORDS encolado automaticamente post-sync virtual', {
+          tenant_id: tenantId,
+        });
+      }
+    }
+  }
+
+  async encolarSyncFacturasVirtuales(
+    tenantId: string,
+    payload: SyncFacturasVirtualesJobPayload = {}
+  ): Promise<string> {
+    const active = await countActiveJobsForTenant(tenantId, 'SYNC_FACTURAS_VIRTUALES');
+    if (active > 0) {
+      throw new Error(
+        'Ya existe un job de sync de facturas virtuales activo para este tenant. ' +
+        'Espere a que termine antes de encolar otro.'
+      );
+    }
+
+    const job = await createJob({
+      tenant_id: tenantId,
+      tipo_job: 'SYNC_FACTURAS_VIRTUALES',
+      payload: payload as Record<string, unknown>,
+      next_run_at: new Date(),
+    });
+
+    logger.info('Job SYNC_FACTURAS_VIRTUALES encolado', {
+      tenant_id: tenantId,
+      job_id: job.id,
+    });
+
+    return job.id;
   }
 
   /**

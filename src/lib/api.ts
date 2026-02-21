@@ -109,6 +109,13 @@ export const api = {
         body: JSON.stringify(body || {}),
       }).then((r) => ({ job_id: r.data.job_id, tipo_job: 'DESCARGAR_XML', estado: 'PENDING' }));
     },
+    syncFacturasVirtuales: (tenantId: string, body?: { mes?: number; anio?: number; numero_control?: string }): Promise<{ job_id: string; tipo_job: string; estado: string }> => {
+      if (MOCK_MODE) return Promise.resolve({ job_id: 'mock-virtual-' + Date.now(), tipo_job: 'SYNC_FACTURAS_VIRTUALES', estado: 'PENDING' });
+      return request<{ message: string; data: { job_id: string } }>(`/tenants/${tenantId}/jobs/sync-facturas-virtuales`, {
+        method: 'POST',
+        body: JSON.stringify(body || {}),
+      }).then((r) => ({ job_id: r.data.job_id, tipo_job: 'SYNC_FACTURAS_VIRTUALES', estado: 'PENDING' }));
+    },
   },
 
   comprobantes: {

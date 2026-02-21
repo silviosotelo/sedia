@@ -11,6 +11,7 @@ import {
   ChevronRight,
   RefreshCw,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -54,6 +55,10 @@ function JobTypeIcon({ tipo }: { tipo: JobType }) {
       icon: <Briefcase className="w-3.5 h-3.5 text-amber-600" />,
       bg: 'bg-amber-50',
     },
+    SYNC_FACTURAS_VIRTUALES: {
+      icon: <FileText className="w-3.5 h-3.5 text-violet-600" />,
+      bg: 'bg-violet-50',
+    },
   };
   const { icon, bg } = map[tipo] || {
     icon: <Briefcase className="w-3.5 h-3.5 text-zinc-500" />,
@@ -79,6 +84,7 @@ const TYPE_FILTERS: { value: string; label: string }[] = [
   { value: 'SYNC_COMPROBANTES', label: 'Sincronización' },
   { value: 'DESCARGAR_XML', label: 'Descarga XML' },
   { value: 'ENVIAR_A_ORDS', label: 'Envío ORDS' },
+  { value: 'SYNC_FACTURAS_VIRTUALES', label: 'Facturas virtuales' },
 ];
 
 interface JobRowProps {

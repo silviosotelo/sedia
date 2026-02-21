@@ -13,6 +13,7 @@ import {
   Settings,
   CheckCircle2,
   XCircle,
+  FileText,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -21,6 +22,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { PageLoader, Spinner } from '../components/ui/Spinner';
 import { TenantForm, type TenantFormData } from '../components/tenants/TenantForm';
 import { SyncModal } from '../components/tenants/SyncModal';
+import { VirtualSyncModal } from '../components/tenants/VirtualSyncModal';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDateTime, formatRelative } from '../lib/utils';
@@ -62,6 +64,8 @@ export function Tenants({
   const [syncLoading, setSyncLoading] = useState(false);
   const [xmlModalOpen, setXmlModalOpen] = useState(false);
   const [xmlLoading, setXmlLoading] = useState(false);
+  const [virtualSyncModalOpen, setVirtualSyncModalOpen] = useState(false);
+  const [virtualSyncLoading, setVirtualSyncLoading] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const loadList = useCallback(async (silent = false) => {
@@ -159,6 +163,21 @@ export function Tenants({
       toastError('Error al encolar sync', e instanceof Error ? e.message : undefined);
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleVirtualSync = async (params: { mes?: number; anio?: number; numero_control?: string }) => {
+    if (!selectedId) return;
+    setVirtualSyncLoading(true);
+    try {
+      await api.jobs.syncFacturasVirtuales(selectedId, params);
+      toastSuccess('Job encolado', 'Se sincronizarán las facturas virtuales de Marangatu');
+      setVirtualSyncModalOpen(false);
+      onNavigate('jobs');
+    } catch (e: unknown) {
+      toastError('Error al encolar sync virtual', e instanceof Error ? e.message : undefined);
+    } finally {
+      setVirtualSyncLoading(false);
     }
   };
 
@@ -394,6 +413,12 @@ export function Tenants({
                     <Play className="w-3.5 h-3.5" /> Sincronizar
                   </button>
                   <button
+                    onClick={() => setVirtualSyncModalOpen(true)}
+                    className="btn-md btn-secondary"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> Facturas virtuales
+                  </button>
+                  <button
                     onClick={() => setXmlModalOpen(true)}
                     className="btn-md btn-secondary"
                   >
@@ -551,6 +576,14 @@ export function Tenants({
         onSubmit={handleSync}
         tenantName={activeTenantName}
         loading={syncLoading}
+      />
+
+      <VirtualSyncModal
+        open={virtualSyncModalOpen}
+        onClose={() => setVirtualSyncModalOpen(false)}
+        onSubmit={handleVirtualSync}
+        tenantName={activeTenantName}
+        loading={virtualSyncLoading}
       />
 
       <Modal

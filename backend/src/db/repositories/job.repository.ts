@@ -90,6 +90,7 @@ export async function claimNextPendingJob(client: PoolClient): Promise<Job | nul
            AND (
              CASE blocker.tipo_job
                WHEN 'SYNC_COMPROBANTES' THEN 1
+               WHEN 'SYNC_FACTURAS_VIRTUALES' THEN 1
                WHEN 'DESCARGAR_XML'     THEN 2
                WHEN 'ENVIAR_A_ORDS'     THEN 3
                ELSE 99
@@ -97,6 +98,7 @@ export async function claimNextPendingJob(client: PoolClient): Promise<Job | nul
            ) < (
              CASE j.tipo_job
                WHEN 'SYNC_COMPROBANTES' THEN 1
+               WHEN 'SYNC_FACTURAS_VIRTUALES' THEN 1
                WHEN 'DESCARGAR_XML'     THEN 2
                WHEN 'ENVIAR_A_ORDS'     THEN 3
                ELSE 99

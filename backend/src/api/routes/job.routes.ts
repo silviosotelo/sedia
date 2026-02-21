@@ -16,6 +16,12 @@ const descargarXmlSchema = z.object({
   comprobante_id: z.string().uuid().optional(),
 });
 
+const syncFacturasVirtualesSchema = z.object({
+  mes: z.number().int().min(1).max(12).optional(),
+  anio: z.number().int().min(2020).optional(),
+  numero_control: z.string().optional(),
+});
+
 const syncService = new SyncService();
 
 export async function jobRoutes(app: FastifyInstance): Promise<void> {
@@ -110,6 +116,46 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
         message: `Job de descarga XML encolado (${enqueuedCount} pendientes)`,
         data: { job_id: job.id },
       });
+    }
+  );
+
+  app.post<{ Params: { id: string } }>(
+    '/tenants/:id/jobs/sync-facturas-virtuales',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      if (!req.currentUser!.permisos.includes('jobs:ejecutar_sync') && req.currentUser!.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Sin permiso para ejecutar sincronizacion de facturas virtuales' });
+      }
+
+      const tenant = await findTenantById(req.params.id);
+      if (!tenant) {
+        return reply.status(404).send({ error: 'Tenant no encontrado' });
+      }
+      if (!tenant.activo) {
+        return reply.status(409).send({ error: 'Tenant inactivo' });
+      }
+
+      const parsed = syncFacturasVirtualesSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Datos invalidos', details: parsed.error.errors });
+      }
+
+      try {
+        const jobId = await syncService.encolarSyncFacturasVirtuales(
+          req.params.id,
+          parsed.data
+        );
+        return reply.status(202).send({
+          message: 'Job de sincronizacion de facturas virtuales encolado',
+          data: { job_id: jobId },
+        });
+      } catch (err) {
+        const error = err as Error;
+        if (error.message.includes('activo')) {
+          return reply.status(409).send({ error: error.message });
+        }
+        throw err;
+      }
     }
   );
 

@@ -57,6 +57,57 @@ export async function upsertComprobante(
   return { comprobante, created: rows[0].xmax === '0' };
 }
 
+export interface UpsertComprobanteVirtualInput extends UpsertComprobanteInput {
+  numero_control?: string;
+  detalles_virtual?: Record<string, unknown>;
+}
+
+export async function upsertComprobanteVirtual(
+  input: UpsertComprobanteVirtualInput
+): Promise<{ comprobante: Comprobante; created: boolean }> {
+  const hash = hashUnico(
+    input.tenant_id,
+    input.ruc_vendedor,
+    input.numero_comprobante,
+    input.fecha_emision
+  );
+
+  const rows = await query<Comprobante & { xmax: string }>(
+    `INSERT INTO comprobantes (
+       tenant_id, origen, ruc_vendedor, razon_social_vendedor,
+       cdc, numero_comprobante, tipo_comprobante, fecha_emision,
+       total_operacion, raw_payload, hash_unico, numero_control, detalles_virtual
+     )
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT (hash_unico) DO UPDATE SET
+       razon_social_vendedor = EXCLUDED.razon_social_vendedor,
+       raw_payload           = EXCLUDED.raw_payload,
+       total_operacion       = EXCLUDED.total_operacion,
+       numero_control        = COALESCE(EXCLUDED.numero_control, comprobantes.numero_control),
+       detalles_virtual      = COALESCE(EXCLUDED.detalles_virtual, comprobantes.detalles_virtual)
+     RETURNING *, (xmax = 0) AS created`,
+    [
+      input.tenant_id,
+      input.origen,
+      input.ruc_vendedor,
+      input.razon_social_vendedor ?? null,
+      input.cdc ?? null,
+      input.numero_comprobante,
+      input.tipo_comprobante,
+      input.fecha_emision,
+      input.total_operacion,
+      JSON.stringify(input.raw_payload),
+      hash,
+      input.numero_control ?? null,
+      input.detalles_virtual ? JSON.stringify(input.detalles_virtual) : null,
+    ]
+  );
+
+  if (!rows[0]) throw new Error('Error en upsert de comprobante virtual');
+  const { xmax: _xmax, ...comprobante } = rows[0];
+  return { comprobante, created: rows[0].xmax === '0' };
+}
+
 export async function findComprobantesByTenant(
   tenantId: string,
   filters: ComprobanteFilters,
