@@ -33,6 +33,7 @@ export interface TenantConfig {
   ords_token_encrypted: string | null;
   enviar_a_ords_automaticamente: boolean;
   frecuencia_sincronizacion_minutos: number;
+  extra_config: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
 }
