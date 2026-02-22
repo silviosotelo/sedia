@@ -133,7 +133,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
           <button
             onClick={loadLogs}
             disabled={loading}
-            className="btn-secondary flex items-center gap-1.5"
+            className="btn-sm btn-secondary"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
             Actualizar
@@ -141,7 +141,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
           <button
             onClick={handleTest}
             disabled={sendingTest || !selectedTenantId}
-            className="btn-primary flex items-center gap-1.5"
+            className="btn-sm btn-primary"
           >
             {sendingTest ? <Spinner size="xs" /> : <Send className="w-3.5 h-3.5" />}
             Enviar prueba

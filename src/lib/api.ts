@@ -269,7 +269,7 @@ export const api = {
     },
     sendTest: (tenantId: string): Promise<{ message: string }> => {
       if (MOCK_MODE) return Promise.resolve({ message: 'Email de prueba enviado (demo)' });
-      return request<{ message: string }>(`/tenants/${tenantId}/notifications/test`, { method: 'POST' });
+      return request<{ message: string }>(`/tenants/${tenantId}/notifications/test`, { method: 'POST', body: JSON.stringify({}) });
     },
   },
 };
