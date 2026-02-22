@@ -19,11 +19,7 @@ jobs:
           virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
           personal-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           project-name: set-comprobantes
-
-          # Ruta al docker-compose.yml desde la raíz del repo
           docker-compose-path: ./docker-compose.yml
-          
-          # Env vars que se pasan al stack de Docker
           environment-variables: |
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
