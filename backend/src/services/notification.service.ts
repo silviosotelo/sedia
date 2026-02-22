@@ -246,14 +246,16 @@ export async function enviarNotificacion(ctx: NotifContext): Promise<boolean> {
     const asunto = buildSubject(ctx.evento, tenant.nombre_fantasia);
     const html = buildHtml(ctx.evento, tenant.nombre_fantasia, ctx.metadata ?? {});
 
+    const isSecure = smtp.secure === true || smtp.port === 465;
     const transporter = nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
-      secure: smtp.secure,
+      secure: isSecure,
       auth: {
         user: smtp.user,
         pass: smtp.password,
       },
+      tls: { rejectUnauthorized: false },
       connectionTimeout: 10000,
       greetingTimeout: 5000,
     });
@@ -316,11 +318,13 @@ export async function enviarNotificacionTest(tenantId: string): Promise<{ ok: bo
     const smtp = getSmtpConfig(extra);
     if (!smtp) return { ok: false, error: 'SMTP no configurado. Configure host, usuario y email remitente en la tab Integraciones.' };
 
+    const isSecure = smtp.secure === true || smtp.port === 465;
     const transporter = nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
-      secure: smtp.secure,
+      secure: isSecure,
       auth: { user: smtp.user, pass: smtp.password },
+      tls: { rejectUnauthorized: false },
       connectionTimeout: 10000,
       greetingTimeout: 5000,
     });
