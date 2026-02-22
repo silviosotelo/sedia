@@ -8,6 +8,10 @@ import { Comprobantes } from './pages/Comprobantes';
 import { Usuarios } from './pages/Usuarios';
 import { Metricas } from './pages/Metricas';
 import { Notificaciones } from './pages/Notificaciones';
+import { Webhooks } from './pages/Webhooks';
+import { ApiTokens } from './pages/ApiTokens';
+import { Clasificacion } from './pages/Clasificacion';
+import { Alertas } from './pages/Alertas';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
@@ -23,6 +27,10 @@ const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
   usuarios: ['super_admin', 'admin_empresa'],
   metricas: ['super_admin'],
   notificaciones: null,
+  webhooks: null,
+  'api-tokens': null,
+  clasificacion: null,
+  alertas: null,
 };
 
 interface NavParams {
@@ -135,6 +143,18 @@ function AppInner() {
         )}
         {page === 'notificaciones' && (
           <Notificaciones toastSuccess={success} toastError={error} />
+        )}
+        {page === 'webhooks' && (
+          <Webhooks toastSuccess={success} toastError={error} />
+        )}
+        {page === 'api-tokens' && (
+          <ApiTokens toastSuccess={success} toastError={error} />
+        )}
+        {page === 'clasificacion' && (
+          <Clasificacion toastSuccess={success} toastError={error} />
+        )}
+        {page === 'alertas' && (
+          <Alertas toastSuccess={success} toastError={error} />
         )}
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />

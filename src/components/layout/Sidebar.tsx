@@ -11,12 +11,19 @@ import {
   BarChart3,
   Bell,
   LogOut,
+  Webhook,
+  Key,
+  Tag,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RolNombre } from '../../types';
 
-export type Page = 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'usuarios' | 'metricas' | 'notificaciones';
+export type Page =
+  | 'dashboard' | 'tenants' | 'jobs' | 'comprobantes'
+  | 'usuarios' | 'metricas' | 'notificaciones'
+  | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas';
 
 interface NavItem {
   id: Page;
@@ -31,8 +38,15 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
   { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" /> },
-  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" /> },
   { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" />, allowedRoles: ['super_admin'] },
+];
+
+const AUTOMATION_NAV_ITEMS: NavItem[] = [
+  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" /> },
+  { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" /> },
+  { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" /> },
+  { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" /> },
+  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" /> },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
@@ -90,6 +104,30 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
                   {item.badge}
                 </span>
               )}
+              {current === item.id && (
+                <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-zinc-100">
+          <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+            Automatización
+          </p>
+          {AUTOMATION_NAV_ITEMS.filter(
+            (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
+          ).map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className={cn(
+                'w-full text-left',
+                current === item.id ? 'sidebar-item-active' : 'sidebar-item-inactive'
+              )}
+            >
+              {item.icon}
+              <span className="flex-1">{item.label}</span>
               {current === item.id && (
                 <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
               )}

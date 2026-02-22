@@ -9,6 +9,12 @@ import type {
   MetricsOverview,
   MetricsTenant,
   MetricsSaas,
+  TenantWebhook,
+  WebhookDelivery,
+  ApiToken,
+  ClasificacionRegla,
+  TenantAlerta,
+  AlertaLog,
 } from '../types';
 import { mockStore } from './mock-data';
 
@@ -256,6 +262,102 @@ export const api = {
         xml_stats: { total: 1250, descargados: 830, pendientes: 420, tasa_descarga: 66.4 },
       });
       return request<{ data: MetricsSaas }>('/metrics/saas').then((r) => r.data);
+    },
+  },
+
+  webhooks: {
+    list: (tenantId: string): Promise<TenantWebhook[]> => {
+      if (MOCK_MODE) return Promise.resolve([]);
+      return request<{ data: TenantWebhook[] }>(`/tenants/${tenantId}/webhooks`).then((r) => r.data ?? []);
+    },
+    create: (tenantId: string, body: Partial<TenantWebhook> & { secret?: string }): Promise<TenantWebhook> => {
+      if (MOCK_MODE) return Promise.resolve({ id: 'mock', nombre: '', url: '', has_secret: false, eventos: [], activo: true, intentos_max: 3, timeout_ms: 10000, tenant_id: tenantId, created_at: '', updated_at: '' });
+      return request<{ data: TenantWebhook }>(`/tenants/${tenantId}/webhooks`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    update: (tenantId: string, id: string, body: Partial<TenantWebhook> & { secret?: string | null }): Promise<TenantWebhook> => {
+      if (MOCK_MODE) return Promise.resolve({} as TenantWebhook);
+      return request<{ data: TenantWebhook }>(`/tenants/${tenantId}/webhooks/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    delete: (tenantId: string, id: string): Promise<void> => {
+      if (MOCK_MODE) return Promise.resolve();
+      return request<void>(`/tenants/${tenantId}/webhooks/${id}`, { method: 'DELETE' });
+    },
+    test: (tenantId: string, id: string): Promise<{ message: string }> => {
+      if (MOCK_MODE) return Promise.resolve({ message: 'Webhook de prueba enviado (demo)' });
+      return request<{ message: string }>(`/tenants/${tenantId}/webhooks/${id}/test`, { method: 'POST', body: JSON.stringify({}) });
+    },
+    deliveries: (tenantId: string, webhookId: string, page = 1, limit = 20): Promise<PaginatedResponse<WebhookDelivery>> => {
+      if (MOCK_MODE) return Promise.resolve({ data: [], pagination: { page, limit, total: 0, total_pages: 0 } });
+      return request<{ data: WebhookDelivery[]; pagination: PaginatedResponse<WebhookDelivery>['pagination'] }>(
+        `/tenants/${tenantId}/webhooks/${webhookId}/deliveries?page=${page}&limit=${limit}`
+      ).then((r) => ({ data: r.data ?? [], pagination: r.pagination }));
+    },
+  },
+
+  apiTokens: {
+    list: (tenantId: string): Promise<ApiToken[]> => {
+      if (MOCK_MODE) return Promise.resolve([]);
+      return request<{ data: ApiToken[] }>(`/tenants/${tenantId}/api-tokens`).then((r) => r.data ?? []);
+    },
+    create: (tenantId: string, body: { nombre: string; permisos?: string[]; expira_at?: string }): Promise<ApiToken> => {
+      if (MOCK_MODE) return Promise.resolve({ id: 'mock', nombre: body.nombre, token_prefix: 'set_mock1234', permisos: [], activo: true, ultimo_uso_at: null, expira_at: null, created_at: '', token: 'set_mocktoken' });
+      return request<{ data: ApiToken }>(`/tenants/${tenantId}/api-tokens`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    revoke: (tenantId: string, id: string): Promise<ApiToken> => {
+      if (MOCK_MODE) return Promise.resolve({} as ApiToken);
+      return request<{ data: ApiToken }>(`/tenants/${tenantId}/api-tokens/${id}`, { method: 'PATCH', body: JSON.stringify({ activo: false }) }).then((r) => r.data);
+    },
+    delete: (tenantId: string, id: string): Promise<void> => {
+      if (MOCK_MODE) return Promise.resolve();
+      return request<void>(`/tenants/${tenantId}/api-tokens/${id}`, { method: 'DELETE' });
+    },
+  },
+
+  clasificacion: {
+    listReglas: (tenantId: string): Promise<ClasificacionRegla[]> => {
+      if (MOCK_MODE) return Promise.resolve([]);
+      return request<{ data: ClasificacionRegla[] }>(`/tenants/${tenantId}/clasificacion/reglas`).then((r) => r.data ?? []);
+    },
+    createRegla: (tenantId: string, body: Partial<ClasificacionRegla>): Promise<ClasificacionRegla> => {
+      if (MOCK_MODE) return Promise.resolve({} as ClasificacionRegla);
+      return request<{ data: ClasificacionRegla }>(`/tenants/${tenantId}/clasificacion/reglas`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    updateRegla: (tenantId: string, id: string, body: Partial<ClasificacionRegla>): Promise<ClasificacionRegla> => {
+      if (MOCK_MODE) return Promise.resolve({} as ClasificacionRegla);
+      return request<{ data: ClasificacionRegla }>(`/tenants/${tenantId}/clasificacion/reglas/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    deleteRegla: (tenantId: string, id: string): Promise<void> => {
+      if (MOCK_MODE) return Promise.resolve();
+      return request<void>(`/tenants/${tenantId}/clasificacion/reglas/${id}`, { method: 'DELETE' });
+    },
+    aplicar: (tenantId: string): Promise<{ message: string; etiquetas_aplicadas: number }> => {
+      if (MOCK_MODE) return Promise.resolve({ message: 'Demo', etiquetas_aplicadas: 0 });
+      return request<{ message: string; etiquetas_aplicadas: number }>(`/tenants/${tenantId}/clasificacion/aplicar`, { method: 'POST', body: JSON.stringify({}) });
+    },
+  },
+
+  alertas: {
+    list: (tenantId: string): Promise<TenantAlerta[]> => {
+      if (MOCK_MODE) return Promise.resolve([]);
+      return request<{ data: TenantAlerta[] }>(`/tenants/${tenantId}/alertas`).then((r) => r.data ?? []);
+    },
+    create: (tenantId: string, body: Partial<TenantAlerta>): Promise<TenantAlerta> => {
+      if (MOCK_MODE) return Promise.resolve({} as TenantAlerta);
+      return request<{ data: TenantAlerta }>(`/tenants/${tenantId}/alertas`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    update: (tenantId: string, id: string, body: Partial<TenantAlerta>): Promise<TenantAlerta> => {
+      if (MOCK_MODE) return Promise.resolve({} as TenantAlerta);
+      return request<{ data: TenantAlerta }>(`/tenants/${tenantId}/alertas/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data);
+    },
+    delete: (tenantId: string, id: string): Promise<void> => {
+      if (MOCK_MODE) return Promise.resolve();
+      return request<void>(`/tenants/${tenantId}/alertas/${id}`, { method: 'DELETE' });
+    },
+    log: (tenantId: string, page = 1, limit = 20): Promise<PaginatedResponse<AlertaLog>> => {
+      if (MOCK_MODE) return Promise.resolve({ data: [], pagination: { page, limit, total: 0, total_pages: 0 } });
+      return request<{ data: AlertaLog[]; pagination: PaginatedResponse<AlertaLog>['pagination'] }>(
+        `/tenants/${tenantId}/alertas/log?page=${page}&limit=${limit}`
+      ).then((r) => ({ data: r.data ?? [], pagination: r.pagination }));
     },
   },
 

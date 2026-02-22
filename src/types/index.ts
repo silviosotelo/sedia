@@ -270,6 +270,83 @@ export interface PaginatedResponse<T> {
   };
 }
 
+export interface TenantWebhook {
+  id: string;
+  tenant_id: string;
+  nombre: string;
+  url: string;
+  has_secret: boolean;
+  eventos: string[];
+  activo: boolean;
+  intentos_max: number;
+  timeout_ms: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  evento: string;
+  estado: 'PENDING' | 'SUCCESS' | 'FAILED' | 'RETRYING';
+  http_status: number | null;
+  error_message: string | null;
+  intentos: number;
+  delivered_at: string | null;
+  created_at: string;
+}
+
+export interface ApiToken {
+  id: string;
+  nombre: string;
+  token_prefix: string;
+  permisos: string[];
+  activo: boolean;
+  ultimo_uso_at: string | null;
+  expira_at: string | null;
+  created_at: string;
+  token?: string;
+}
+
+export interface ClasificacionRegla {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  campo: 'ruc_vendedor' | 'razon_social_vendedor' | 'tipo_comprobante' | 'monto_mayor' | 'monto_menor';
+  operador: 'equals' | 'contains' | 'starts_with' | 'ends_with' | 'greater_than' | 'less_than';
+  valor: string;
+  etiqueta: string;
+  color: string;
+  prioridad: number;
+  activo: boolean;
+  created_at: string;
+}
+
+export type AlertaTipo = 'monto_mayor_a' | 'horas_sin_sync' | 'proveedor_nuevo' | 'factura_duplicada' | 'job_fallido';
+
+export interface TenantAlerta {
+  id: string;
+  nombre: string;
+  tipo: AlertaTipo;
+  config: Record<string, unknown>;
+  canal: 'email' | 'webhook';
+  webhook_id: string | null;
+  webhook_nombre: string | null;
+  activo: boolean;
+  ultima_disparo: string | null;
+  cooldown_minutos: number;
+  created_at: string;
+}
+
+export interface AlertaLog {
+  id: string;
+  alerta_nombre: string;
+  tipo: string;
+  mensaje: string;
+  metadata: Record<string, unknown>;
+  notificado: boolean;
+  created_at: string;
+}
+
 export interface ApiError {
   error: string;
   message?: string;

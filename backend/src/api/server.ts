@@ -11,6 +11,10 @@ import { comprobanteRoutes } from './routes/comprobante.routes';
 import { authRoutes, usuarioRoutes } from './routes/auth.routes';
 import { metricsRoutes } from './routes/metrics.routes';
 import { notificationRoutes } from './routes/notification.routes';
+import { webhookRoutes } from './routes/webhook.routes';
+import { apiTokenRoutes } from './routes/api-tokens.routes';
+import { clasificacionRoutes } from './routes/clasificacion.routes';
+import { alertasRoutes } from './routes/alertas.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -61,6 +65,10 @@ export async function buildServer() {
   await app.register(usuarioRoutes);
   await app.register(metricsRoutes);
   await app.register(notificationRoutes);
+  await app.register(webhookRoutes);
+  await app.register(apiTokenRoutes);
+  await app.register(clasificacionRoutes);
+  await app.register(alertasRoutes);
 
   logger.info('Servidor Fastify configurado');
   return app;
