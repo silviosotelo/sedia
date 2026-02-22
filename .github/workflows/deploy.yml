@@ -17,6 +17,7 @@ jobs:
         with:
           api-key: ${{ secrets.HOSTINGER_API_KEY }}
           virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
+          personal-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           project-name: set-comprobantes
 
           # Ruta al docker-compose.yml desde la raíz del repo
