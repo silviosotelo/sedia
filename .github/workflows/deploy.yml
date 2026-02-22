@@ -1,0 +1,16 @@
+            - name: Deploy on Hostinger VPS
+  # You may pin to the exact commit or the version.
+  # uses: hostinger/deploy-on-vps@b0868cec74bfa63af6bfa7bdb0dfee2f9bef13ea
+  uses: hostinger/deploy-on-vps@v2
+  with:
+    # Hostinger API key for authentication. Get it from your Hostinger account dashboard.
+    api-key: ${{ secrets.HOSTINGER_API_KEY }}
+    # Virtual machine ID or name where the application will be deployed
+    virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
+    # Name of the project for identification in Hostinger dashboard
+    project-name: set-comprobantes
+    # Environment variables in KEY=value format, separated by commas or newlines
+    environment-variables: # optional, default is 
+    # Relative path to docker-compose.yml file from repository root
+    docker-compose-path: # optional, default is 
+          
