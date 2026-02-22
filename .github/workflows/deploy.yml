@@ -14,9 +14,6 @@ jobs:
 
       - name: Deploy on Hostinger VPS
         uses: hostinger/deploy-on-vps@v2
-        # Si te falla específicamente esta versión, probá con la recomendada en la
-        # documentación/Marketplace, por ejemplo:
-        # uses: hostinger/deploy-action@v1
         with:
           api-key: ${{ secrets.HOSTINGER_API_KEY }}
           virtual-machine: ${{ vars.HOSTINGER_VM_ID }}
@@ -24,3 +21,9 @@ jobs:
 
           # Ruta al docker-compose.yml desde la raíz del repo
           docker-compose-path: ./docker-compose.yml
+          
+          # Env vars que se pasan al stack de Docker
+          environment-variables: |
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
+            NODE_ENV=production
