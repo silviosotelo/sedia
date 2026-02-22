@@ -11,14 +11,20 @@ import {
   TrendingUp,
   Activity,
   ArrowRight,
+  BarChart3,
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart,
+  Legend,
+} from 'recharts';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { formatRelative, JOB_TYPE_LABELS } from '../lib/utils';
-import type { Tenant, Job, DashboardStats } from '../types';
+import type { Tenant, Job, DashboardStats, DashboardAvanzado, ForecastResult } from '../types';
 import type { Page } from '../components/layout/Sidebar';
 
 interface DashboardProps {
@@ -73,6 +79,23 @@ function JobStatusBadge({ status }: { status: string }) {
   );
 }
 
+const TIPO_COLORS: Record<string, string> = {
+  FACTURA: '#3f3f46',
+  NOTA_CREDITO: '#f59e0b',
+  NOTA_DEBITO: '#ef4444',
+  AUTOFACTURA: '#6366f1',
+  OTRO: '#a1a1aa',
+};
+
+const PIE_COLORS = ['#3f3f46', '#f59e0b', '#ef4444', '#6366f1', '#a1a1aa'];
+
+function fmtGs(n: number) {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toString();
+}
+
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { isSuperAdmin, userTenantId } = useAuth();
   const isTenantUser = !isSuperAdmin && !!userTenantId;
@@ -82,6 +105,9 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dashAvanzado, setDashAvanzado] = useState<DashboardAvanzado | null>(null);
+  const [forecast, setForecast] = useState<ForecastResult | null>(null);
+  const [advancedLoading, setAdvancedLoading] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -120,11 +146,33 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     }
   }, [isTenantUser, userTenantId]);
 
+  const loadAdvanced = useCallback(async () => {
+    const tid = isTenantUser ? userTenantId : undefined;
+    if (!tid) return;
+    setAdvancedLoading(true);
+    try {
+      const [dash, fc] = await Promise.all([
+        api.dashboardAvanzado.get(tid),
+        api.forecast.get(tid).catch(() => null),
+      ]);
+      setDashAvanzado(dash);
+      setForecast(fc);
+    } catch (_) {
+      // advanced metrics are non-critical
+    } finally {
+      setAdvancedLoading(false);
+    }
+  }, [isTenantUser, userTenantId]);
+
   useEffect(() => {
     load();
     const interval = setInterval(() => load(true), 30000);
     return () => clearInterval(interval);
   }, [load]);
+
+  useEffect(() => {
+    void loadAdvanced();
+  }, [loadAdvanced]);
 
   if (loading) return <PageLoader />;
 
@@ -372,6 +420,165 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Análisis Fiscal Avanzado (solo tenant users) ─────────────── */}
+      {isTenantUser && (
+        <div className="mt-8 space-y-6">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-zinc-400" />
+            <h2 className="text-base font-semibold text-zinc-900">Análisis Fiscal</h2>
+            {advancedLoading && (
+              <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-600 rounded-full animate-spin ml-1" />
+            )}
+          </div>
+
+          {dashAvanzado && (
+            <>
+              {/* IVA cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="stat-card">
+                  <p className="text-2xl font-bold text-zinc-900">{dashAvanzado.resumen.total_comprobantes.toLocaleString('es-PY')}</p>
+                  <p className="text-xs text-zinc-500">Comprobantes del mes</p>
+                </div>
+                <div className="stat-card">
+                  <p className="text-2xl font-bold text-zinc-900">{fmtGs(dashAvanzado.resumen.monto_total)}</p>
+                  <p className="text-xs text-zinc-500">Monto total (Gs.)</p>
+                </div>
+                <div className="stat-card">
+                  <p className="text-2xl font-bold text-amber-600">{fmtGs(dashAvanzado.resumen.iva_10_total)}</p>
+                  <p className="text-xs text-zinc-500">IVA 10%</p>
+                </div>
+                <div className="stat-card">
+                  <p className="text-2xl font-bold text-sky-600">{fmtGs(dashAvanzado.resumen.iva_5_total)}</p>
+                  <p className="text-xs text-zinc-500">IVA 5%</p>
+                </div>
+              </div>
+
+              {/* Evolución 12 meses + Distribución por tipo */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="card p-5 lg:col-span-2">
+                  <h3 className="section-title mb-4">Evolución 12 meses</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={dashAvanzado.evolucion_12_meses.map((e) => ({
+                        name: `${e.mes}/${e.anio}`,
+                        monto: e.monto_total,
+                        iva: e.iva_estimado,
+                      }))}
+                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                    >
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                      <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                      <Tooltip formatter={(v: number) => fmtGs(v)} labelStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="monto" name="Monto" fill="#3f3f46" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="iva" name="IVA estimado" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="card p-5">
+                  <h3 className="section-title mb-4">Por tipo</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={dashAvanzado.por_tipo.map((t) => ({ name: t.tipo, value: t.cantidad }))}
+                        cx="50%" cy="50%"
+                        outerRadius={70}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {dashAvanzado.por_tipo.map((t, i) => (
+                          <Cell key={t.tipo} fill={TIPO_COLORS[t.tipo] ?? PIE_COLORS[i % PIE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Top vendedores */}
+              <div className="card overflow-hidden">
+                <div className="px-5 py-4 border-b border-zinc-100">
+                  <h3 className="section-title mb-0">Top 10 proveedores</h3>
+                </div>
+                <div className="divide-y divide-zinc-50">
+                  {dashAvanzado.top_vendedores.slice(0, 10).map((v, i) => (
+                    <div key={v.ruc_vendedor} className="px-5 py-2.5 flex items-center gap-3">
+                      <span className="text-xs text-zinc-400 w-5 tabular-nums">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-zinc-900 truncate">{v.razon_social || v.ruc_vendedor}</p>
+                        <p className="text-[10px] text-zinc-400 font-mono">{v.ruc_vendedor}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-semibold text-zinc-900">{fmtGs(v.monto_total)} Gs.</p>
+                        <p className="text-[10px] text-zinc-400">{v.pct_del_total.toFixed(1)}% · {v.cantidad} cpte.</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Forecast */}
+          {forecast && !forecast.insuficiente_datos && (
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="section-title mb-0">Proyección de gastos (3 meses)</h3>
+                {forecast.tendencia && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                    forecast.tendencia === 'CRECIENTE' ? 'bg-rose-50 text-rose-600'
+                    : forecast.tendencia === 'DECRECIENTE' ? 'bg-emerald-50 text-emerald-600'
+                    : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {forecast.tendencia}
+                  </span>
+                )}
+              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart
+                  data={[...forecast.historial, ...forecast.proyeccion].map((p) => ({
+                    name: `${p.mes} ${p.anio}`,
+                    monto: p.monto_total,
+                    min: p.monto_min,
+                    max: p.monto_max,
+                    proyectado: p.proyectado,
+                  }))}
+                  margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
+                >
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                  <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
+                  <Tooltip formatter={(v: number) => fmtGs(v)} labelStyle={{ fontSize: 11 }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="max" stroke="transparent" fill="#fef3c7" name="Rango proyectado" />
+                  <Area type="monotone" dataKey="min" stroke="transparent" fill="#ffffff" />
+                  <Line type="monotone" dataKey="monto" stroke="#3f3f46" strokeWidth={2} dot={false} name="Monto" />
+                </AreaChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-100">
+                <div>
+                  <p className="text-xs text-zinc-500">Promedio mensual</p>
+                  <p className="text-lg font-bold text-zinc-900">{fmtGs(forecast.promedio_mensual)} Gs.</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500">Variación mensual</p>
+                  <p className={`text-lg font-bold ${forecast.variacion_mensual_pct >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {forecast.variacion_mensual_pct >= 0 ? '+' : ''}{forecast.variacion_mensual_pct.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {forecast?.insuficiente_datos && (
+            <div className="card p-5 text-center text-sm text-zinc-400">
+              Se necesitan al menos 3 meses de historial para generar proyecciones.
+            </div>
+          )}
         </div>
       )}
     </div>

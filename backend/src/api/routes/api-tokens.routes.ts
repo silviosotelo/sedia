@@ -44,7 +44,7 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
         [req.params.tenantId, nombre, hash, prefix, permisos, expira_at ?? null, req.currentUser!.id]
       );
 
-      return reply.status(201).send({ data: { ...row, token: raw } });
+      return reply.status(201).send({ data: { ...row!, token: raw } });
     }
   );
 

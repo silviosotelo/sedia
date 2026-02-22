@@ -12,6 +12,10 @@ import { Webhooks } from './pages/Webhooks';
 import { ApiTokens } from './pages/ApiTokens';
 import { Clasificacion } from './pages/Clasificacion';
 import { Alertas } from './pages/Alertas';
+import { Conciliacion } from './pages/Conciliacion';
+import { Billing } from './pages/Billing';
+import { Auditoria } from './pages/Auditoria';
+import { Anomalias } from './pages/Anomalias';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
@@ -31,6 +35,10 @@ const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
   'api-tokens': null,
   clasificacion: null,
   alertas: null,
+  conciliacion: null,
+  billing: ['super_admin', 'admin_empresa'],
+  auditoria: ['super_admin', 'admin_empresa'],
+  anomalias: null,
 };
 
 interface NavParams {
@@ -155,6 +163,18 @@ function AppInner() {
         )}
         {page === 'alertas' && (
           <Alertas toastSuccess={success} toastError={error} />
+        )}
+        {page === 'conciliacion' && (
+          <Conciliacion toastSuccess={success} toastError={error} />
+        )}
+        {page === 'billing' && canAccessPage('billing') && (
+          <Billing toastSuccess={success} toastError={error} />
+        )}
+        {page === 'auditoria' && canAccessPage('auditoria') && (
+          <Auditoria toastError={error} />
+        )}
+        {page === 'anomalias' && (
+          <Anomalias toastSuccess={success} toastError={error} />
         )}
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />

@@ -9,6 +9,7 @@ import {
   findTenantWithConfig,
 } from '../../db/repositories/tenant.repository';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { query, queryOne } from '../../db/connection';
 
 const createTenantSchema = z.object({
   nombre_fantasia: z.string().min(1).max(255),
@@ -169,5 +170,86 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.send({ data: tenant });
+  });
+
+  // ─── Scheduler status ──────────────────────────────────────────────────────
+  app.get<{ Params: { id: string } }>('/tenants/:id/scheduler/status', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+
+    const configRow = await queryOne<{
+      scheduler_habilitado: boolean | null;
+      scheduler_hora_inicio: string | null;
+      scheduler_hora_fin: string | null;
+      scheduler_dias_semana: number[] | null;
+      scheduler_frecuencia_minutos: number | null;
+      scheduler_proximo_run: Date | null;
+      scheduler_ultimo_run_exitoso: Date | null;
+    }>(
+      `SELECT scheduler_habilitado, scheduler_hora_inicio, scheduler_hora_fin,
+              scheduler_dias_semana, scheduler_frecuencia_minutos,
+              scheduler_proximo_run, scheduler_ultimo_run_exitoso
+       FROM tenant_config WHERE tenant_id = $1`,
+      [req.params.id]
+    ).catch(() => null);
+
+    const [jobsHoy] = await Promise.all([
+      queryOne<{ encolados: string; exitosos: string; fallidos: string }>(
+        `SELECT
+           COUNT(*) FILTER (WHERE tipo_job = 'SYNC_COMPROBANTES' AND DATE(created_at) = CURRENT_DATE) as encolados,
+           COUNT(*) FILTER (WHERE tipo_job = 'SYNC_COMPROBANTES' AND DATE(created_at) = CURRENT_DATE AND estado = 'DONE') as exitosos,
+           COUNT(*) FILTER (WHERE tipo_job = 'SYNC_COMPROBANTES' AND DATE(created_at) = CURRENT_DATE AND estado = 'FAILED') as fallidos
+         FROM jobs WHERE tenant_id = $1`,
+        [req.params.id]
+      ),
+    ]);
+
+    return reply.send({
+      data: {
+        habilitado: configRow?.scheduler_habilitado ?? true,
+        proximo_run: configRow?.scheduler_proximo_run,
+        ultimo_run_exitoso: configRow?.scheduler_ultimo_run_exitoso,
+        hora_inicio: configRow?.scheduler_hora_inicio ?? '06:00',
+        hora_fin: configRow?.scheduler_hora_fin ?? '22:00',
+        dias_semana: configRow?.scheduler_dias_semana ?? [1, 2, 3, 4, 5],
+        frecuencia_minutos: configRow?.scheduler_frecuencia_minutos ?? 60,
+        jobs_encolados_hoy: parseInt(jobsHoy?.encolados ?? '0'),
+        jobs_exitosos_hoy: parseInt(jobsHoy?.exitosos ?? '0'),
+        jobs_fallidos_hoy: parseInt(jobsHoy?.fallidos ?? '0'),
+      },
+    });
+  });
+
+  // Update scheduler config via PUT /tenants/:id (extend existing handler)
+  // The scheduler config is passed in config object and saved to tenant_config
+  app.put<{
+    Params: { id: string };
+    Body: {
+      scheduler_config?: {
+        scheduler_habilitado?: boolean;
+        scheduler_hora_inicio?: string;
+        scheduler_hora_fin?: string;
+        scheduler_dias_semana?: number[];
+        scheduler_frecuencia_minutos?: number;
+      };
+    };
+  }>('/tenants/:id/scheduler/config', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+
+    const sc = req.body.scheduler_config;
+    if (!sc) return reply.status(400).send({ error: 'scheduler_config es requerido' });
+
+    const sets: string[] = ['updated_at = NOW()'];
+    const params: unknown[] = [req.params.id];
+    let i = 2;
+
+    if (sc.scheduler_habilitado !== undefined) { sets.push(`scheduler_habilitado = $${i++}`); params.push(sc.scheduler_habilitado); }
+    if (sc.scheduler_hora_inicio !== undefined) { sets.push(`scheduler_hora_inicio = $${i++}`); params.push(sc.scheduler_hora_inicio); }
+    if (sc.scheduler_hora_fin !== undefined) { sets.push(`scheduler_hora_fin = $${i++}`); params.push(sc.scheduler_hora_fin); }
+    if (sc.scheduler_dias_semana !== undefined) { sets.push(`scheduler_dias_semana = $${i++}`); params.push(sc.scheduler_dias_semana); }
+    if (sc.scheduler_frecuencia_minutos !== undefined) { sets.push(`scheduler_frecuencia_minutos = $${i++}`); params.push(sc.scheduler_frecuencia_minutos); }
+
+    await query(`UPDATE tenant_config SET ${sets.join(', ')} WHERE tenant_id = $1`, params);
+
+    return reply.send({ success: true });
   });
 }

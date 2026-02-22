@@ -7,6 +7,8 @@ import { findTenantById } from '../../db/repositories/tenant.repository';
 import { query } from '../../db/connection';
 import { Comprobante, TipoComprobante } from '../../types';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { exportarComprobantesXLSX, exportarComprobantesPDF, logExportacion } from '../../services/export.service';
+import { storageService } from '../../services/storage.service';
 
 function comprobanteToTxtLines(c: Comprobante): string {
   const lines: string[] = [
@@ -313,6 +315,15 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       const fmt = formato.toLowerCase();
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       const filename = `comprobantes_${tenant.ruc}_${ts}`;
+      const usuarioId = req.currentUser?.id ?? null;
+
+      const filtrosObj = {
+        fecha_desde,
+        fecha_hasta,
+        tipo_comprobante,
+        ruc_vendedor,
+        xml_descargado: xmlDescargadoFilter,
+      };
 
       if (fmt === 'txt') {
         const lines: string[] = [
@@ -326,10 +337,43 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         for (const c of data) {
           lines.push(``, comprobanteToTxtLines(c), `${'='.repeat(100)}`);
         }
+        await logExportacion({ tenantId: req.params.id, usuarioId, formato: 'txt', filtros: filtrosObj, filas: data.length });
         return reply
           .header('Content-Type', 'text/plain; charset=utf-8')
           .header('Content-Disposition', `attachment; filename="${filename}.txt"`)
           .send(lines.join('\n'));
+      }
+
+      if (fmt === 'xlsx') {
+        const buffer = await exportarComprobantesXLSX(data, tenant);
+        const xlsxFilename = `${filename}.xlsx`;
+        const { signedUrl } = await logExportacion({
+          tenantId: req.params.id, usuarioId, formato: 'xlsx',
+          filtros: filtrosObj, filas: data.length, buffer, filename: xlsxFilename,
+        });
+        if (storageService.isEnabled() && signedUrl) {
+          return reply.send({ download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length });
+        }
+        return reply
+          .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .header('Content-Disposition', `attachment; filename="${xlsxFilename}"`)
+          .send(buffer);
+      }
+
+      if (fmt === 'pdf') {
+        const buffer = await exportarComprobantesPDF(data, tenant, filtrosObj);
+        const pdfFilename = `${filename}.pdf`;
+        const { signedUrl } = await logExportacion({
+          tenantId: req.params.id, usuarioId, formato: 'pdf',
+          filtros: filtrosObj, filas: data.length, buffer, filename: pdfFilename,
+        });
+        if (storageService.isEnabled() && signedUrl) {
+          return reply.send({ download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length });
+        }
+        return reply
+          .header('Content-Type', 'application/pdf')
+          .header('Content-Disposition', `attachment; filename="${pdfFilename}"`)
+          .send(buffer);
       }
 
       const jsonExport = data.map((c) => ({
@@ -346,6 +390,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         detalles_xml: c.detalles_xml,
       }));
 
+      await logExportacion({ tenantId: req.params.id, usuarioId, formato: 'json', filtros: filtrosObj, filas: data.length });
       return reply
         .header('Content-Type', 'application/json; charset=utf-8')
         .header('Content-Disposition', `attachment; filename="${filename}.json"`)

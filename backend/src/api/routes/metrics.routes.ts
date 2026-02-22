@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../../db/connection';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { generarProyeccion } from '../../services/forecast.service';
 
 export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.addHook('preHandler', requireAuth);
@@ -206,6 +207,193 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
       },
     });
   });
+
+  // ─── Dashboard avanzado (nuevo) ──────────────────────────────────────────────
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { mes?: string; anio?: string };
+  }>('/metrics/tenants/:id/dashboard-avanzado', async (request, reply) => {
+    const { id } = request.params;
+    if (!assertTenantAccess(request, reply, id)) return;
+
+    if (!request.currentUser!.permisos.includes('metricas:ver') && request.currentUser!.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Sin permiso para ver métricas' });
+    }
+
+    const now = new Date();
+    const mes = parseInt(request.query.mes ?? String(now.getMonth() + 1));
+    const anio = parseInt(request.query.anio ?? String(now.getFullYear()));
+
+    const desde = `${anio}-${String(mes).padStart(2, '0')}-01`;
+    const hasta = new Date(anio, mes, 0);
+    const hastaStr = hasta.toISOString().slice(0, 10);
+
+    // Mes anterior
+    const prevDate = new Date(anio, mes - 2, 1);
+    const prevMes = prevDate.getMonth() + 1;
+    const prevAnio = prevDate.getFullYear();
+    const prevDesde = `${prevAnio}-${String(prevMes).padStart(2, '0')}-01`;
+    const prevHasta = new Date(prevAnio, prevMes, 0).toISOString().slice(0, 10);
+
+    const [resumenRow, porTipo, topVendedores, evolucion, prevRow, xmlRow] = await Promise.all([
+      queryOne<{
+        total: string; monto_total: string; iva5_xml: string; iva10_xml: string;
+        iva5_est: string; iva10_est: string; exentas_est: string;
+      }>(
+        `SELECT
+           COUNT(*) as total,
+           SUM(total_operacion::numeric) as monto_total,
+           SUM(CASE WHEN xml_descargado_at IS NOT NULL THEN (detalles_xml->'totales'->>'iva5')::numeric ELSE 0 END) as iva5_xml,
+           SUM(CASE WHEN xml_descargado_at IS NOT NULL THEN (detalles_xml->'totales'->>'iva10')::numeric ELSE 0 END) as iva10_xml,
+           SUM(CASE WHEN xml_descargado_at IS NULL THEN total_operacion::numeric/21 ELSE 0 END) as iva5_est,
+           SUM(CASE WHEN xml_descargado_at IS NULL THEN total_operacion::numeric/11 ELSE 0 END) as iva10_est,
+           SUM(CASE WHEN xml_descargado_at IS NULL THEN total_operacion::numeric/10 ELSE 0 END) as exentas_est
+         FROM comprobantes
+         WHERE tenant_id = $1 AND fecha_emision BETWEEN $2 AND $3`,
+        [id, desde, hastaStr]
+      ),
+
+      query<{ tipo: string; cantidad: string; monto_total: string }>(
+        `SELECT tipo_comprobante as tipo, COUNT(*) as cantidad, SUM(total_operacion::numeric) as monto_total
+         FROM comprobantes WHERE tenant_id = $1 AND fecha_emision BETWEEN $2 AND $3
+         GROUP BY tipo_comprobante ORDER BY monto_total DESC`,
+        [id, desde, hastaStr]
+      ),
+
+      query<{ ruc_vendedor: string; razon_social: string; cantidad: string; monto_total: string; pct: string }>(
+        `WITH total AS (SELECT SUM(total_operacion::numeric) as t FROM comprobantes WHERE tenant_id = $1 AND fecha_emision BETWEEN $2 AND $3)
+         SELECT ruc_vendedor,
+                MAX(razon_social_vendedor) as razon_social,
+                COUNT(*) as cantidad,
+                SUM(total_operacion::numeric) as monto_total,
+                ROUND(100.0 * SUM(total_operacion::numeric) / NULLIF((SELECT t FROM total), 0), 2) as pct
+         FROM comprobantes
+         WHERE tenant_id = $1 AND fecha_emision BETWEEN $2 AND $3
+         GROUP BY ruc_vendedor
+         ORDER BY monto_total DESC
+         LIMIT 10`,
+        [id, desde, hastaStr]
+      ),
+
+      query<{ anio: string; mes: string; cantidad: string; monto_total: string; iva_est: string }>(
+        `SELECT EXTRACT(YEAR FROM fecha_emision)::int as anio,
+                EXTRACT(MONTH FROM fecha_emision)::int as mes,
+                COUNT(*) as cantidad,
+                SUM(total_operacion::numeric) as monto_total,
+                SUM(total_operacion::numeric/11) as iva_est
+         FROM comprobantes
+         WHERE tenant_id = $1
+           AND fecha_emision >= ($2::date - INTERVAL '11 months')
+           AND fecha_emision <= $3
+         GROUP BY 1, 2 ORDER BY 1, 2`,
+        [id, desde, hastaStr]
+      ),
+
+      queryOne<{ monto_actual: string; monto_anterior: string; cantidad_actual: string; cantidad_anterior: string }>(
+        `SELECT
+           SUM(CASE WHEN fecha_emision BETWEEN $2 AND $3 THEN total_operacion::numeric ELSE 0 END) as monto_actual,
+           SUM(CASE WHEN fecha_emision BETWEEN $4 AND $5 THEN total_operacion::numeric ELSE 0 END) as monto_anterior,
+           COUNT(*) FILTER (WHERE fecha_emision BETWEEN $2 AND $3) as cantidad_actual,
+           COUNT(*) FILTER (WHERE fecha_emision BETWEEN $4 AND $5) as cantidad_anterior
+         FROM comprobantes WHERE tenant_id = $1`,
+        [id, desde, hastaStr, prevDesde, prevHasta]
+      ),
+
+      queryOne<{ con_xml: string; total: string }>(
+        `SELECT COUNT(*) FILTER (WHERE xml_descargado_at IS NOT NULL) as con_xml, COUNT(*) as total
+         FROM comprobantes WHERE tenant_id = $1 AND fecha_emision BETWEEN $2 AND $3`,
+        [id, desde, hastaStr]
+      ),
+    ]);
+
+    const montoActual = parseFloat(prevRow?.monto_actual ?? '0');
+    const montoAnterior = parseFloat(prevRow?.monto_anterior ?? '0');
+    const cantidadActual = parseInt(prevRow?.cantidad_actual ?? '0');
+    const cantidadAnterior = parseInt(prevRow?.cantidad_anterior ?? '0');
+    const iva5 = parseFloat(resumenRow?.iva5_xml ?? '0') + parseFloat(resumenRow?.iva5_est ?? '0');
+    const iva10 = parseFloat(resumenRow?.iva10_xml ?? '0') + parseFloat(resumenRow?.iva10_est ?? '0');
+    const conXml = parseInt(xmlRow?.con_xml ?? '0');
+    const totalComp = parseInt(xmlRow?.total ?? '0');
+
+    return reply.send({
+      data: {
+        periodo: { mes, anio, desde, hasta: hastaStr },
+        resumen: {
+          total_comprobantes: parseInt(resumenRow?.total ?? '0'),
+          monto_total: parseFloat(resumenRow?.monto_total ?? '0'),
+          iva_5_total: Math.round(iva5),
+          iva_10_total: Math.round(iva10),
+          iva_total: Math.round(iva5 + iva10),
+          pct_con_xml: totalComp > 0 ? Math.round((conXml / totalComp) * 100) : 0,
+        },
+        por_tipo: porTipo.map((r) => ({
+          tipo: r.tipo,
+          cantidad: parseInt(r.cantidad),
+          monto_total: parseFloat(r.monto_total),
+        })),
+        top_vendedores: topVendedores.map((r) => ({
+          ruc_vendedor: r.ruc_vendedor,
+          razon_social: r.razon_social,
+          cantidad: parseInt(r.cantidad),
+          monto_total: parseFloat(r.monto_total),
+          pct_del_total: parseFloat(r.pct),
+        })),
+        evolucion_12_meses: evolucion.map((r) => ({
+          anio: parseInt(r.anio),
+          mes: parseInt(r.mes),
+          cantidad: parseInt(r.cantidad),
+          monto_total: parseFloat(r.monto_total),
+          iva_estimado: parseFloat(r.iva_est),
+        })),
+        vs_mes_anterior: {
+          monto_actual: montoActual,
+          monto_anterior: montoAnterior,
+          cantidad_actual: cantidadActual,
+          cantidad_anterior: cantidadAnterior,
+          variacion_monto_pct: montoAnterior > 0
+            ? Math.round(((montoActual - montoAnterior) / montoAnterior) * 100 * 10) / 10
+            : 0,
+          variacion_cantidad_pct: cantidadAnterior > 0
+            ? Math.round(((cantidadActual - cantidadAnterior) / cantidadAnterior) * 100 * 10) / 10
+            : 0,
+        },
+      },
+    });
+  });
+
+  // ─── Forecast ─────────────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { meses?: string };
+  }>('/tenants/:id/forecast', async (request, reply) => {
+    const { id } = request.params;
+    if (!assertTenantAccess(request, reply, id)) return;
+
+    if (!['super_admin', 'admin_empresa'].includes(request.currentUser!.rol.nombre)) {
+      return reply.status(403).send({ error: 'Sin permiso' });
+    }
+
+    const meses = Math.min(12, Math.max(1, parseInt(request.query.meses ?? '3')));
+    const result = await generarProyeccion(id, meses);
+    return reply.send({ data: result });
+  });
+
+  // ─── Alertas activas count (nuevo) ───────────────────────────────────────────
+  fastify.get<{ Params: { id: string } }>(
+    '/metrics/tenants/:id/alertas-activas-count',
+    async (request, reply) => {
+      const { id } = request.params;
+      if (!assertTenantAccess(request, reply, id)) return;
+
+      const row = await queryOne<{ count: string }>(
+        `SELECT COUNT(*) as count FROM anomaly_detections
+         WHERE tenant_id = $1 AND estado = 'ACTIVA' AND created_at >= NOW() - INTERVAL '24 hours'`,
+        [id]
+      );
+
+      return reply.send({ data: { count: parseInt(row?.count ?? '0') } });
+    }
+  );
 
   fastify.get('/metrics/saas', async (request, reply) => {
     if (request.currentUser!.rol.nombre !== 'super_admin') {

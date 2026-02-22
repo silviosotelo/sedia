@@ -15,6 +15,10 @@ import {
   Key,
   Tag,
   AlertTriangle,
+  Landmark,
+  CreditCard,
+  ShieldCheck,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,7 +27,8 @@ import type { RolNombre } from '../../types';
 export type Page =
   | 'dashboard' | 'tenants' | 'jobs' | 'comprobantes'
   | 'usuarios' | 'metricas' | 'notificaciones'
-  | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas';
+  | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas'
+  | 'conciliacion' | 'billing' | 'auditoria' | 'anomalias';
 
 interface NavItem {
   id: Page;
@@ -44,9 +49,13 @@ const ALL_NAV_ITEMS: NavItem[] = [
 const AUTOMATION_NAV_ITEMS: NavItem[] = [
   { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" /> },
   { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" /> },
+  { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" /> },
   { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" /> },
   { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" /> },
   { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" /> },
+  { id: 'conciliacion', label: 'Conciliación', icon: <Landmark className="w-4 h-4" /> },
+  { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [

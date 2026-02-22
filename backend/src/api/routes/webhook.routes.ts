@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { query, queryOne } from '../../db/connection';
 import { dispatchWebhookEvent } from '../../services/webhook.service';
-import crypto from 'crypto';
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
