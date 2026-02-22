@@ -28,3 +28,4 @@ jobs:
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}
             NODE_ENV=production
+            SOLVECAPTCHA_API_KEY=${{ secrets.SOLVECAPTCHA_API_KEY }}
