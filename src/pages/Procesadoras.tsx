@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Settings, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Plus, Settings, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { api } from '../lib/api';
 import { useTenant } from '../contexts/TenantContext';
@@ -21,6 +21,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
     const [selectedProcessor, setSelectedProcessor] = useState<any | null>(null);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // Forms state
     const [configForm, setConfigForm] = useState({
@@ -32,6 +33,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         mes: new Date().getMonth() + 1,
         anio: new Date().getFullYear(),
     });
+    const [createForm, setCreateForm] = useState({ nombre: '', tipo: 'OTROS' });
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -109,11 +111,39 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         }
     };
 
+    const handleCreateSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!activeTenantId || !createForm.nombre) return;
+
+        setSaving(true);
+        try {
+            await api.procesadoras.create(activeTenantId, createForm);
+            toastSuccess('Procesadora creada exitosamente');
+            setIsCreateModalOpen(false);
+            setCreateForm({ nombre: '', tipo: 'OTROS' });
+            // reload
+            const pts = await api.procesadoras.list(activeTenantId);
+            setProcessors(pts);
+        } catch (err: any) {
+            toastError(err.message || 'Error al crear procesadora');
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="max-w-7xl mx-auto space-y-6">
             <Header
                 title="Procesadoras de Pago"
                 subtitle="Gestione las integraciones con procesadoras como Bancard, Pagopar y Dinelco"
+                actions={
+                    <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="btn-md btn-primary gap-1.5"
+                    >
+                        <Plus className="w-4 h-4" /> Nueva Procesadora
+                    </button>
+                }
             />
 
             {!activeTenantId ? (
@@ -182,7 +212,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
             )}
 
             {/* Configuración Modal */}
-            <Modal isOpen={isConfigModalOpen} onClose={() => !saving && setIsConfigModalOpen(false)} title={`Configuración: ${selectedProcessor?.nombre}`}>
+            <Modal open={isConfigModalOpen} onClose={() => !saving && setIsConfigModalOpen(false)} title={`Configuración: ${selectedProcessor?.nombre}`}>
                 <form onSubmit={handleConfigSubmit} className="space-y-4">
                     <div className="bg-blue-50/50 text-blue-800 text-sm p-3 rounded-lg flex items-start gap-2 border border-blue-100">
                         <Key className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -255,7 +285,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
             </Modal>
 
             {/* Import Modal */}
-            <Modal isOpen={isImportModalOpen} onClose={() => !saving && setIsImportModalOpen(false)} title={`Importar: ${selectedProcessor?.nombre}`}>
+            <Modal open={isImportModalOpen} onClose={() => !saving && setIsImportModalOpen(false)} title={`Importar: ${selectedProcessor?.nombre}`}>
                 <form onSubmit={handleImportSubmit} className="space-y-4">
                     <p className="text-sm text-zinc-600">
                         Seleccione el período contable que desea extraer desde la plataforma de {selectedProcessor?.nombre}.
@@ -309,6 +339,41 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                         >
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                             Iniciar Importación
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+            {/* Modal de Creación */}
+            <Modal open={isCreateModalOpen} onClose={() => !saving && setIsCreateModalOpen(false)} title="Nueva Procesadora">
+                <form onSubmit={handleCreateSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">Nombre</label>
+                        <input
+                            type="text"
+                            required
+                            value={createForm.nombre}
+                            onChange={e => setCreateForm({ ...createForm, nombre: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none"
+                            placeholder="Ej. Bancard, Pagopar..."
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-zinc-700 mb-1">Tipo</label>
+                        <select
+                            value={createForm.tipo}
+                            onChange={e => setCreateForm({ ...createForm, tipo: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none"
+                        >
+                            <option value="VPOS">VPOS / POS</option>
+                            <option value="QR">QR / Billetera</option>
+                            <option value="ESTRACTO_WEB">Portal Web (Extractos)</option>
+                            <option value="OTROS">Otros</option>
+                        </select>
+                    </div>
+                    <div className="pt-4 flex justify-end gap-3 border-t border-zinc-100">
+                        <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm text-zinc-600">Cancelar</button>
+                        <button type="submit" disabled={saving} className="btn-md btn-primary">
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Procesadora'}
                         </button>
                     </div>
                 </form>

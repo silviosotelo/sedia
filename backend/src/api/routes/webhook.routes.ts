@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { dispatchWebhookEvent } from '../../services/webhook.service';
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('webhooks'));
 
   app.get<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/webhooks',
@@ -20,10 +22,12 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.post<{ Params: { tenantId: string }; Body: {
-    nombre: string; url: string; secret?: string;
-    eventos: string[]; activo?: boolean; intentos_max?: number; timeout_ms?: number;
-  } }>(
+  app.post<{
+    Params: { tenantId: string }; Body: {
+      nombre: string; url: string; secret?: string;
+      eventos: string[]; activo?: boolean; intentos_max?: number; timeout_ms?: number;
+    }
+  }>(
     '/tenants/:tenantId/webhooks',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
@@ -41,10 +45,12 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.put<{ Params: { tenantId: string; id: string }; Body: {
-    nombre?: string; url?: string; secret?: string | null;
-    eventos?: string[]; activo?: boolean; intentos_max?: number; timeout_ms?: number;
-  } }>(
+  app.put<{
+    Params: { tenantId: string; id: string }; Body: {
+      nombre?: string; url?: string; secret?: string | null;
+      eventos?: string[]; activo?: boolean; intentos_max?: number; timeout_ms?: number;
+    }
+  }>(
     '/tenants/:tenantId/webhooks/:id',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;

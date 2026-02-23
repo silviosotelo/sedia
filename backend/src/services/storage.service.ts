@@ -20,19 +20,47 @@ export class StorageService {
     this.enabled = process.env.R2_ENABLED === 'true';
     this.bucket = process.env.R2_BUCKET_NAME ?? 'sedia-storage';
     this.publicUrl = process.env.R2_PUBLIC_URL ?? '';
+    this.client = null;
 
     if (this.enabled) {
-      this.client = new S3Client({
-        region: 'auto',
-        endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-        credentials: {
-          accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-        },
+      this.initClient({
+        accountId: process.env.R2_ACCOUNT_ID!,
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       });
     } else {
-      this.client = null;
-      logger.warn('StorageService: R2 deshabilitado, usando modo buffer en memoria');
+      logger.warn('StorageService: R2 deshabilitado inicialmente (usando ENV)');
+    }
+  }
+
+  private initClient(config: { accountId: string; accessKeyId: string; secretAccessKey: string }) {
+    this.client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+    });
+  }
+
+  /**
+   * Reconfigura el servicio usando valores de la base de datos (system_settings)
+   */
+  async reconfigureFromDB() {
+    const { systemService } = require('./system.service');
+    const config = await systemService.getSetting('storage_config');
+
+    if (config && config.enabled) {
+      this.enabled = true;
+      this.bucket = config.bucket || this.bucket;
+      this.publicUrl = config.public_url || this.publicUrl;
+      this.initClient({
+        accountId: config.account_id,
+        accessKeyId: config.access_key_id,
+        secretAccessKey: config.secret_access_key,
+      });
+      logger.info('StorageService: R2 configurado desde la base de datos');
     }
   }
 

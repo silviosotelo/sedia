@@ -103,3 +103,63 @@ export async function changePlan(tenantId: string, planId: string): Promise<void
     [tenantId, planId]
   );
 }
+
+export const billingManager = {
+  async getSubscription(tenantId: string) {
+    return queryOne('SELECT * FROM billing_subscriptions WHERE tenant_id = $1', [tenantId]);
+  },
+
+  async getInvoiceHistory(tenantId: string) {
+    return query(
+      `SELECT * FROM billing_invoices 
+       WHERE tenant_id = $1 
+       ORDER BY created_at DESC`,
+      [tenantId]
+    );
+  },
+
+  async createInvoice(tenantId: string, data: {
+    amount: number;
+    status: string;
+    billing_reason: string;
+    bancard_process_id?: string;
+    detalles?: any;
+  }) {
+    return queryOne(
+      `INSERT INTO billing_invoices (tenant_id, amount, status, billing_reason, bancard_process_id, detalles)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [tenantId, data.amount, data.status, data.billing_reason, data.bancard_process_id, JSON.stringify(data.detalles || {})]
+    );
+  },
+
+  async updateInvoiceStatus(invoiceId: string, status: 'PAID' | 'FAILED' | 'VOID', metadata?: any) {
+    const sets = ['status = $2', 'updated_at = NOW()'];
+    const params = [invoiceId, status];
+
+    if (metadata) {
+      sets.push('detalles = detalles || $3');
+      params.push(JSON.stringify(metadata));
+    }
+
+    await query(
+      `UPDATE billing_invoices SET ${sets.join(', ')} WHERE id = $1`,
+      params
+    );
+  },
+
+  async updateSubscription(tenantId: string, planId: string, status: string, externalId?: string) {
+    await query(
+      `INSERT INTO billing_subscriptions (tenant_id, plan_id, status, external_id, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (tenant_id) DO UPDATE 
+       SET plan_id = $2, status = $3, external_id = $4, updated_at = NOW()`,
+      [tenantId, planId, status, externalId || null]
+    );
+    // También actualizar el plan directo en la tabla tenants para compatibilidad
+    await changePlan(tenantId, planId);
+  },
+
+  async getSubscriptionByProcessId(processId: string) {
+    return queryOne('SELECT * FROM billing_invoices WHERE bancard_process_id = $1', [processId]);
+  }
+};

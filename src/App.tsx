@@ -6,6 +6,7 @@ import { Tenants } from './pages/Tenants';
 import { Jobs } from './pages/Jobs';
 import { Comprobantes } from './pages/Comprobantes';
 import { Usuarios } from './pages/Usuarios';
+import { Roles } from './pages/Roles';
 import { Metricas } from './pages/Metricas';
 import { Notificaciones } from './pages/Notificaciones';
 import { Webhooks } from './pages/Webhooks';
@@ -14,11 +15,14 @@ import { Clasificacion } from './pages/Clasificacion';
 import { Alertas } from './pages/Alertas';
 import { Conciliacion } from './pages/Conciliacion';
 import { Billing } from './pages/Billing';
+import { Sifen } from './pages/Sifen';
 import { Auditoria } from './pages/Auditoria';
 import { Anomalias } from './pages/Anomalias';
 import { Configuracion } from './pages/Configuracion';
 import { WhiteLabel } from './pages/WhiteLabel';
 import { Procesadoras } from './pages/Procesadoras';
+import { CuentasBancarias } from './pages/CuentasBancarias';
+import { Bancos } from './pages/Bancos';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
@@ -27,25 +31,29 @@ import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
 import type { RolNombre } from './types';
 
-const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
-  dashboard: null,
-  tenants: ['super_admin', 'admin_empresa'],
-  jobs: null,
-  comprobantes: null,
-  usuarios: ['super_admin', 'admin_empresa'],
-  metricas: ['super_admin'],
-  notificaciones: ['super_admin', 'admin_empresa'],
-  webhooks: ['super_admin', 'admin_empresa'],
-  'api-tokens': ['super_admin', 'admin_empresa'],
-  clasificacion: ['super_admin', 'admin_empresa'],
-  alertas: ['super_admin', 'admin_empresa'],
-  conciliacion: ['super_admin', 'admin_empresa'],
-  billing: ['super_admin', 'admin_empresa'],
-  auditoria: ['super_admin'],
-  anomalias: ['super_admin'],
-  configuracion: ['super_admin'],
-  'white-label': ['super_admin', 'admin_empresa'],
-  procesadoras: ['super_admin', 'admin_empresa'],
+const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string }> = {
+  dashboard: { roles: null },
+  tenants: { roles: ['super_admin', 'admin_empresa'] },
+  jobs: { roles: null },
+  comprobantes: { roles: null },
+  usuarios: { roles: ['super_admin', 'admin_empresa'] },
+  roles: { roles: ['super_admin', 'admin_empresa'] },
+  metricas: { roles: ['super_admin'], feature: 'metricas' },
+  notificaciones: { roles: ['super_admin', 'admin_empresa'] },
+  webhooks: { roles: ['super_admin', 'admin_empresa'], feature: 'webhooks' },
+  'api-tokens': { roles: ['super_admin', 'admin_empresa'], feature: 'api_tokens' },
+  clasificacion: { roles: ['super_admin', 'admin_empresa'] },
+  alertas: { roles: ['super_admin', 'admin_empresa'], feature: 'alertas' },
+  conciliacion: { roles: ['super_admin', 'admin_empresa'], feature: 'conciliacion' },
+  'cuentas-bancarias': { roles: ['super_admin', 'admin_empresa'] },
+  bancos: { roles: ['super_admin'] },
+  billing: { roles: ['super_admin', 'admin_empresa'] },
+  auditoria: { roles: ['super_admin'], feature: 'auditoria' },
+  anomalias: { roles: ['super_admin'], feature: 'anomalias' },
+  configuracion: { roles: ['super_admin'] },
+  'white-label': { roles: ['super_admin', 'admin_empresa'], feature: 'whitelabel' },
+  procesadoras: { roles: ['super_admin', 'admin_empresa'] },
+  sifen: { roles: ['super_admin', 'admin_empresa'] },
 };
 
 interface NavParams {
@@ -80,10 +88,26 @@ function AppInner() {
   }, [checkApi]);
 
   const canAccessPage = useCallback((p: Page): boolean => {
-    const allowed = PAGE_ACCESS[p];
-    if (!allowed) return true;
-    const rol = user?.rol.nombre as RolNombre | undefined;
-    return !!rol && allowed.includes(rol);
+    const access = PAGE_ACCESS[p];
+    if (!access) return true;
+
+    // Super admin ignores plan restrictions but still follows role logic if needed
+    if (user?.rol.nombre === 'super_admin') return true;
+
+    // Check roles
+    if (access.roles) {
+      const rol = user?.rol.nombre as RolNombre | undefined;
+      if (!rol || !access.roles.includes(rol)) return false;
+    }
+
+    // Check plan features
+    if (access.feature) {
+      if (!user?.plan_features || user.plan_features[access.feature] !== true) {
+        return false;
+      }
+    }
+
+    return true;
   }, [user]);
 
   const navigate = useCallback((p: Page, params?: Record<string, string>) => {
@@ -153,6 +177,9 @@ function AppInner() {
         {page === 'usuarios' && canAccessPage('usuarios') && (
           <Usuarios toastError={error} toastSuccess={success} />
         )}
+        {page === 'roles' && canAccessPage('roles') && (
+          <Roles toastSuccess={success} toastError={error} />
+        )}
         {page === 'metricas' && canAccessPage('metricas') && (
           <Metricas toastError={error} />
         )}
@@ -174,11 +201,20 @@ function AppInner() {
         {page === 'conciliacion' && canAccessPage('conciliacion') && (
           <Conciliacion toastSuccess={success} toastError={error} />
         )}
+        {page === 'cuentas-bancarias' && canAccessPage('cuentas-bancarias') && (
+          <CuentasBancarias toastSuccess={success} toastError={error} />
+        )}
+        {page === 'bancos' && canAccessPage('bancos') && (
+          <Bancos toastSuccess={success} toastError={error} />
+        )}
         {page === 'procesadoras' && canAccessPage('procesadoras') && (
           <Procesadoras toastSuccess={success} toastError={error} />
         )}
         {page === 'billing' && canAccessPage('billing') && (
           <Billing toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen' && canAccessPage('sifen') && (
+          <Sifen />
         )}
         {page === 'auditoria' && canAccessPage('auditoria') && (
           <Auditoria toastError={error} />

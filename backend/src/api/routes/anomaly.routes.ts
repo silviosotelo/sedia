@@ -1,11 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { getAnomalySummary } from '../../services/anomaly.service';
 import { AnomalyDetection } from '../../types';
 
 export async function anomalyRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('anomalias'));
 
   app.get<{
     Params: { id: string };

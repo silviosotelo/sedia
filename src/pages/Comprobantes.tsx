@@ -34,6 +34,7 @@ import {
   TIPO_COMPROBANTE_LABELS,
 } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import type { Comprobante, Tenant, TipoComprobante } from '../types';
 
 interface ComprobantesProps {
@@ -78,19 +79,19 @@ const TIPO_OPTIONS: TipoComprobante[] = ['FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO
 
 export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: ComprobantesProps) {
   const { user, hasPermission } = useAuth();
+  const { activeTenantId } = useTenant();
   const canEditOt = hasPermission('comprobantes', 'editar_ot');
   const canEditSync = hasPermission('comprobantes', 'editar_sincronizar');
 
   const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedTenantId, setSelectedTenantId] = useState(tenantIdForzado ?? '');
   const [search, setSearch] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
   const [xmlFilter, setXmlFilter] = useState<'' | 'true' | 'false'>('');
   const [sifenFilter, setSifenFilter] = useState<'' | 'aprobado' | 'no_aprobado' | 'sin_estado'>('');
   const [sincronizarFilter, setSincronizarFilter] = useState<'' | 'true' | 'false'>('');
+  const [modoFilter, setModoFilter] = useState<'' | 'ventas' | 'compras'>('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
   const [page, setPage] = useState(1);
@@ -105,7 +106,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
   const [savingSync, setSavingSync] = useState<string | null>(null);
   const LIMIT = 20;
 
-  const effectiveTenantId = tenantIdForzado ?? selectedTenantId;
+  const effectiveTenantId = tenantIdForzado ?? activeTenantId;
 
   const load = useCallback(async (silent = false) => {
     if (!effectiveTenantId) {
@@ -126,6 +127,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
         ruc_vendedor: search.match(/^\d/) ? search : undefined,
+        modo: modoFilter || undefined,
       });
 
       let filtered = res.data;
@@ -144,12 +146,6 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
       setRefreshing(false);
     }
   }, [effectiveTenantId, page, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, search, toastError]);
-
-  useEffect(() => {
-    if (!tenantIdForzado) {
-      api.tenants.list().then(setTenants).catch(() => {});
-    }
-  }, [tenantIdForzado]);
 
   useEffect(() => {
     setPage(1);
@@ -222,15 +218,6 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
       />
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        {!tenantIdForzado && (
-          <select className="input w-auto min-w-[200px]" value={selectedTenantId} onChange={(e) => setSelectedTenantId(e.target.value)}>
-            <option value="">— Seleccionar empresa —</option>
-            {tenants.map((t) => (
-              <option key={t.id} value={t.id}>{t.nombre_fantasia} ({t.ruc})</option>
-            ))}
-          </select>
-        )}
-
         {effectiveTenantId && (
           <>
             <div className="relative flex-1 min-w-[180px] max-w-xs">
@@ -255,10 +242,24 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
               </button>
               {showExport && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
-                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json')} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json', {
+                    tipo_comprobante: tipoFilter as TipoComprobante,
+                    xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                    fecha_desde: fechaDesde,
+                    fecha_hasta: fechaHasta,
+                    ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                    modo: modoFilter || undefined,
+                  })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
                     <FileJson className="w-3.5 h-3.5 text-zinc-400" />Exportar JSON
                   </a>
-                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt')} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt', {
+                    tipo_comprobante: tipoFilter as TipoComprobante,
+                    xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                    fecha_desde: fechaDesde,
+                    fecha_hasta: fechaHasta,
+                    ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                    modo: modoFilter || undefined,
+                  })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
                     <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Exportar TXT
                   </a>
                 </div>
@@ -311,9 +312,17 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
               <label className="label">Hasta</label>
               <input type="date" className="input" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
             </div>
+            <div>
+              <label className="label">Tipo de Operatión</label>
+              <select className="input" value={modoFilter} onChange={(e) => setModoFilter(e.target.value as any)}>
+                <option value="">Todos</option>
+                <option value="ventas">Ventas (Emitidos)</option>
+                <option value="compras">Compras (Recibidos)</option>
+              </select>
+            </div>
           </div>
           {activeFilters > 0 && (
-            <button onClick={() => { setTipoFilter(''); setXmlFilter(''); setFechaDesde(''); setFechaHasta(''); setSifenFilter(''); setSincronizarFilter(''); }} className="mt-3 btn-sm btn-ghost text-zinc-500">
+            <button onClick={() => { setTipoFilter(''); setXmlFilter(''); setFechaDesde(''); setFechaHasta(''); setSifenFilter(''); setSincronizarFilter(''); setModoFilter(''); }} className="mt-3 btn-sm btn-ghost text-zinc-500">
               <X className="w-3 h-3" /> Limpiar filtros
             </button>
           )}
@@ -367,8 +376,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                     {c.xml_descargado_at
                       ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /><span className="text-xs">Desc.</span></span>
                       : c.cdc
-                      ? <span className="flex items-center gap-1 text-zinc-400"><Circle className="w-3.5 h-3.5" /><span className="text-xs">Pend.</span></span>
-                      : <span className="flex items-center gap-1 text-zinc-300"><X className="w-3.5 h-3.5" /><span className="text-xs">S/CDC</span></span>
+                        ? <span className="flex items-center gap-1 text-zinc-400"><Circle className="w-3.5 h-3.5" /><span className="text-xs">Pend.</span></span>
+                        : <span className="flex items-center gap-1 text-zinc-300"><X className="w-3.5 h-3.5" /><span className="text-xs">S/CDC</span></span>
                     }
                   </td>
                   <td className="table-td">{c.nro_ot ? <span className="tag text-xs">{c.nro_ot}</span> : <span className="text-zinc-300 text-xs">—</span>}</td>
@@ -395,11 +404,20 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
       {selectedComprobante && (
         <Modal open={!!selectedComprobante} onClose={() => setSelectedComprobante(null)} title={selectedComprobante.numero_comprobante} description={selectedComprobante.razon_social_vendedor || selectedComprobante.ruc_vendedor} size="xl">
           <div className="flex gap-0 border border-zinc-200 rounded-lg overflow-hidden mb-5 -mt-1">
-            {(['info', 'detalles', 'xml'] as const).map((v) => (
-              <button key={v} onClick={() => setDetailView(v)} className={`flex-1 py-2 text-xs font-medium transition-colors duration-100 ${detailView === v ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'}`}>
-                {v === 'info' ? 'Información' : v === 'detalles' ? 'Items XML' : 'XML crudo'}
-              </button>
-            ))}
+            {(['info', 'detalles', 'xml'] as const).map((v) => {
+              const label = v === 'info' ? 'Información' : v === 'detalles' ? 'Items' : 'XML crudo';
+              const disabled = (v === 'xml' && !selectedComprobante.xml_contenido) || (v === 'detalles' && !selectedComprobante.detalles_xml?.items?.length && !selectedComprobante.detalles_virtual?.items?.length);
+              return (
+                <button
+                  key={v}
+                  onClick={() => !disabled && setDetailView(v)}
+                  className={`flex-1 py-2 text-xs font-medium transition-colors duration-100 ${detailView === v ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'} ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+                  disabled={disabled}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           {detailView === 'info' && (
@@ -476,19 +494,19 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                 )}
               </div>
 
-              {selectedComprobante.detalles_xml?.totales && (
+              {(selectedComprobante.detalles_xml?.totales || selectedComprobante.detalles_virtual?.totales) && (
                 <div className="col-span-2">
                   <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Totales</p>
                   <div className="grid grid-cols-4 gap-3">
                     {[
-                      { label: 'Gravado 5%', value: selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0, show: (selectedComprobante.detalles_xml.totales.subtotalIva5 ?? 0) > 0 },
-                      { label: 'Gravado 10%', value: selectedComprobante.detalles_xml.totales.subtotalIva10 ?? 0, show: (selectedComprobante.detalles_xml.totales.subtotalIva10 ?? 0) > 0 },
-                      { label: 'Exentas', value: selectedComprobante.detalles_xml.totales.exentas, show: selectedComprobante.detalles_xml.totales.exentas > 0 },
-                      { label: 'Descuento', value: selectedComprobante.detalles_xml.totales.descuento, show: selectedComprobante.detalles_xml.totales.descuento > 0 },
-                      { label: 'IVA 5%', value: selectedComprobante.detalles_xml.totales.iva5, show: selectedComprobante.detalles_xml.totales.iva5 > 0 },
-                      { label: 'IVA 10%', value: selectedComprobante.detalles_xml.totales.iva10, show: selectedComprobante.detalles_xml.totales.iva10 > 0 },
-                      { label: 'IVA Total', value: selectedComprobante.detalles_xml.totales.ivaTotal, show: true },
-                      { label: 'Total', value: selectedComprobante.detalles_xml.totales.total, show: true },
+                      { label: 'Gravado 5%', value: selectedComprobante.detalles_xml?.totales?.subtotalIva5 ?? selectedComprobante.detalles_virtual?.totales?.iva5 ?? 0, show: (selectedComprobante.detalles_xml?.totales?.subtotalIva5 ?? selectedComprobante.detalles_virtual?.totales?.iva5 ?? 0) > 0 },
+                      { label: 'Gravado 10%', value: selectedComprobante.detalles_xml?.totales?.subtotalIva10 ?? selectedComprobante.detalles_virtual?.totales?.iva10 ?? 0, show: (selectedComprobante.detalles_xml?.totales?.subtotalIva10 ?? selectedComprobante.detalles_virtual?.totales?.iva10 ?? 0) > 0 },
+                      { label: 'Exentas', value: selectedComprobante.detalles_xml?.totales?.exentas ?? selectedComprobante.detalles_virtual?.totales?.exentas ?? 0, show: (selectedComprobante.detalles_xml?.totales?.exentas ?? selectedComprobante.detalles_virtual?.totales?.exentas ?? 0) > 0 },
+                      { label: 'Descuento', value: selectedComprobante.detalles_xml?.totales?.descuento ?? 0, show: (selectedComprobante.detalles_xml?.totales?.descuento ?? 0) > 0 },
+                      { label: 'IVA 5%', value: selectedComprobante.detalles_xml?.totales?.iva5 ?? 0, show: (selectedComprobante.detalles_xml?.totales?.iva5 ?? 0) > 0 },
+                      { label: 'IVA 10%', value: selectedComprobante.detalles_xml?.totales?.iva10 ?? 0, show: (selectedComprobante.detalles_xml?.totales?.iva10 ?? 0) > 0 },
+                      { label: 'IVA Total', value: selectedComprobante.detalles_xml?.totales?.ivaTotal ?? (selectedComprobante.detalles_virtual?.totales?.iva5 || 0) + (selectedComprobante.detalles_virtual?.totales?.iva10 || 0), show: true },
+                      { label: 'Total', value: selectedComprobante.detalles_xml?.totales?.total ?? selectedComprobante.total_operacion, show: true },
                     ].filter(({ show }) => show).map(({ label, value }) => (
                       <div key={label} className={`card p-3 text-center ${label === 'Total' ? 'border-zinc-900' : ''}`}>
                         <p className="text-xs text-zinc-500 mb-1">{label}</p>
@@ -526,7 +544,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
 
           {detailView === 'detalles' && (
             <div>
-              {selectedComprobante.detalles_xml?.items?.length ? (
+              {(selectedComprobante.detalles_xml?.items?.length || selectedComprobante.detalles_virtual?.items?.length) ? (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-50 rounded-lg">
@@ -539,12 +557,12 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedComprobante.detalles_xml.items.map((item, i) => (
+                    {(selectedComprobante.detalles_xml?.items || selectedComprobante.detalles_virtual?.items || []).map((item: any, i: number) => (
                       <tr key={i} className="table-tr">
                         <td className="table-td font-medium">{item.descripcion}</td>
                         <td className="table-td text-right tabular-nums">{formatNumber(item.cantidad)}</td>
                         <td className="table-td text-right tabular-nums font-mono">{formatCurrency(item.precioUnitario)}</td>
-                        <td className="table-td text-right tabular-nums font-mono">{item.descuento > 0 ? formatCurrency(item.descuento) : '—'}</td>
+                        <td className="table-td text-right tabular-nums font-mono">{(item.descuento || 0) > 0 ? formatCurrency(item.descuento) : '—'}</td>
                         <td className="table-td text-right"><span className="tag">{item.tasaIva}%</span></td>
                         <td className="table-td text-right tabular-nums font-mono font-medium">{formatCurrency(item.subtotal)}</td>
                       </tr>
@@ -552,7 +570,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                   </tbody>
                 </table>
               ) : (
-                <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin items" description="No hay items parseados del XML para este comprobante" />
+                <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin items" description="No hay items parseados para este comprobante" />
               )}
             </div>
           )}

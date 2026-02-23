@@ -2,6 +2,9 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import {
   findBanks,
+  createBank,
+  updateBank,
+  deleteBank,
   findAccountsByTenant,
   createAccount,
   updateAccount,
@@ -29,10 +32,50 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   await app.register(import('@fastify/multipart'), { limits: { fileSize: 20 * 1024 * 1024 } });
 
   // ─── Banks catalog ──────────────────────────────────────────────────────────
+  app.get('/banks', async (_req, reply) => {
+    const banks = await findBanks();
+    return reply.send({ data: banks });
+  });
+
+  app.post<{ Body: { nombre: string; codigo: string; pais?: string; activo?: boolean } }>(
+    '/banks',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Solo Super Admin puede crear bancos' });
+      }
+      const bank = await createBank(req.body);
+      return reply.status(201).send({ data: bank });
+    }
+  );
+
+  app.put<{ Params: { id: string }; Body: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean }> }>(
+    '/banks/:id',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Solo Super Admin puede editar bancos' });
+      }
+      const bank = await updateBank(req.params.id, req.body);
+      if (!bank) return reply.status(404).send({ error: 'Banco no encontrado' });
+      return reply.send({ data: bank });
+    }
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    '/banks/:id',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') {
+        return reply.status(403).send({ error: 'Solo Super Admin puede eliminar bancos' });
+      }
+      await deleteBank(req.params.id);
+      return reply.status(204).send();
+    }
+  );
+
   app.get<{ Params: { id: string } }>('/tenants/:id/banks', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const banks = await findBanks();
-    return reply.send({ data: banks });
+    // Only return active banks for tenants
+    return reply.send({ data: banks.filter(b => b.activo) });
   });
 
   // ─── Bank Accounts ──────────────────────────────────────────────────────────
@@ -198,14 +241,14 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send({ data: { run_id: run.id, estado: 'PENDING' } });
   });
 
-  app.get<{ Params: { id: string } }>('/tenants/:id/banks/reconcile/runs', async (req, reply) => {
+  app.get<{ Params: { id: string } }>('/tenants/:id/reconciliation-runs', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const runs = await findRunsByTenant(req.params.id);
     return reply.send({ data: runs });
   });
 
   app.get<{ Params: { id: string; rid: string } }>(
-    '/tenants/:id/banks/reconcile/runs/:rid',
+    '/tenants/:id/reconciliation-runs/:rid',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       const run = await findRunById(req.params.rid);
@@ -217,7 +260,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.get<{
     Params: { id: string; rid: string };
     Querystring: { page?: string; limit?: string };
-  }>('/tenants/:id/banks/reconcile/runs/:rid/matches', async (req, reply) => {
+  }>('/tenants/:id/reconciliation-runs/:rid/matches', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const page = parseInt(req.query.page ?? '1');
     const limit = parseInt(req.query.limit ?? '50');
@@ -228,7 +271,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{
     Params: { id: string; mid: string };
     Body: { estado: 'CONFIRMADO' | 'RECHAZADO'; notas?: string };
-  }>('/tenants/:id/banks/reconcile/matches/:mid', async (req, reply) => {
+  }>('/tenants/:id/reconciliation-runs/:rid/matches/:mid', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const { estado, notas } = req.body;
     await updateMatch(req.params.mid, estado, req.currentUser!.id, notas);

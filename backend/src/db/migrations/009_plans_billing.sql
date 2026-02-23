@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS usage_metrics (
 );
 
 INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, limite_comprobantes_mes, limite_usuarios, features) VALUES
-  ('FREE',       'Plan gratuito',     0,      500,  1,  '{"xlsx":false,"pdf":false,"conciliacion":false,"webhooks":false,"api_tokens":1}'),
-  ('PRO',        'Plan profesional',  250000, 5000, 5,  '{"xlsx":true,"pdf":true,"conciliacion":true,"webhooks":true,"api_tokens":5}'),
-  ('ENTERPRISE', 'Plan empresarial',  750000, null, 20, '{"xlsx":true,"pdf":true,"conciliacion":true,"webhooks":true,"api_tokens":999}')
+  ('FREE',       'Plan gratuito',     0,      500,  1,  '{"xlsx":false,"pdf":false,"conciliacion":false,"webhooks":false,"api_tokens":1,"alertas":false,"auditoria":false,"anomalias":false,"metricas":false,"whitelabel":false}'),
+  ('PRO',        'Plan profesional',  250000, 5000, 5,  '{"xlsx":true,"pdf":true,"conciliacion":true,"webhooks":true,"api_tokens":5,"alertas":true,"auditoria":false,"anomalias":true,"metricas":true,"whitelabel":false}'),
+  ('ENTERPRISE', 'Plan empresarial',  750000, null, 20, '{"xlsx":true,"pdf":true,"conciliacion":true,"webhooks":true,"api_tokens":999,"alertas":true,"auditoria":true,"anomalias":true,"metricas":true,"whitelabel":true}')
 ON CONFLICT (nombre) DO NOTHING;

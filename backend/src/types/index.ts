@@ -272,6 +272,8 @@ export interface ComprobanteFilters {
   tipo_comprobante?: TipoComprobante;
   ruc_vendedor?: string;
   xml_descargado?: boolean;
+  modo?: 'ventas' | 'compras';
+  tenant_ruc?: string;
 }
 
 // ─── Export Logs ─────────────────────────────────────────────────────────────

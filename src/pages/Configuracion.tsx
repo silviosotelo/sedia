@@ -1,6 +1,6 @@
 import {
   Settings, CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
-  Edit2, Trash2, RefreshCw,
+  Edit2, Trash2,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -11,12 +11,19 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { api } from '../lib/api';
 import type { Plan, MetricsOverview, MetricsSaas } from '../types';
 
+interface SystemSetting {
+  key: string;
+  value: any;
+  description: string;
+  is_secret: boolean;
+}
+
 interface ConfiguracionProps {
   toastSuccess: (msg: string) => void;
   toastError: (msg: string) => void;
 }
 
-type Tab = 'overview' | 'planes';
+type Tab = 'overview' | 'planes' | 'sistema';
 
 function fmtGs(n: number) {
   if (n === 0) return 'Gratis';
@@ -110,18 +117,23 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [systemConfig, setSystemConfig] = useState<SystemSetting[]>([]);
+  const [editingConfig, setEditingConfig] = useState<SystemSetting | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ov, sm, pl] = await Promise.all([
+      const [ov, sm, pl, sc] = await Promise.all([
         api.metrics.overview(),
         api.metrics.saas(),
         api.billing.listPlans(),
+        api.get('/system/config'),
       ]);
       setOverview(ov);
       setSaasMetrics(sm);
       setPlans(pl);
+      setSystemConfig(sc.data);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -130,6 +142,23 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   }, [toastError]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  const handleEditConfig = (config: SystemSetting) => {
+    setEditingConfig(config);
+    setShowConfigModal(true);
+  };
+
+  const handleSaveSystemConfig = async (value: any) => {
+    if (!editingConfig) return;
+    try {
+      await api.patch(`/system/config/${editingConfig.key}`, { value });
+      toastSuccess('Configuración actualizada');
+      setShowConfigModal(false);
+      void loadData();
+    } catch (err) {
+      toastError('Error al actualizar configuración');
+    }
+  };
 
   const handleSavePlan = async (form: PlanFormData) => {
     try {
@@ -188,6 +217,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         {([
           { id: 'overview', label: 'Resumen del sistema', icon: <BarChart3 className="w-3.5 h-3.5" /> },
           { id: 'planes', label: 'Planes de suscripción', icon: <CreditCard className="w-3.5 h-3.5" /> },
+          { id: 'sistema', label: 'Configuración Global', icon: <Settings className="w-3.5 h-3.5" /> },
         ] as { id: Tab; label: string; icon: React.ReactNode }[]).map(({ id, label, icon }) => (
           <button
             key={id}
@@ -348,6 +378,40 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         </div>
       )}
 
+      {/* ── Tab: Sistema ──────────────────────────────────────────────── */}
+      {tab === 'sistema' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4">
+            {systemConfig.map((item) => (
+              <div key={item.key} className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider">{item.key.replace(/_/g, ' ')}</h3>
+                    <p className="text-xs text-zinc-500">{item.description}</p>
+                  </div>
+                  <Badge variant={item.is_secret ? 'warning' : 'neutral'} size="sm">
+                    {item.is_secret ? 'Sensible' : 'Público'}
+                  </Badge>
+                </div>
+                <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-100">
+                  <pre className="text-[11px] font-mono text-zinc-600 overflow-x-auto">
+                    {JSON.stringify(item.value, null, 2)}
+                  </pre>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => handleEditConfig(item)}
+                    className="btn-sm btn-secondary gap-1.5 text-xs"
+                  >
+                    <Edit2 className="w-3 h-3" /> Editar valores
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showPlanModal && (
         <PlanModal
           plan={editingPlan}
@@ -366,12 +430,47 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         onClose={() => setDeletingId(null)}
       />
 
-      {/* Floating refresh indicator */}
-      {loading && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-full text-xs shadow-lg">
-          <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
-        </div>
+      {showConfigModal && editingConfig && (
+        <SystemConfigModal
+          config={editingConfig}
+          onClose={() => setShowConfigModal(false)}
+          onSave={handleSaveSystemConfig}
+        />
       )}
     </div>
+  );
+}
+
+function SystemConfigModal({ config, onClose, onSave }: { config: SystemSetting; onClose: () => void; onSave: (val: any) => void }) {
+  const [val, setVal] = useState(JSON.stringify(config.value, null, 2));
+
+  return (
+    <Modal open title={`Editar ${config.key}`} onClose={onClose} size="md">
+      <div className="space-y-4 py-4">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Valor (JSON)</label>
+          <textarea
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="w-full h-48 font-mono text-xs p-3 rounded-lg border border-zinc-200 focus:ring-2 focus:ring-zinc-900 focus:outline-none"
+          />
+        </div>
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="btn-md btn-secondary">Cancelar</button>
+          <button
+            onClick={() => {
+              try {
+                onSave(JSON.parse(val));
+              } catch (e) {
+                alert('JSON inválido');
+              }
+            }}
+            className="btn-md btn-primary"
+          >
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

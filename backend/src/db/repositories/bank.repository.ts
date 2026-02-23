@@ -16,7 +16,49 @@ import { decrypt, encrypt } from '../../services/crypto.service';
 // ─── Banks ────────────────────────────────────────────────────────────────────
 
 export async function findBanks(): Promise<Bank[]> {
-  return query<Bank>('SELECT * FROM banks WHERE activo = true ORDER BY nombre');
+  return query<Bank>('SELECT * FROM banks ORDER BY nombre');
+}
+
+export async function createBank(data: {
+  nombre: string;
+  codigo: string;
+  pais?: string;
+  activo?: boolean;
+}): Promise<Bank> {
+  const rows = await query<Bank>(
+    `INSERT INTO banks (nombre, codigo, pais, activo)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [data.nombre, data.codigo, data.pais ?? 'PRY', data.activo ?? true]
+  );
+  return rows[0];
+}
+
+export async function updateBank(
+  id: string,
+  data: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean }>
+): Promise<Bank | null> {
+  const sets: string[] = [];
+  const params: unknown[] = [id];
+  let i = 2;
+
+  if (data.nombre !== undefined) { sets.push(`nombre = $${i++}`); params.push(data.nombre); }
+  if (data.codigo !== undefined) { sets.push(`codigo = $${i++}`); params.push(data.codigo); }
+  if (data.pais !== undefined) { sets.push(`pais = $${i++}`); params.push(data.pais); }
+  if (data.activo !== undefined) { sets.push(`activo = $${i++}`); params.push(data.activo); }
+
+  if (sets.length === 0) return null;
+
+  const rows = await query<Bank>(
+    `UPDATE banks SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+    params
+  );
+  return rows[0] ?? null;
+}
+
+export async function deleteBank(id: string): Promise<boolean> {
+  await query('DELETE FROM banks WHERE id = $1', [id]);
+  return true;
 }
 
 // ─── Bank Accounts ────────────────────────────────────────────────────────────

@@ -3,7 +3,7 @@ import { Building2, Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, branding } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,10 +26,17 @@ export function Login() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-800 border border-zinc-700 mb-4">
-            <Building2 className="w-7 h-7 text-zinc-200" />
+          <div
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-700 mb-4 overflow-hidden"
+            style={{ borderColor: branding.color_primario }}
+          >
+            {branding.logo_url ? (
+              <img src={branding.logo_url} alt="Logo" className="w-full h-full object-contain" />
+            ) : (
+              <Building2 className="w-7 h-7 text-zinc-200" />
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-white">SET Comprobantes</h1>
+          <h1 className="text-2xl font-bold text-white">{branding.nombre_app}</h1>
           <p className="text-zinc-400 text-sm mt-1">Plataforma SaaS de sincronización fiscal</p>
         </div>
 
@@ -98,7 +105,7 @@ export function Login() {
         </div>
 
         <p className="text-center text-zinc-600 text-xs mt-6">
-          SET Comprobantes &copy; {new Date().getFullYear()} — Paraguay
+          {branding.nombre_app} &copy; {new Date().getFullYear()} — Paraguay
         </p>
       </div>
     </div>

@@ -139,6 +139,14 @@ export async function findComprobantesByTenant(
     conditions.push(`xml_descargado_at IS NULL`);
   }
 
+  if (filters.modo === 'ventas' && filters.tenant_ruc) {
+    conditions.push(`ruc_vendedor = $${i++}`);
+    params.push(filters.tenant_ruc);
+  } else if (filters.modo === 'compras' && filters.tenant_ruc) {
+    conditions.push(`ruc_vendedor <> $${i++}`);
+    params.push(filters.tenant_ruc);
+  }
+
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   const countRows = await query<{ count: string }>(

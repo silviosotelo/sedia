@@ -21,6 +21,10 @@ import { auditRoutes } from './routes/audit.routes';
 import { anomalyRoutes } from './routes/anomaly.routes';
 import { whitelabelRoutes } from './routes/whitelabel.routes';
 import { processorRoutes } from './routes/processor.routes';
+import { systemRoutes } from './routes/system.routes';
+import { roleRoutes } from './routes/role.routes';
+import { webhookBillingRoutes } from './routes/webhook-billing.routes';
+import { sifenRoutes } from './routes/sifen.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -64,23 +68,27 @@ export async function buildServer() {
     version: '1.0.0',
   }));
 
-  await app.register(tenantRoutes);
-  await app.register(jobRoutes);
-  await app.register(comprobanteRoutes);
-  await app.register(authRoutes);
-  await app.register(usuarioRoutes);
-  await app.register(metricsRoutes);
-  await app.register(notificationRoutes);
-  await app.register(webhookRoutes);
-  await app.register(apiTokenRoutes);
-  await app.register(clasificacionRoutes);
-  await app.register(alertasRoutes);
-  await app.register(bankRoutes);
-  await app.register(billingRoutes);
-  await app.register(auditRoutes);
-  await app.register(anomalyRoutes);
-  await app.register(whitelabelRoutes);
-  await app.register(processorRoutes);
+  await app.register(tenantRoutes, { prefix: '/api' });
+  await app.register(jobRoutes, { prefix: '/api' });
+  await app.register(comprobanteRoutes, { prefix: '/api' });
+  await app.register(authRoutes, { prefix: '/api' });
+  await app.register(usuarioRoutes, { prefix: '/api' });
+  await app.register(metricsRoutes, { prefix: '/api' });
+  await app.register(notificationRoutes, { prefix: '/api' });
+  await app.register(webhookRoutes, { prefix: '/api' });
+  await app.register(apiTokenRoutes, { prefix: '/api' });
+  await app.register(clasificacionRoutes, { prefix: '/api' });
+  await app.register(alertasRoutes, { prefix: '/api' });
+  await app.register(bankRoutes, { prefix: '/api' });
+  await app.register(billingRoutes, { prefix: '/api' });
+  await app.register(auditRoutes, { prefix: '/api' });
+  await app.register(anomalyRoutes, { prefix: '/api' });
+  await app.register(whitelabelRoutes, { prefix: '/api' });
+  await app.register(processorRoutes, { prefix: '/api' });
+  await app.register(systemRoutes, { prefix: '/api' });
+  await app.register(roleRoutes, { prefix: '/api' });
+  await app.register(webhookBillingRoutes, { prefix: '/api' });
+  await app.register(sifenRoutes, { prefix: '/api' });
 
   logger.info('Servidor Fastify configurado');
   return app;
