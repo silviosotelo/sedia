@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Landmark, Plus, Upload, RefreshCw, CheckCircle2, XCircle,
   ChevronRight, FileText, AlertCircle, X, Calendar,
@@ -8,16 +8,12 @@ import { Badge } from '../components/ui/Badge';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../lib/api';
 import type { BankAccount, BankStatement, ReconciliationRun, ReconciliationMatch, PaymentProcessor, Bank } from '../types';
 
 interface ConciliacionProps {
   toastSuccess: (msg: string) => void;
   toastError: (msg: string) => void;
-}
-
-function authHeaders() {
-  const t = localStorage.getItem('saas_token');
-  return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
 function fmtGs(n: number) {
@@ -49,7 +45,9 @@ function AccountCard({
         <div className="w-8 h-8 bg-zinc-100 rounded-lg flex items-center justify-center">
           <Landmark className="w-4 h-4 text-zinc-600" />
         </div>
-        <Badge variant={account.activo ? 'success' : 'neutral'} size="sm">{account.activo ? 'Activa' : 'Inactiva'}</Badge>
+        <Badge variant={account.activo ? 'success' : 'neutral'} size="sm">
+          {account.activo ? 'Activa' : 'Inactiva'}
+        </Badge>
       </div>
       <p className="text-sm font-semibold text-zinc-900">{account.alias}</p>
       <p className="text-xs text-zinc-500 mt-0.5">{account.bank_nombre ?? '—'} · {account.moneda}</p>
@@ -69,19 +67,19 @@ function AccountCard({
 // ─── UploadModal ──────────────────────────────────────────────────────────────
 
 function UploadModal({
-  accountId, tenantId, onClose, onSuccess,
+  accountId, tenantId, onClose, onSuccess, toastError,
 }: {
   accountId: string;
   tenantId: string;
   onClose: () => void;
   onSuccess: () => void;
+  toastError: (msg: string) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [periodoDesde, setPeriodoDesde] = useState('');
   const [periodoHasta, setPeriodoHasta] = useState('');
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string[][]>([]);
-  const dropRef = useRef<HTMLDivElement>(null);
 
   const handleFile = (f: File) => {
     setFile(f);
@@ -106,22 +104,11 @@ function UploadModal({
     if (!file || !periodoDesde || !periodoHasta) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('periodo_desde', periodoDesde);
-      fd.append('periodo_hasta', periodoHasta);
-      const res = await fetch(
-        `/api/tenants/${tenantId}/bank-accounts/${accountId}/statements`,
-        { method: 'POST', headers: authHeaders(), body: fd }
-      );
-      if (!res.ok) {
-        const body = await res.json() as { message?: string };
-        throw new Error(body.message ?? 'Error al subir extracto');
-      }
+      await api.bank.uploadStatement(tenantId, accountId, file, periodoDesde, periodoHasta);
       onSuccess();
       onClose();
     } catch (err) {
-      alert((err as Error).message);
+      toastError((err as Error).message);
     } finally {
       setUploading(false);
     }
@@ -136,17 +123,21 @@ function UploadModal({
         </div>
 
         <div
-          ref={dropRef}
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           className="border-2 border-dashed border-zinc-300 rounded-xl p-6 text-center hover:border-zinc-400 transition-colors cursor-pointer"
-          onClick={() => document.getElementById('file-input')?.click()}
+          onClick={() => document.getElementById('file-input-upload')?.click()}
         >
           <Upload className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
           <p className="text-sm text-zinc-600">{file ? file.name : 'Arrastrá o hacé click para seleccionar'}</p>
           <p className="text-xs text-zinc-400 mt-1">CSV, XLSX, TXT · máx. 10 MB</p>
-          <input id="file-input" type="file" className="hidden" accept=".csv,.xlsx,.xls,.txt"
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          <input
+            id="file-input-upload"
+            type="file"
+            className="hidden"
+            accept=".csv,.xlsx,.xls,.txt"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+          />
         </div>
 
         {preview.length > 0 && (
@@ -194,12 +185,13 @@ function UploadModal({
 // ─── NewAccountModal ──────────────────────────────────────────────────────────
 
 function NewAccountModal({
-  tenantId, banks, onClose, onSuccess,
+  tenantId, banks, onClose, onSuccess, toastError,
 }: {
   tenantId: string;
   banks: Bank[];
   onClose: () => void;
   onSuccess: () => void;
+  toastError: (msg: string) => void;
 }) {
   const [form, setForm] = useState({ bank_id: '', alias: '', numero_cuenta: '', moneda: 'PYG', tipo: 'corriente' });
   const [saving, setSaving] = useState(false);
@@ -208,16 +200,11 @@ function NewAccountModal({
     if (!form.bank_id || !form.alias) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/bank-accounts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) throw new Error('Error al crear cuenta');
+      await api.bank.createAccount(tenantId, form);
       onSuccess();
       onClose();
     } catch (err) {
-      alert((err as Error).message);
+      toastError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -239,8 +226,12 @@ function NewAccountModal({
         </div>
         <div>
           <label className="label-sm">Alias</label>
-          <input className="input-sm" placeholder="Ej: Cuenta corriente principal" value={form.alias}
-            onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))} />
+          <input
+            className="input-sm"
+            placeholder="Ej: Cuenta corriente principal"
+            value={form.alias}
+            onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -267,7 +258,11 @@ function NewAccountModal({
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="btn-sm btn-secondary" disabled={saving}>Cancelar</button>
-          <button onClick={() => void handleSave()} disabled={!form.bank_id || !form.alias || saving} className="btn-sm btn-primary">
+          <button
+            onClick={() => void handleSave()}
+            disabled={!form.bank_id || !form.alias || saving}
+            className="btn-sm btn-primary"
+          >
             {saving ? <Spinner size="xs" /> : <Plus className="w-3.5 h-3.5" />} Crear
           </button>
         </div>
@@ -279,12 +274,13 @@ function NewAccountModal({
 // ─── RunModal ────────────────────────────────────────────────────────────────
 
 function RunModal({
-  tenantId, accounts, onClose, onSuccess,
+  tenantId, accounts, onClose, onSuccess, toastError,
 }: {
   tenantId: string;
   accounts: BankAccount[];
   onClose: () => void;
   onSuccess: () => void;
+  toastError: (msg: string) => void;
 }) {
   const [form, setForm] = useState({ bank_account_id: '', periodo_desde: '', periodo_hasta: '' });
   const [creating, setCreating] = useState(false);
@@ -293,16 +289,15 @@ function RunModal({
     if (!form.periodo_desde || !form.periodo_hasta) return;
     setCreating(true);
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/reconciliation-runs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify(form),
+      await api.bank.createRun(tenantId, {
+        bank_account_id: form.bank_account_id || undefined,
+        periodo_desde: form.periodo_desde,
+        periodo_hasta: form.periodo_hasta,
       });
-      if (!res.ok) throw new Error('Error al crear conciliación');
       onSuccess();
       onClose();
     } catch (err) {
-      alert((err as Error).message);
+      toastError((err as Error).message);
     } finally {
       setCreating(false);
     }
@@ -317,8 +312,11 @@ function RunModal({
         </div>
         <div>
           <label className="label-sm">Cuenta bancaria (opcional)</label>
-          <select className="input-sm" value={form.bank_account_id}
-            onChange={(e) => setForm((f) => ({ ...f, bank_account_id: e.target.value }))}>
+          <select
+            className="input-sm"
+            value={form.bank_account_id}
+            onChange={(e) => setForm((f) => ({ ...f, bank_account_id: e.target.value }))}
+          >
             <option value="">Todas las cuentas</option>
             {accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}
           </select>
@@ -337,7 +335,11 @@ function RunModal({
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="btn-sm btn-secondary" disabled={creating}>Cancelar</button>
-          <button onClick={() => void handleCreate()} disabled={!form.periodo_desde || !form.periodo_hasta || creating} className="btn-sm btn-primary">
+          <button
+            onClick={() => void handleCreate()}
+            disabled={!form.periodo_desde || !form.periodo_hasta || creating}
+            className="btn-sm btn-primary"
+          >
             {creating ? <Spinner size="xs" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Iniciar
           </button>
         </div>
@@ -354,7 +356,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
 
   const [tab, setTab] = useState<Tab>('cuentas');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [statements, setStatements] = useState<BankStatement[]>([]);
@@ -373,20 +375,16 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [accsRes, banksRes, runsRes, procsRes] = await Promise.all([
-        fetch(`/api/tenants/${tenantId}/bank-accounts`, { headers: authHeaders() }),
-        fetch(`/api/banks`, { headers: authHeaders() }),
-        fetch(`/api/tenants/${tenantId}/reconciliation-runs`, { headers: authHeaders() }),
-        fetch(`/api/tenants/${tenantId}/payment-processors`, { headers: authHeaders() }),
+      const [accs, bnks, rns, procs] = await Promise.all([
+        api.bank.listAccounts(tenantId),
+        api.bank.listBanks(),
+        api.bank.listRuns(tenantId),
+        api.bank.listProcessors(tenantId),
       ]);
-      const accsData = await accsRes.json() as { data: BankAccount[] };
-      const banksData = await banksRes.json() as { data: Bank[] };
-      const runsData = await runsRes.json() as { data: ReconciliationRun[] };
-      const procsData = await procsRes.json() as { data: PaymentProcessor[] };
-      setAccounts(accsData.data ?? []);
-      setBanks(banksData.data ?? []);
-      setRuns(runsData.data ?? []);
-      setProcessors(procsData.data ?? []);
+      setAccounts(accs);
+      setBanks(bnks);
+      setRuns(rns);
+      setProcessors(procs);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -399,9 +397,8 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const loadStatements = useCallback(async (accountId: string) => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/bank-accounts/${accountId}/statements`, { headers: authHeaders() });
-      const data = await res.json() as { data: BankStatement[] };
-      setStatements(data.data ?? []);
+      const data = await api.bank.listStatements(tenantId, accountId);
+      setStatements(data);
     } catch { /* ignore */ }
   }, [tenantId]);
 
@@ -413,9 +410,8 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const loadMatches = useCallback(async (runId: string) => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/reconciliation-runs/${runId}/matches`, { headers: authHeaders() });
-      const data = await res.json() as { data: ReconciliationMatch[] };
-      setMatches(data.data ?? []);
+      const data = await api.bank.listMatches(tenantId, runId);
+      setMatches(data);
     } catch { /* ignore */ }
   }, [tenantId]);
 
@@ -427,12 +423,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const handleConfirmMatch = async (matchId: string, estado: 'CONFIRMADO' | 'RECHAZADO') => {
     if (!tenantId || !selectedRun) return;
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/reconciliation-runs/${selectedRun.id}/matches/${matchId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ estado }),
-      });
-      if (!res.ok) throw new Error('Error actualizando match');
+      await api.bank.updateMatch(tenantId, selectedRun.id, matchId, { estado });
       toastSuccess(`Match ${estado === 'CONFIRMADO' ? 'confirmado' : 'rechazado'}`);
       void loadMatches(selectedRun.id);
     } catch (err) {
@@ -444,12 +435,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
     if (!tenantId) return;
     setProcessorUploading(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch(`/api/tenants/${tenantId}/payment-processors/${processorId}/upload`, {
-        method: 'POST', headers: authHeaders(), body: fd,
-      });
-      if (!res.ok) throw new Error('Error al subir archivo');
+      await api.bank.uploadProcessorFile(tenantId, processorId, file);
       toastSuccess('Archivo de procesadora subido');
     } catch (err) {
       toastError((err as Error).message);
@@ -475,7 +461,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
     );
   }
 
-  if (loading && accounts.length === 0) return <PageLoader />;
+  if (loading && accounts.length === 0 && runs.length === 0) return <PageLoader />;
 
   return (
     <div className="animate-fade-in">
@@ -521,7 +507,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
             <div className="card flex flex-col items-center justify-center py-16 text-center">
               <Landmark className="w-10 h-10 text-zinc-300 mb-3" />
               <p className="text-sm text-zinc-500">No hay cuentas registradas</p>
-              <button onClick={() => setShowNewAccount(true)} className="mt-4 btn-sm btn-primary">
+              <button onClick={() => setShowNewAccount(true)} className="mt-4 btn-sm btn-primary gap-1">
                 <Plus className="w-3.5 h-3.5" /> Agregar cuenta
               </button>
             </div>
@@ -555,7 +541,10 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
                         <p className="text-xs font-medium text-zinc-700">{s.archivo_nombre ?? 'Extracto'}</p>
                         <p className="text-xs text-zinc-400">{fmtDate(s.periodo_desde)} – {fmtDate(s.periodo_hasta)}</p>
                       </div>
-                      <Badge variant={s.estado_procesamiento === 'PROCESADO' ? 'success' : s.estado_procesamiento === 'ERROR' ? 'danger' : 'warning'} size="sm">
+                      <Badge
+                        variant={s.estado_procesamiento === 'PROCESADO' ? 'success' : s.estado_procesamiento === 'ERROR' ? 'danger' : 'warning'}
+                        size="sm"
+                      >
                         {s.estado_procesamiento}
                       </Badge>
                       {s.r2_signed_url && (
@@ -591,7 +580,10 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
             <div className="card overflow-hidden">
               <div className="divide-y divide-zinc-50">
                 {runs.map((run) => {
-                  const summary = run.summary as { total?: number; conciliados?: number; sin_match_banco?: number; sin_match_comprobante?: number };
+                  const summary = run.summary as {
+                    total?: number; conciliados?: number;
+                    sin_match_banco?: number; sin_match_comprobante?: number
+                  };
                   return (
                     <button
                       key={run.id}
@@ -612,7 +604,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
                         </div>
                         {summary.total != null && (
                           <p className="text-xs text-zinc-400 mt-0.5">
-                            {summary.conciliados ?? 0} conciliados · {summary.sin_match_banco ?? 0} sin match banco · {summary.sin_match_comprobante ?? 0} sin match comprobante
+                            {summary.conciliados ?? 0} conciliados · {summary.sin_match_banco ?? 0} sin match banco · {summary.sin_match_comprobante ?? 0} sin match cpte.
                           </p>
                         )}
                       </div>
@@ -630,7 +622,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
                 {([
                   { id: 'conciliados', label: `Conciliados (${conciliadosMatches.length})` },
                   { id: 'sin_banco', label: `Sin match banco (${sinBancoMatches.length})` },
-                  { id: 'sin_comprobante', label: `Sin match comprobante (${sinComprobanteMatches.length})` },
+                  { id: 'sin_comprobante', label: `Sin match cpte. (${sinComprobanteMatches.length})` },
                 ] as { id: typeof matchTab; label: string }[]).map(({ id, label }) => (
                   <button
                     key={id}
@@ -718,11 +710,16 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
                     <p className="text-sm font-medium text-zinc-900">{proc.nombre}</p>
                     {proc.tipo && <p className="text-xs text-zinc-400 mt-0.5">{proc.tipo}</p>}
                   </div>
-                  <Badge variant={proc.activo ? 'success' : 'neutral'} size="sm">{proc.activo ? 'Activa' : 'Inactiva'}</Badge>
+                  <Badge variant={proc.activo ? 'success' : 'neutral'} size="sm">
+                    {proc.activo ? 'Activa' : 'Inactiva'}
+                  </Badge>
                   <label className="btn-sm btn-secondary gap-1 cursor-pointer text-xs">
                     {processorUploading ? <Spinner size="xs" /> : <Upload className="w-3 h-3" />}
                     Subir CSV
-                    <input type="file" className="hidden" accept=".csv,.xlsx,.txt"
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".csv,.xlsx,.txt"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) void handleProcessorUpload(proc.id, f);
@@ -737,11 +734,12 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         </div>
       )}
 
-      {/* Modals */}
+      {/* ── Modals ───────────────────────────────────────────────────── */}
       {uploadModalAccountId && tenantId && (
         <UploadModal
           accountId={uploadModalAccountId}
           tenantId={tenantId}
+          toastError={toastError}
           onClose={() => setUploadModalAccountId(null)}
           onSuccess={() => {
             toastSuccess('Extracto subido correctamente');
@@ -753,6 +751,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         <NewAccountModal
           tenantId={tenantId}
           banks={banks}
+          toastError={toastError}
           onClose={() => setShowNewAccount(false)}
           onSuccess={() => { void loadAll(); }}
         />
@@ -761,6 +760,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         <RunModal
           tenantId={tenantId}
           accounts={accounts}
+          toastError={toastError}
           onClose={() => setShowNewRun(false)}
           onSuccess={() => {
             toastSuccess('Conciliación encolada');
@@ -769,10 +769,11 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         />
       )}
 
-      {/* refresh helper */}
-      <div className="hidden">
-        <RefreshCw />
-      </div>
+      {loading && (
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-full text-xs shadow-lg">
+          <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
+        </div>
+      )}
     </div>
   );
 }

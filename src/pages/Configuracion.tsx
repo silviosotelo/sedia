@@ -16,11 +16,6 @@ interface ConfiguracionProps {
 
 type Tab = 'overview' | 'planes';
 
-function authHeaders() {
-  const t = localStorage.getItem('saas_token');
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
-
 function fmtGs(n: number) {
   if (n === 0) return 'Gratis';
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(n);
@@ -186,20 +181,10 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         features: JSON.parse(form.features) as Record<string, unknown>,
       };
       if (editingPlan) {
-        const res = await fetch(`/api/plans/${editingPlan.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error('Error al actualizar plan');
+        await api.billing.updatePlan(editingPlan.id, body);
         toastSuccess('Plan actualizado');
       } else {
-        const res = await fetch('/api/plans', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error('Error al crear plan');
+        await api.billing.createPlan(body);
         toastSuccess('Plan creado');
       }
       void loadData();
@@ -213,11 +198,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
     if (!confirm('¿Eliminar este plan?')) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`/api/plans/${id}`, {
-        method: 'DELETE',
-        headers: authHeaders(),
-      });
-      if (!res.ok) throw new Error('Error al eliminar plan');
+      await api.billing.deletePlan(id);
       toastSuccess('Plan eliminado');
       void loadData();
     } catch (err) {

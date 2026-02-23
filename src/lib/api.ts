@@ -403,6 +403,26 @@ export const api = {
     listStatements: (tenantId: string, accountId: string): Promise<BankStatement[]> =>
       request<{ data: BankStatement[] }>(`/tenants/${tenantId}/bank-accounts/${accountId}/statements`).then((r) => r.data ?? []),
 
+    uploadStatement: async (tenantId: string, accountId: string, file: File, periodoDesde: string, periodoHasta: string): Promise<BankStatement> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('periodo_desde', periodoDesde);
+      fd.append('periodo_hasta', periodoHasta);
+      const t = getToken();
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/bank-accounts/${accountId}/statements`, {
+        method: 'POST',
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        throw new Error(msg);
+      }
+      const data = await res.json() as { data: BankStatement };
+      return data.data;
+    },
+
     listTransactions: (tenantId: string, accountId: string, params?: { desde?: string; hasta?: string }): Promise<BankTransaction[]> => {
       const q = new URLSearchParams();
       if (params?.desde) q.set('desde', params.desde);
@@ -429,11 +449,36 @@ export const api = {
 
     listProcessors: (tenantId: string): Promise<PaymentProcessor[]> =>
       request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/payment-processors`).then((r) => r.data ?? []),
+
+    uploadProcessorFile: async (tenantId: string, processorId: string, file: File): Promise<void> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const t = getToken();
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/payment-processors/${processorId}/upload`, {
+        method: 'POST',
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        throw new Error(msg);
+      }
+    },
   },
 
   billing: {
     listPlans: (): Promise<Plan[]> =>
       request<{ data: Plan[] }>('/plans').then((r) => r.data ?? []),
+
+    createPlan: (body: Partial<Plan>): Promise<Plan> =>
+      request<{ data: Plan }>('/plans', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+
+    updatePlan: (id: string, body: Partial<Plan>): Promise<Plan> =>
+      request<{ data: Plan }>(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+
+    deletePlan: (id: string): Promise<void> =>
+      request<void>(`/plans/${id}`, { method: 'DELETE' }),
 
     getUsage: (tenantId: string): Promise<BillingUsage> =>
       request<{ data: BillingUsage }>(`/tenants/${tenantId}/billing/usage`).then((r) => r.data),
