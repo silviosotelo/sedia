@@ -3,17 +3,14 @@ import { CreditCard, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react'
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
+import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../lib/api';
 import type { Plan, BillingUsage } from '../types';
 
 interface BillingProps {
   toastSuccess: (msg: string) => void;
   toastError: (msg: string) => void;
-}
-
-function authHeaders() {
-  const t = localStorage.getItem('saas_token');
-  return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
 function fmtGs(n: number) {
@@ -120,26 +117,25 @@ function HistoryBar({ month, value, maxValue }: { month: string; value: number; 
 }
 
 export function Billing({ toastSuccess, toastError }: BillingProps) {
-  const { isSuperAdmin, userTenantId, user } = useAuth();
-  const tenantId = isSuperAdmin ? user?.tenant_id : userTenantId;
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
+  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [usage, setUsage] = useState<BillingUsage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selecting, setSelecting] = useState(false);
 
   const load = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [plansRes, usageRes] = await Promise.all([
-        fetch('/api/plans', { headers: authHeaders() }),
-        fetch(`/api/tenants/${tenantId}/billing/usage`, { headers: authHeaders() }),
+      const [plansData, usageData] = await Promise.all([
+        api.billing.listPlans(),
+        api.billing.getUsage(tenantId),
       ]);
-      const plansData = await plansRes.json() as { data: Plan[] };
-      const usageData = await usageRes.json() as { data: BillingUsage };
-      setPlans(plansData.data ?? []);
-      setUsage(usageData.data ?? null);
+      setPlans(plansData);
+      setUsage(usageData);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -153,15 +149,7 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
     if (!tenantId) return;
     setSelecting(true);
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/billing/plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ plan_id: planId }),
-      });
-      if (!res.ok) {
-        const body = await res.json() as { message?: string };
-        throw new Error(body.message ?? 'Error al cambiar plan');
-      }
+      await api.billing.changePlan(tenantId, planId);
       toastSuccess('Plan actualizado correctamente');
       void load();
     } catch (err) {
@@ -176,8 +164,24 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
     : null;
 
   const currentPlanId = usage?.plan?.id;
-
   const maxHistory = Math.max(...(usage?.historial ?? []).map((h) => h.comprobantes_procesados), 1);
+
+  const tenantSelector = isSuperAdmin ? (
+    <TenantSelector value={selectedTenantId} onChange={(id) => setSelectedTenantId(id)} />
+  ) : undefined;
+
+  if (isSuperAdmin && !tenantId) {
+    return (
+      <div className="animate-fade-in">
+        <Header title="Planes y Billing" subtitle="Gestión de suscripción y uso de recursos" />
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <CreditCard className="w-12 h-12 text-zinc-300" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su billing</p>
+          <TenantSelector value="" onChange={setSelectedTenantId} />
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !usage) return <PageLoader />;
 
@@ -188,9 +192,9 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         subtitle="Gestión de suscripción y uso de recursos"
         onRefresh={load}
         refreshing={loading}
+        actions={tenantSelector}
       />
 
-      {/* Trial alert */}
       {trialDaysLeft !== null && trialDaysLeft <= 14 && (
         <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
           trialDaysLeft <= 3
@@ -206,7 +210,6 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         </div>
       )}
 
-      {/* Current usage */}
       {usage?.uso && (
         <div className="card p-5 mb-6 space-y-4">
           <div className="flex items-center gap-2 mb-2">
@@ -235,7 +238,6 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         </div>
       )}
 
-      {/* History chart */}
       {(usage?.historial ?? []).length > 0 && (
         <div className="card p-5 mb-6">
           <div className="flex items-center gap-2 mb-4">
@@ -258,7 +260,6 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         </div>
       )}
 
-      {/* Plan cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {plans.map((plan) => (
           <PlanCard

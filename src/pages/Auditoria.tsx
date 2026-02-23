@@ -4,6 +4,7 @@ import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
+import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import type { AuditLogEntry } from '../types';
@@ -36,20 +37,20 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
         className="hover:bg-zinc-50 cursor-pointer"
         onClick={() => setExpanded((v) => !v)}
       >
-        <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
+        <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
           {new Date(entry.created_at).toLocaleString('es-PY')}
         </td>
-        <td className="px-4 py-3 text-sm text-zinc-800">
+        <td className="table-td text-sm text-zinc-800">
           {entry.usuario_nombre ?? entry.usuario_id?.slice(0, 8) ?? '—'}
         </td>
-        <td className="px-4 py-3">
-          <Badge variant={color}>{entry.accion}</Badge>
+        <td className="table-td">
+          <Badge variant={color} size="sm">{entry.accion}</Badge>
         </td>
-        <td className="px-4 py-3 text-xs text-zinc-500">
+        <td className="table-td text-xs text-zinc-500">
           {entry.entidad_tipo ? `${entry.entidad_tipo}:${entry.entidad_id?.slice(0, 8) ?? ''}` : '—'}
         </td>
-        <td className="px-4 py-3 text-xs text-zinc-400">{entry.ip_address ?? '—'}</td>
-        <td className="px-4 py-3 text-zinc-400">
+        <td className="table-td text-xs text-zinc-400">{entry.ip_address ?? '—'}</td>
+        <td className="table-td text-zinc-400">
           {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
         </td>
       </tr>
@@ -67,11 +68,12 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
 }
 
 export function Auditoria({ toastError }: AuditoriaProps) {
-  const { isSuperAdmin, userTenantId, user } = useAuth();
-  const tenantId = isSuperAdmin ? null : userTenantId;
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
+  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
 
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [filterAccion, setFilterAccion] = useState('');
@@ -79,47 +81,62 @@ export function Auditoria({ toastError }: AuditoriaProps) {
   const [filterHasta, setFilterHasta] = useState('');
   const limit = 50;
 
-  const tid = tenantId ?? (isSuperAdmin && user?.tenant_id ? user.tenant_id : null);
-
   const load = useCallback(async () => {
-    if (!tid) return;
+    if (!tenantId) return;
     setLoading(true);
     try {
-      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if (filterAccion) q.set('accion', filterAccion);
-      if (filterDesde) q.set('fecha_desde', filterDesde);
-      if (filterHasta) q.set('fecha_hasta', filterHasta);
-
-      const res = await fetch(`/api/tenants/${tid}/audit-log?${q.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('saas_token') ?? ''}`,
-        },
+      const result = await api.audit.list(tenantId, {
+        accion: filterAccion || undefined,
+        desde: filterDesde || undefined,
+        hasta: filterHasta || undefined,
+        page,
+        limit,
       });
-      if (!res.ok) throw new Error('Error cargando auditoría');
-      const data = await res.json() as { data: AuditLogEntry[]; meta: { total: number } };
-      setEntries(data.data);
-      setTotal(data.meta.total);
+      setEntries(result.data);
+      setTotal(result.pagination.total);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [tid, page, filterAccion, filterDesde, filterHasta, toastError]);
+  }, [tenantId, page, filterAccion, filterDesde, filterHasta, toastError]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const handleExport = () => {
-    if (!tid) return;
-    const url = `/api/tenants/${tid}/audit-log/export`;
+    if (!tenantId) return;
+    const url = api.audit.exportUrl(tenantId, {
+      accion: filterAccion || undefined,
+      desde: filterDesde || undefined,
+      hasta: filterHasta || undefined,
+    });
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit_log.csv`;
+    a.download = 'audit_log.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
+
+  const tenantSelector = isSuperAdmin ? (
+    <TenantSelector
+      value={selectedTenantId}
+      onChange={(id) => { setSelectedTenantId(id); setPage(1); }}
+    />
+  ) : undefined;
+
+  if (isSuperAdmin && !tenantId) {
+    return (
+      <div className="animate-fade-in">
+        <Header title="Auditoría" subtitle="Registro de acciones del sistema" />
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <ShieldCheck className="w-12 h-12 text-zinc-300" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su auditoría</p>
+          <TenantSelector value="" onChange={setSelectedTenantId} />
+        </div>
+      </div>
+    );
+  }
 
   if (loading && entries.length === 0) return <PageLoader />;
 
@@ -131,14 +148,16 @@ export function Auditoria({ toastError }: AuditoriaProps) {
         onRefresh={load}
         refreshing={loading}
         actions={
-          <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
-            <Download className="w-3.5 h-3.5" />
-            Exportar CSV
-          </button>
+          <div className="flex items-center gap-2">
+            {tenantSelector}
+            <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
+              <Download className="w-3.5 h-3.5" />
+              Exportar CSV
+            </button>
+          </div>
         }
       />
 
-      {/* Filters */}
       <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">
         <div>
           <label className="label-sm">Acción</label>
@@ -167,7 +186,6 @@ export function Auditoria({ toastError }: AuditoriaProps) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="card overflow-hidden">
         {entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -179,12 +197,12 @@ export function Auditoria({ toastError }: AuditoriaProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Fecha/Hora</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Usuario</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Acción</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Entidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">IP</th>
-                  <th className="px-4 py-3" />
+                  <th className="table-th">Fecha/Hora</th>
+                  <th className="table-th">Usuario</th>
+                  <th className="table-th">Acción</th>
+                  <th className="table-th">Entidad</th>
+                  <th className="table-th">IP</th>
+                  <th className="table-th" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
@@ -195,17 +213,17 @@ export function Auditoria({ toastError }: AuditoriaProps) {
             </table>
           </div>
         )}
-      </div>
 
-      {total > limit && (
-        <div className="mt-4">
+        {total > limit && (
           <Pagination
             page={page}
             totalPages={Math.ceil(total / limit)}
+            total={total}
+            limit={limit}
             onPageChange={setPage}
           />
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

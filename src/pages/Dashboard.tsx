@@ -21,6 +21,7 @@ import {
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
+import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 import { formatRelative, JOB_TYPE_LABELS } from '../lib/utils';
@@ -99,6 +100,7 @@ function fmtGs(n: number) {
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { isSuperAdmin, userTenantId } = useAuth();
   const isTenantUser = !isSuperAdmin && !!userTenantId;
+  const [advancedTenantId, setAdvancedTenantId] = useState(userTenantId ?? '');
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
@@ -147,7 +149,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [isTenantUser, userTenantId]);
 
   const loadAdvanced = useCallback(async () => {
-    const tid = isTenantUser ? userTenantId : undefined;
+    const tid = isTenantUser ? userTenantId : (isSuperAdmin ? advancedTenantId : undefined);
     if (!tid) return;
     setAdvancedLoading(true);
     try {
@@ -162,7 +164,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     } finally {
       setAdvancedLoading(false);
     }
-  }, [isTenantUser, userTenantId]);
+  }, [isTenantUser, userTenantId, isSuperAdmin, advancedTenantId]);
 
   useEffect(() => {
     load();
@@ -423,16 +425,31 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       )}
 
-      {/* ── Análisis Fiscal Avanzado (solo tenant users) ─────────────── */}
-      {isTenantUser && (
+      {/* ── Análisis Fiscal Avanzado ──────────────────────────────────── */}
+      {(isTenantUser || isSuperAdmin) && (
         <div className="mt-8 space-y-6">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <BarChart3 className="w-4 h-4 text-zinc-400" />
             <h2 className="text-base font-semibold text-zinc-900">Análisis Fiscal</h2>
             {advancedLoading && (
               <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-600 rounded-full animate-spin ml-1" />
             )}
+            {isSuperAdmin && (
+              <div className="ml-auto">
+                <TenantSelector
+                  value={advancedTenantId}
+                  onChange={(id) => setAdvancedTenantId(id)}
+                  label="Ver análisis de"
+                />
+              </div>
+            )}
           </div>
+
+          {isSuperAdmin && !advancedTenantId && (
+            <div className="card p-8 text-center text-sm text-zinc-400">
+              Seleccioná una empresa para ver su análisis fiscal
+            </div>
+          )}
 
           {dashAvanzado && (
             <>

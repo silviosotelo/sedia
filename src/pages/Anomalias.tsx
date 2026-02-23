@@ -4,7 +4,9 @@ import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
+import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../lib/api';
 import type { AnomalyDetection } from '../types';
 
 interface AnomaliasSummary {
@@ -31,18 +33,14 @@ const TIPO_LABELS: Record<string, string> = {
   FRECUENCIA_INUSUAL: 'Frecuencia inusual',
 };
 
-function authHeaders() {
-  const t = localStorage.getItem('saas_token');
-  return t ? { Authorization: `Bearer ${t}` } : {};
-}
-
 export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
-  const { isSuperAdmin, userTenantId, user } = useAuth();
-  const tenantId = isSuperAdmin ? user?.tenant_id : userTenantId;
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
+  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
 
   const [anomalias, setAnomalias] = useState<AnomalyDetection[]>([]);
   const [summary, setSummary] = useState<AnomaliasSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [filterEstado, setFilterEstado] = useState('ACTIVA');
@@ -53,21 +51,18 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const q = new URLSearchParams({ page: String(page), limit: String(limit) });
-      if (filterEstado) q.set('estado', filterEstado);
-      if (filterTipo) q.set('tipo', filterTipo);
-
-      const [anomaliasRes, summaryRes] = await Promise.all([
-        fetch(`/api/tenants/${tenantId}/anomalies?${q.toString()}`, { headers: authHeaders() }),
-        fetch(`/api/tenants/${tenantId}/anomalies/summary`, { headers: authHeaders() }),
+      const [anomaliasData, summaryData] = await Promise.all([
+        api.anomalies.list(tenantId, {
+          estado: filterEstado || undefined,
+          tipo: filterTipo || undefined,
+          page,
+          limit,
+        }),
+        api.anomalies.summary(tenantId),
       ]);
-
-      const anomaliasData = await anomaliasRes.json() as { data: AnomalyDetection[]; meta: { total: number } };
-      const summaryData = await summaryRes.json() as { data: AnomaliasSummary };
-
       setAnomalias(anomaliasData.data);
       setTotal(anomaliasData.meta.total);
-      setSummary(summaryData.data);
+      setSummary(summaryData);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -80,18 +75,33 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
   const handleAccion = async (id: string, estado: 'REVISADA' | 'DESCARTADA') => {
     if (!tenantId) return;
     try {
-      const res = await fetch(`/api/tenants/${tenantId}/anomalies/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ estado }),
-      });
-      if (!res.ok) throw new Error('Error actualizando anomalía');
+      await api.anomalies.update(tenantId, id, estado);
       toastSuccess(`Anomalía marcada como ${estado}`);
       void load();
     } catch (err) {
       toastError((err as Error).message);
     }
   };
+
+  const tenantSelector = isSuperAdmin ? (
+    <TenantSelector
+      value={selectedTenantId}
+      onChange={(id) => { setSelectedTenantId(id); setPage(1); }}
+    />
+  ) : undefined;
+
+  if (isSuperAdmin && !tenantId) {
+    return (
+      <div className="animate-fade-in">
+        <Header title="Anomalías" subtitle="Detección automática de comprobantes inusuales" />
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <TrendingUp className="w-12 h-12 text-zinc-300" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver sus anomalías</p>
+          <TenantSelector value="" onChange={setSelectedTenantId} />
+        </div>
+      </div>
+    );
+  }
 
   if (loading && anomalias.length === 0) return <PageLoader />;
 
@@ -102,9 +112,9 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         subtitle="Detección automática de comprobantes inusuales"
         onRefresh={load}
         refreshing={loading}
+        actions={tenantSelector}
       />
 
-      {/* Summary cards */}
       {summary && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="stat-card">
@@ -120,7 +130,6 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         </div>
       )}
 
-      {/* Filters */}
       <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">
         <div>
           <label className="label-sm">Estado</label>
@@ -143,7 +152,6 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         </div>
       </div>
 
-      {/* Table */}
       <div className="card overflow-hidden">
         {anomalias.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -155,37 +163,40 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-100">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Fecha</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Tipo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Severidad</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Comprobante</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Proveedor</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Descripción</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-zinc-500">Estado</th>
-                  <th className="px-4 py-3" />
+                  <th className="table-th">Fecha</th>
+                  <th className="table-th">Tipo</th>
+                  <th className="table-th">Severidad</th>
+                  <th className="table-th">Comprobante</th>
+                  <th className="table-th">Proveedor</th>
+                  <th className="table-th">Descripción</th>
+                  <th className="table-th">Estado</th>
+                  <th className="table-th" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-50">
                 {anomalias.map((a) => (
                   <tr key={a.id} className="hover:bg-zinc-50">
-                    <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
+                    <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
                       {new Date(a.created_at).toLocaleDateString('es-PY')}
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant="info">{TIPO_LABELS[a.tipo] ?? a.tipo}</Badge>
+                    <td className="table-td">
+                      <Badge variant="info" size="sm">{TIPO_LABELS[a.tipo] ?? a.tipo}</Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={SEVERIDAD_VARIANT[a.severidad] ?? 'neutral'}>{a.severidad}</Badge>
+                    <td className="table-td">
+                      <Badge variant={SEVERIDAD_VARIANT[a.severidad] ?? 'neutral'} size="sm">{a.severidad}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-xs font-mono text-zinc-700">{a.numero_comprobante ?? '—'}</td>
-                    <td className="px-4 py-3 text-xs text-zinc-600">{a.razon_social_vendedor ?? a.ruc_vendedor ?? '—'}</td>
-                    <td className="px-4 py-3 text-xs text-zinc-500 max-w-xs truncate">{a.descripcion ?? '—'}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant={a.estado === 'ACTIVA' ? 'warning' : a.estado === 'REVISADA' ? 'success' : 'neutral'}>
+                    <td className="table-td text-xs font-mono">{a.numero_comprobante ?? '—'}</td>
+                    <td className="table-td text-xs">{a.razon_social_vendedor ?? a.ruc_vendedor ?? '—'}</td>
+                    <td className="table-td text-xs max-w-xs truncate">{a.descripcion ?? '—'}</td>
+                    <td className="table-td">
+                      <Badge
+                        variant={a.estado === 'ACTIVA' ? 'warning' : a.estado === 'REVISADA' ? 'success' : 'neutral'}
+                        size="sm"
+                      >
                         {a.estado}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="table-td">
                       {a.estado === 'ACTIVA' && (
                         <div className="flex gap-1">
                           <button
@@ -211,13 +222,17 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
             </table>
           </div>
         )}
-      </div>
 
-      {total > limit && (
-        <div className="mt-4">
-          <Pagination page={page} totalPages={Math.ceil(total / limit)} onPageChange={setPage} />
-        </div>
-      )}
+        {total > limit && (
+          <Pagination
+            page={page}
+            totalPages={Math.ceil(total / limit)}
+            total={total}
+            limit={limit}
+            onPageChange={setPage}
+          />
+        )}
+      </div>
     </div>
   );
 }

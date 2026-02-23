@@ -6,6 +6,7 @@ import {
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
 import type { BankAccount, BankStatement, ReconciliationRun, ReconciliationMatch, PaymentProcessor, Bank } from '../types';
 
@@ -348,8 +349,9 @@ function RunModal({
 // ─── Conciliacion ─────────────────────────────────────────────────────────────
 
 export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
-  const { isSuperAdmin, userTenantId, user } = useAuth();
-  const tenantId = isSuperAdmin ? user?.tenant_id : userTenantId;
+  const { isSuperAdmin, userTenantId } = useAuth();
+  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
+  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
 
   const [tab, setTab] = useState<Tab>('cuentas');
   const [loading, setLoading] = useState(true);
@@ -460,6 +462,19 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const sinBancoMatches = matches.filter((m) => !m.bank_transaction_id && m.internal_ref_id);
   const sinComprobanteMatches = matches.filter((m) => m.bank_transaction_id && !m.internal_ref_id);
 
+  if (isSuperAdmin && !tenantId) {
+    return (
+      <div className="animate-fade-in">
+        <Header title="Conciliación bancaria" subtitle="Cotejo de extractos bancarios con comprobantes" />
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Landmark className="w-12 h-12 text-zinc-300" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su conciliación</p>
+          <TenantSelector value="" onChange={setSelectedTenantId} />
+        </div>
+      </div>
+    );
+  }
+
   if (loading && accounts.length === 0) return <PageLoader />;
 
   return (
@@ -469,6 +484,9 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         subtitle="Cotejo de extractos bancarios con comprobantes"
         onRefresh={loadAll}
         refreshing={loading}
+        actions={isSuperAdmin ? (
+          <TenantSelector value={selectedTenantId} onChange={(id) => { setSelectedTenantId(id); }} />
+        ) : undefined}
       />
 
       {/* Tabs */}

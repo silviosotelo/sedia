@@ -19,6 +19,8 @@ import {
   CreditCard,
   ShieldCheck,
   TrendingUp,
+  Settings,
+  Palette,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,7 +30,8 @@ export type Page =
   | 'dashboard' | 'tenants' | 'jobs' | 'comprobantes'
   | 'usuarios' | 'metricas' | 'notificaciones'
   | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas'
-  | 'conciliacion' | 'billing' | 'auditoria' | 'anomalias';
+  | 'conciliacion' | 'billing' | 'auditoria' | 'anomalias'
+  | 'configuracion' | 'white-label';
 
 interface NavItem {
   id: Page;
@@ -47,19 +50,21 @@ const ALL_NAV_ITEMS: NavItem[] = [
 ];
 
 const AUTOMATION_NAV_ITEMS: NavItem[] = [
-  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" /> },
-  { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" /> },
-  { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" /> },
-  { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" /> },
-  { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" /> },
-  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" /> },
-  { id: 'conciliacion', label: 'Conciliación', icon: <Landmark className="w-4 h-4" /> },
+  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" />, allowedRoles: ['super_admin'] },
+  { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'conciliacion', label: 'Conciliación', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'billing', label: 'Billing', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
-  { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin'] },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'white-label', label: 'White Label', icon: <Palette className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'configuracion', label: 'Configuración', icon: <Settings className="w-4 h-4" />, allowedRoles: ['super_admin'] },
 ];
 
 interface SidebarProps {
@@ -74,6 +79,10 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
   const rolNombre = user?.rol.nombre as RolNombre | undefined;
 
   const visibleNavItems = ALL_NAV_ITEMS.filter(
+    (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
+  );
+
+  const visibleAutomationItems = AUTOMATION_NAV_ITEMS.filter(
     (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
   );
 
@@ -120,29 +129,29 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
           ))}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-zinc-100">
-          <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-            Automatización
-          </p>
-          {AUTOMATION_NAV_ITEMS.filter(
-            (item) => !item.allowedRoles || (rolNombre && item.allowedRoles.includes(rolNombre))
-          ).map((item) => (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={cn(
-                'w-full text-left',
-                current === item.id ? 'sidebar-item-active' : 'sidebar-item-inactive'
-              )}
-            >
-              {item.icon}
-              <span className="flex-1">{item.label}</span>
-              {current === item.id && (
-                <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
-              )}
-            </button>
-          ))}
-        </div>
+        {visibleAutomationItems.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-zinc-100">
+            <p className="px-3 mb-2 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+              Automatización
+            </p>
+            {visibleAutomationItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+                className={cn(
+                  'w-full text-left',
+                  current === item.id ? 'sidebar-item-active' : 'sidebar-item-inactive'
+                )}
+              >
+                {item.icon}
+                <span className="flex-1">{item.label}</span>
+                {current === item.id && (
+                  <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {visibleAdminItems.length > 0 && (
           <div className="mt-4 pt-4 border-t border-zinc-100">
@@ -194,7 +203,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode }: SidebarPro
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-zinc-900 truncate">{user.nombre}</p>
-              <p className="text-[10px] text-zinc-400 truncate">{user.rol.nombre.replace('_', ' ')}</p>
+              <p className="text-[10px] text-zinc-400 truncate">{user.rol.nombre.replace(/_/g, ' ')}</p>
             </div>
             <button
               onClick={() => void logout()}
