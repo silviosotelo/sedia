@@ -35,7 +35,9 @@ const TIPO_COMPROBANTE_OPTS = ['FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'AUTOFA
 const COLORES_PRESET = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280', '#0f172a'];
 
 interface ReglaFormData {
-  nombre: string; descripcion: string; campo: string; operador: string;
+  nombre: string; descripcion: string;
+  campo: ClasificacionRegla['campo'];
+  operador: ClasificacionRegla['operador'];
   valor: string; etiqueta: string; color: string; prioridad: number; activo: boolean;
 }
 
@@ -51,9 +53,9 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
   const [form, setForm] = useState<ReglaFormData>({ ...emptyRegla(), ...initial });
   const operadores = OPERADORES_POR_CAMPO[form.campo] ?? OPERADORES_POR_CAMPO.ruc_vendedor;
   const setField = <K extends keyof ReglaFormData>(k: K, v: ReglaFormData[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const handleCampoChange = (campo: string) => {
+  const handleCampoChange = (campo: ClasificacionRegla['campo']) => {
     const ops = OPERADORES_POR_CAMPO[campo] ?? [];
-    setForm((f) => ({ ...f, campo, operador: ops[0]?.value ?? 'equals', valor: '' }));
+    setForm((f) => ({ ...f, campo, operador: ops[0]?.value as ClasificacionRegla['operador'] ?? 'equals', valor: '' }));
   };
 
   return (
@@ -71,13 +73,13 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="label">Campo</label>
-          <select className="input" value={form.campo} onChange={(e) => handleCampoChange(e.target.value)}>
+          <select className="input" value={form.campo} onChange={(e) => handleCampoChange(e.target.value as ClasificacionRegla['campo'])}>
             {CAMPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
         <div>
           <label className="label">Operador</label>
-          <select className="input" value={form.operador} onChange={(e) => setField('operador', e.target.value)}>
+          <select className="input" value={form.operador} onChange={(e) => setField('operador', e.target.value as ClasificacionRegla['operador'])}>
             {operadores.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
@@ -152,14 +154,14 @@ export function Clasificacion({ toastSuccess, toastError }: ClasificacionProps) 
 
   const handleCreate = async (data: ReglaFormData) => {
     setSaving(true);
-    try { await api.clasificacion.createRegla(tenantId, data); toastSuccess('Regla creada'); setShowCreateModal(false); await load(); }
+    try { await api.clasificacion.createRegla(tenantId, data as Partial<ClasificacionRegla>); toastSuccess('Regla creada'); setShowCreateModal(false); await load(); }
     catch (e) { toastError((e as Error).message); } finally { setSaving(false); }
   };
 
   const handleUpdate = async (data: ReglaFormData) => {
     if (!editingRegla) return;
     setSaving(true);
-    try { await api.clasificacion.updateRegla(tenantId, editingRegla.id, data); toastSuccess('Regla actualizada'); setEditingRegla(null); await load(); }
+    try { await api.clasificacion.updateRegla(tenantId, editingRegla.id, data as Partial<ClasificacionRegla>); toastSuccess('Regla actualizada'); setEditingRegla(null); await load(); }
     catch (e) { toastError((e as Error).message); } finally { setSaving(false); }
   };
 

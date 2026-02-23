@@ -265,7 +265,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
                       <div key={t.tenant_id} className="px-5 py-3 flex items-center gap-3">
                         <span className="text-xs text-zinc-400 w-5 tabular-nums">{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-zinc-900 truncate">{t.nombre_fantasia}</p>
+                          <p className="text-sm font-medium text-zinc-900 truncate">{t.nombre}</p>
                         </div>
                         <span className="text-sm font-semibold text-zinc-900 tabular-nums">
                           {t.total_comprobantes.toLocaleString('es-PY')}
