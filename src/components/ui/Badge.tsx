@@ -6,6 +6,7 @@ interface BadgeProps {
   variant?: Variant;
   children: React.ReactNode;
   dot?: boolean;
+  size?: 'sm' | 'md';
   className?: string;
 }
 
@@ -29,9 +30,9 @@ const dotClasses: Record<Variant, string> = {
   orange: 'bg-orange-500',
 };
 
-export function Badge({ variant = 'default', children, dot, className }: BadgeProps) {
+export function Badge({ variant = 'default', children, dot, size, className }: BadgeProps) {
   return (
-    <span className={cn('badge', variantClasses[variant], className)}>
+    <span className={cn('badge', variantClasses[variant], size === 'sm' && 'text-[10px] px-1.5 py-0', className)}>
       {dot && (
         <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', dotClasses[variant])} />
       )}

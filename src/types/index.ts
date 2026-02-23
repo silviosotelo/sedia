@@ -371,3 +371,204 @@ export interface AuthState {
   token: string | null;
   loading: boolean;
 }
+
+// ─── Bank Reconciliation ──────────────────────────────────────────────────────
+
+export interface Bank {
+  id: string;
+  nombre: string;
+  codigo: string;
+  pais: string;
+  activo: boolean;
+}
+
+export interface BankAccount {
+  id: string;
+  tenant_id: string;
+  bank_id: string;
+  alias: string;
+  numero_cuenta: string | null;
+  moneda: string;
+  tipo: string;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+  bank_nombre?: string;
+  bank_codigo?: string;
+}
+
+export interface BankStatement {
+  id: string;
+  bank_account_id: string;
+  periodo_desde: string;
+  periodo_hasta: string;
+  archivo_nombre: string | null;
+  r2_signed_url: string | null;
+  estado_procesamiento: string;
+  created_at: string;
+}
+
+export interface BankTransaction {
+  id: string;
+  bank_account_id: string;
+  fecha_operacion: string;
+  descripcion: string | null;
+  monto: number;
+  saldo: number | null;
+  tipo_movimiento: string | null;
+  created_at: string;
+}
+
+export interface PaymentProcessor {
+  id: string;
+  tenant_id: string;
+  nombre: string;
+  tipo: string | null;
+  activo: boolean;
+  created_at: string;
+}
+
+export interface ReconciliationRun {
+  id: string;
+  tenant_id: string;
+  bank_account_id: string | null;
+  periodo_desde: string;
+  periodo_hasta: string;
+  estado: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED';
+  summary: Record<string, unknown>;
+  error_mensaje: string | null;
+  created_at: string;
+}
+
+export interface ReconciliationMatch {
+  id: string;
+  run_id: string;
+  bank_transaction_id: string | null;
+  internal_ref_type: string | null;
+  internal_ref_id: string | null;
+  tipo_match: string | null;
+  diferencia_monto: number;
+  diferencia_dias: number;
+  estado: 'PROPUESTO' | 'CONFIRMADO' | 'RECHAZADO';
+  notas: string | null;
+  created_at: string;
+}
+
+// ─── Plans & Billing ──────────────────────────────────────────────────────────
+
+export interface Plan {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  precio_mensual_pyg: number;
+  limite_comprobantes_mes: number | null;
+  limite_usuarios: number;
+  features: Record<string, unknown>;
+  activo: boolean;
+}
+
+export interface UsageMetrics {
+  mes: number;
+  anio: number;
+  comprobantes_procesados: number;
+  xmls_descargados: number;
+  exportaciones: number;
+  webhooks_enviados: number;
+}
+
+export interface BillingUsage {
+  plan: Plan | null;
+  trial_hasta: string | null;
+  uso: UsageMetrics | null;
+  historial: UsageMetrics[];
+}
+
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+export interface AuditLogEntry {
+  id: string;
+  tenant_id: string | null;
+  usuario_id: string | null;
+  accion: string;
+  entidad_tipo: string | null;
+  entidad_id: string | null;
+  ip_address: string | null;
+  detalles: Record<string, unknown>;
+  created_at: string;
+  usuario_nombre?: string;
+}
+
+// ─── Anomaly Detection ────────────────────────────────────────────────────────
+
+export interface AnomalyDetection {
+  id: string;
+  tenant_id: string;
+  comprobante_id: string;
+  tipo: 'DUPLICADO' | 'MONTO_INUSUAL' | 'PROVEEDOR_NUEVO' | 'FRECUENCIA_INUSUAL';
+  severidad: 'ALTA' | 'MEDIA' | 'BAJA';
+  descripcion: string | null;
+  estado: 'ACTIVA' | 'REVISADA' | 'DESCARTADA';
+  created_at: string;
+  numero_comprobante?: string;
+  ruc_vendedor?: string;
+  razon_social_vendedor?: string;
+}
+
+// ─── Forecast ─────────────────────────────────────────────────────────────────
+
+export interface ForecastDataPoint {
+  mes: string;
+  anio: number;
+  mesNum: number;
+  cantidad: number;
+  monto_total: number;
+  proyectado: boolean;
+  monto_min?: number;
+  monto_max?: number;
+}
+
+export interface ForecastResult {
+  insuficiente_datos?: boolean;
+  tendencia?: 'CRECIENTE' | 'DECRECIENTE' | 'ESTABLE';
+  historial: ForecastDataPoint[];
+  proyeccion: ForecastDataPoint[];
+  promedio_mensual: number;
+  variacion_mensual_pct: number;
+}
+
+// ─── Dashboard Avanzado ───────────────────────────────────────────────────────
+
+export interface DashboardAvanzado {
+  periodo: { mes: number; anio: number; desde: string; hasta: string };
+  resumen: {
+    total_comprobantes: number;
+    monto_total: number;
+    iva_5_total: number;
+    iva_10_total: number;
+    iva_total: number;
+    pct_con_xml: number;
+  };
+  por_tipo: Array<{ tipo: string; cantidad: number; monto_total: number }>;
+  top_vendedores: Array<{
+    ruc_vendedor: string;
+    razon_social: string;
+    cantidad: number;
+    monto_total: number;
+    pct_del_total: number;
+  }>;
+  evolucion_12_meses: Array<{
+    anio: number;
+    mes: number;
+    cantidad: number;
+    monto_total: number;
+    iva_estimado: number;
+  }>;
+  vs_mes_anterior: {
+    monto_actual: number;
+    monto_anterior: number;
+    cantidad_actual: number;
+    cantidad_anterior: number;
+    variacion_monto_pct: number;
+    variacion_cantidad_pct: number;
+  };
+}

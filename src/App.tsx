@@ -12,6 +12,12 @@ import { Webhooks } from './pages/Webhooks';
 import { ApiTokens } from './pages/ApiTokens';
 import { Clasificacion } from './pages/Clasificacion';
 import { Alertas } from './pages/Alertas';
+import { Conciliacion } from './pages/Conciliacion';
+import { Billing } from './pages/Billing';
+import { Auditoria } from './pages/Auditoria';
+import { Anomalias } from './pages/Anomalias';
+import { Configuracion } from './pages/Configuracion';
+import { WhiteLabel } from './pages/WhiteLabel';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useToast } from './hooks/useToast';
@@ -26,11 +32,17 @@ const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
   comprobantes: null,
   usuarios: ['super_admin', 'admin_empresa'],
   metricas: ['super_admin'],
-  notificaciones: null,
-  webhooks: null,
-  'api-tokens': null,
-  clasificacion: null,
-  alertas: null,
+  notificaciones: ['super_admin', 'admin_empresa'],
+  webhooks: ['super_admin', 'admin_empresa'],
+  'api-tokens': ['super_admin', 'admin_empresa'],
+  clasificacion: ['super_admin', 'admin_empresa'],
+  alertas: ['super_admin', 'admin_empresa'],
+  conciliacion: ['super_admin', 'admin_empresa'],
+  billing: ['super_admin', 'admin_empresa'],
+  auditoria: ['super_admin'],
+  anomalias: ['super_admin'],
+  configuracion: ['super_admin'],
+  'white-label': ['super_admin', 'admin_empresa'],
 };
 
 interface NavParams {
@@ -141,20 +153,38 @@ function AppInner() {
         {page === 'metricas' && canAccessPage('metricas') && (
           <Metricas toastError={error} />
         )}
-        {page === 'notificaciones' && (
+        {page === 'notificaciones' && canAccessPage('notificaciones') && (
           <Notificaciones toastSuccess={success} toastError={error} />
         )}
-        {page === 'webhooks' && (
+        {page === 'webhooks' && canAccessPage('webhooks') && (
           <Webhooks toastSuccess={success} toastError={error} />
         )}
-        {page === 'api-tokens' && (
+        {page === 'api-tokens' && canAccessPage('api-tokens') && (
           <ApiTokens toastSuccess={success} toastError={error} />
         )}
-        {page === 'clasificacion' && (
+        {page === 'clasificacion' && canAccessPage('clasificacion') && (
           <Clasificacion toastSuccess={success} toastError={error} />
         )}
-        {page === 'alertas' && (
+        {page === 'alertas' && canAccessPage('alertas') && (
           <Alertas toastSuccess={success} toastError={error} />
+        )}
+        {page === 'conciliacion' && canAccessPage('conciliacion') && (
+          <Conciliacion toastSuccess={success} toastError={error} />
+        )}
+        {page === 'billing' && canAccessPage('billing') && (
+          <Billing toastSuccess={success} toastError={error} />
+        )}
+        {page === 'auditoria' && canAccessPage('auditoria') && (
+          <Auditoria toastError={error} />
+        )}
+        {page === 'anomalias' && canAccessPage('anomalias') && (
+          <Anomalias toastSuccess={success} toastError={error} />
+        )}
+        {page === 'configuracion' && canAccessPage('configuracion') && (
+          <Configuracion toastSuccess={success} toastError={error} />
+        )}
+        {page === 'white-label' && canAccessPage('white-label') && (
+          <WhiteLabel toastSuccess={success} toastError={error} />
         )}
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />

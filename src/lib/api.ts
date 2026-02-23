@@ -15,6 +15,19 @@ import type {
   ClasificacionRegla,
   TenantAlerta,
   AlertaLog,
+  Bank,
+  BankAccount,
+  BankStatement,
+  BankTransaction,
+  PaymentProcessor,
+  ReconciliationRun,
+  ReconciliationMatch,
+  Plan,
+  BillingUsage,
+  AuditLogEntry,
+  AnomalyDetection,
+  ForecastResult,
+  DashboardAvanzado,
 } from '../types';
 import { mockStore } from './mock-data';
 
@@ -373,5 +386,174 @@ export const api = {
       if (MOCK_MODE) return Promise.resolve({ message: 'Email de prueba enviado (demo)' });
       return request<{ message: string }>(`/tenants/${tenantId}/notifications/test`, { method: 'POST', body: JSON.stringify({}) });
     },
+  },
+
+  bank: {
+    listBanks: (): Promise<Bank[]> =>
+      request<{ data: Bank[] }>('/banks').then((r) => r.data ?? []),
+
+    listAccounts: (tenantId: string): Promise<BankAccount[]> =>
+      request<{ data: BankAccount[] }>(`/tenants/${tenantId}/bank-accounts`).then((r) => r.data ?? []),
+
+    createAccount: (tenantId: string, body: Partial<BankAccount>): Promise<BankAccount> =>
+      request<{ data: BankAccount }>(`/tenants/${tenantId}/bank-accounts`, {
+        method: 'POST', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    listStatements: (tenantId: string, accountId: string): Promise<BankStatement[]> =>
+      request<{ data: BankStatement[] }>(`/tenants/${tenantId}/bank-accounts/${accountId}/statements`).then((r) => r.data ?? []),
+
+    uploadStatement: async (tenantId: string, accountId: string, file: File, periodoDesde: string, periodoHasta: string): Promise<BankStatement> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('periodo_desde', periodoDesde);
+      fd.append('periodo_hasta', periodoHasta);
+      const t = getToken();
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/bank-accounts/${accountId}/statements`, {
+        method: 'POST',
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        throw new Error(msg);
+      }
+      const data = await res.json() as { data: BankStatement };
+      return data.data;
+    },
+
+    listTransactions: (tenantId: string, accountId: string, params?: { desde?: string; hasta?: string }): Promise<BankTransaction[]> => {
+      const q = new URLSearchParams();
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      const qs = q.toString();
+      return request<{ data: BankTransaction[] }>(`/tenants/${tenantId}/bank-accounts/${accountId}/transactions${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
+    },
+
+    listRuns: (tenantId: string): Promise<ReconciliationRun[]> =>
+      request<{ data: ReconciliationRun[] }>(`/tenants/${tenantId}/reconciliation-runs`).then((r) => r.data ?? []),
+
+    createRun: (tenantId: string, body: { bank_account_id?: string; periodo_desde: string; periodo_hasta: string }): Promise<ReconciliationRun> =>
+      request<{ data: ReconciliationRun }>(`/tenants/${tenantId}/reconciliation-runs`, {
+        method: 'POST', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    listMatches: (tenantId: string, runId: string): Promise<ReconciliationMatch[]> =>
+      request<{ data: ReconciliationMatch[] }>(`/tenants/${tenantId}/reconciliation-runs/${runId}/matches`).then((r) => r.data ?? []),
+
+    updateMatch: (tenantId: string, runId: string, matchId: string, body: { estado: string; notas?: string }): Promise<ReconciliationMatch> =>
+      request<{ data: ReconciliationMatch }>(`/tenants/${tenantId}/reconciliation-runs/${runId}/matches/${matchId}`, {
+        method: 'PATCH', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    listProcessors: (tenantId: string): Promise<PaymentProcessor[]> =>
+      request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/payment-processors`).then((r) => r.data ?? []),
+
+    uploadProcessorFile: async (tenantId: string, processorId: string, file: File): Promise<void> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const t = getToken();
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/payment-processors/${processorId}/upload`, {
+        method: 'POST',
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        throw new Error(msg);
+      }
+    },
+  },
+
+  billing: {
+    listPlans: (): Promise<Plan[]> =>
+      request<{ data: Plan[] }>('/plans').then((r) => r.data ?? []),
+
+    createPlan: (body: Partial<Plan>): Promise<Plan> =>
+      request<{ data: Plan }>('/plans', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+
+    updatePlan: (id: string, body: Partial<Plan>): Promise<Plan> =>
+      request<{ data: Plan }>(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+
+    deletePlan: (id: string): Promise<void> =>
+      request<void>(`/plans/${id}`, { method: 'DELETE' }),
+
+    getUsage: (tenantId: string): Promise<BillingUsage> =>
+      request<{ data: BillingUsage }>(`/tenants/${tenantId}/billing/usage`).then((r) => r.data),
+
+    changePlan: (tenantId: string, planId: string): Promise<void> =>
+      request<void>(`/tenants/${tenantId}/billing/plan`, {
+        method: 'POST', body: JSON.stringify({ plan_id: planId }),
+      }),
+  },
+
+  audit: {
+    list: (tenantId: string, params?: { accion?: string; desde?: string; hasta?: string; page?: number; limit?: number }): Promise<PaginatedResponse<AuditLogEntry>> => {
+      const q = new URLSearchParams();
+      if (params?.accion) q.set('accion', params.accion);
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return request<{ data: AuditLogEntry[]; meta: { total: number; page: number; limit: number; total_pages: number } }>(
+        `/tenants/${tenantId}/audit-log${qs ? `?${qs}` : ''}`
+      ).then((r) => ({ data: r.data ?? [], pagination: { page: r.meta.page, limit: r.meta.limit, total: r.meta.total, total_pages: r.meta.total_pages } }));
+    },
+    exportUrl: (tenantId: string, params?: { accion?: string; desde?: string; hasta?: string }): string => {
+      const q = new URLSearchParams();
+      if (params?.accion) q.set('accion', params.accion);
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      const t = localStorage.getItem('saas_token');
+      if (t) q.set('token', t);
+      return `${BASE_URL}/tenants/${tenantId}/audit-log/export?${q.toString()}`;
+    },
+  },
+
+  anomalies: {
+    list: (tenantId: string, params?: { estado?: string; tipo?: string; page?: number; limit?: number }): Promise<{ data: AnomalyDetection[]; meta: { total: number } }> => {
+      const q = new URLSearchParams();
+      if (params?.estado) q.set('estado', params.estado);
+      if (params?.tipo) q.set('tipo', params.tipo);
+      if (params?.page) q.set('page', String(params.page));
+      if (params?.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return request<{ data: AnomalyDetection[]; meta: { total: number } }>(`/tenants/${tenantId}/anomalies${qs ? `?${qs}` : ''}`);
+    },
+    summary: (tenantId: string) =>
+      request<{ data: { total_activas: number; por_tipo: Array<{ tipo: string; cantidad: number }>; por_severidad: Array<{ severidad: string; cantidad: number }> } }>(
+        `/tenants/${tenantId}/anomalies/summary`
+      ).then((r) => r.data),
+    update: (tenantId: string, id: string, estado: 'REVISADA' | 'DESCARTADA'): Promise<void> =>
+      request<void>(`/tenants/${tenantId}/anomalies/${id}`, {
+        method: 'PATCH', body: JSON.stringify({ estado }),
+      }),
+  },
+
+  forecast: {
+    get: (tenantId: string): Promise<ForecastResult> =>
+      request<{ data: ForecastResult }>(`/tenants/${tenantId}/forecast`).then((r) => r.data),
+  },
+
+  dashboardAvanzado: {
+    get: (tenantId: string, params?: { mes?: number; anio?: number }): Promise<DashboardAvanzado> => {
+      const q = new URLSearchParams();
+      if (params?.mes) q.set('mes', String(params.mes));
+      if (params?.anio) q.set('anio', String(params.anio));
+      const qs = q.toString();
+      return request<{ data: DashboardAvanzado }>(`/metrics/tenants/${tenantId}/dashboard-avanzado${qs ? `?${qs}` : ''}`).then((r) => r.data);
+    },
+  },
+
+  branding: {
+    get: (tenantId: string) =>
+      request<{ data: Record<string, unknown> }>(`/tenants/${tenantId}/branding`).then((r) => r.data),
+    update: (tenantId: string, body: Record<string, unknown>) =>
+      request<{ data: Record<string, unknown> }>(`/tenants/${tenantId}/branding`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
   },
 };
