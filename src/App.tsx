@@ -18,8 +18,10 @@ import { Auditoria } from './pages/Auditoria';
 import { Anomalias } from './pages/Anomalias';
 import { Configuracion } from './pages/Configuracion';
 import { WhiteLabel } from './pages/WhiteLabel';
+import { Procesadoras } from './pages/Procesadoras';
 import { Login } from './pages/Login';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TenantProvider } from './contexts/TenantContext';
 import { useToast } from './hooks/useToast';
 import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
@@ -43,6 +45,7 @@ const PAGE_ACCESS: Record<Page, RolNombre[] | null> = {
   anomalias: ['super_admin'],
   configuracion: ['super_admin'],
   'white-label': ['super_admin', 'admin_empresa'],
+  procesadoras: ['super_admin', 'admin_empresa'],
 };
 
 interface NavParams {
@@ -171,6 +174,9 @@ function AppInner() {
         {page === 'conciliacion' && canAccessPage('conciliacion') && (
           <Conciliacion toastSuccess={success} toastError={error} />
         )}
+        {page === 'procesadoras' && canAccessPage('procesadoras') && (
+          <Procesadoras toastSuccess={success} toastError={error} />
+        )}
         {page === 'billing' && canAccessPage('billing') && (
           <Billing toastSuccess={success} toastError={error} />
         )}
@@ -195,7 +201,9 @@ function AppInner() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppInner />
+      <TenantProvider>
+        <AppInner />
+      </TenantProvider>
     </AuthProvider>
   );
 }

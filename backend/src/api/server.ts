@@ -20,6 +20,7 @@ import { billingRoutes } from './routes/billing.routes';
 import { auditRoutes } from './routes/audit.routes';
 import { anomalyRoutes } from './routes/anomaly.routes';
 import { whitelabelRoutes } from './routes/whitelabel.routes';
+import { processorRoutes } from './routes/processor.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -79,6 +80,7 @@ export async function buildServer() {
   await app.register(auditRoutes);
   await app.register(anomalyRoutes);
   await app.register(whitelabelRoutes);
+  await app.register(processorRoutes);
 
   logger.info('Servidor Fastify configurado');
   return app;

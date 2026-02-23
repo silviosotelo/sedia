@@ -6,8 +6,7 @@ import {
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { BankAccount, BankStatement, ReconciliationRun, ReconciliationMatch, PaymentProcessor, Bank } from '../types';
 
@@ -351,9 +350,8 @@ function RunModal({
 // ─── Conciliacion ─────────────────────────────────────────────────────────────
 
 export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
   const [tab, setTab] = useState<Tab>('cuentas');
   const [loading, setLoading] = useState(false);
@@ -448,14 +446,13 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
   const sinBancoMatches = matches.filter((m) => !m.bank_transaction_id && m.internal_ref_id);
   const sinComprobanteMatches = matches.filter((m) => m.bank_transaction_id && !m.internal_ref_id);
 
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="Conciliación bancaria" subtitle="Cotejo de extractos bancarios con comprobantes" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Landmark className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su conciliación</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <Landmark className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su conciliación</p>
         </div>
       </div>
     );
@@ -470,9 +467,6 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
         subtitle="Cotejo de extractos bancarios con comprobantes"
         onRefresh={loadAll}
         refreshing={loading}
-        actions={isSuperAdmin ? (
-          <TenantSelector value={selectedTenantId} onChange={(id) => { setSelectedTenantId(id); }} />
-        ) : undefined}
       />
 
       {/* Tabs */}
@@ -485,9 +479,8 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
-            }`}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+              }`}
           >
             {label}
           </button>
@@ -627,9 +620,8 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
                   <button
                     key={id}
                     onClick={() => setMatchTab(id)}
-                    className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-                      matchTab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'
-                    }`}
+                    className={`px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${matchTab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-400'
+                      }`}
                   >
                     {label}
                   </button>
@@ -639,7 +631,7 @@ export function Conciliacion({ toastSuccess, toastError }: ConciliacionProps) {
               {(() => {
                 const displayMatches = matchTab === 'conciliados' ? conciliadosMatches
                   : matchTab === 'sin_banco' ? sinBancoMatches
-                  : sinComprobanteMatches;
+                    : sinComprobanteMatches;
 
                 if (displayMatches.length === 0) {
                   return <div className="py-10 text-center text-sm text-zinc-400">Sin registros en esta categoría</div>;

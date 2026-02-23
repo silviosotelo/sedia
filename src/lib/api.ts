@@ -56,7 +56,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       const body = await res.json();
       msg = body.message || body.error || msg;
-    } catch (_) {}
+    } catch (_) { }
     throw new Error(msg);
   }
 
@@ -416,7 +416,7 @@ export const api = {
       });
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
         throw new Error(msg);
       }
       const data = await res.json() as { data: BankStatement };
@@ -461,10 +461,25 @@ export const api = {
       });
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
         throw new Error(msg);
       }
     },
+  },
+
+  procesadoras: {
+    list: (tenantId: string): Promise<any[]> =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/processors`).then((r) => r.data ?? []),
+
+    updateConnection: (tenantId: string, processorId: string, body: { tipo_conexion?: string; url_base?: string; activo?: boolean; credenciales_plain?: Record<string, string> }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/processors/${processorId}/connection`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    importar: (tenantId: string, processorId: string, body?: { mes?: number; anio?: number }): Promise<{ job_id: string; status: string }> =>
+      request<{ data: { job_id: string; status: string } }>(`/tenants/${tenantId}/processors/${processorId}/import`, {
+        method: 'POST', body: JSON.stringify(body || {}),
+      }).then((r) => r.data),
   },
 
   billing: {

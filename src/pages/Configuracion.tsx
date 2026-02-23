@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
 import {
   Settings, CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
-  Edit2, Trash2, X, RefreshCw,
+  Edit2, Trash2, RefreshCw,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
+import { useState, useEffect, useCallback } from 'react';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { api } from '../lib/api';
 import type { Plan, MetricsOverview, MetricsSaas } from '../types';
 
@@ -40,103 +42,62 @@ const EMPTY_FORM: PlanFormData = {
 };
 
 function PlanModal({
-  plan,
-  onClose,
-  onSave,
+  plan, onClose, onSave,
 }: {
-  plan?: Plan;
-  onClose: () => void;
-  onSave: (data: PlanFormData) => Promise<void>;
+  plan?: Plan; onClose: () => void; onSave: (data: PlanFormData) => Promise<void>;
 }) {
   const [form, setForm] = useState<PlanFormData>(
     plan
-      ? {
-          nombre: plan.nombre,
-          descripcion: plan.descripcion ?? '',
-          precio_mensual_pyg: plan.precio_mensual_pyg,
-          limite_comprobantes_mes: plan.limite_comprobantes_mes,
-          limite_usuarios: plan.limite_usuarios,
-          features: JSON.stringify(plan.features ?? {}, null, 2),
-        }
+      ? { nombre: plan.nombre, descripcion: plan.descripcion ?? '', precio_mensual_pyg: plan.precio_mensual_pyg, limite_comprobantes_mes: plan.limite_comprobantes_mes, limite_usuarios: plan.limite_usuarios, features: JSON.stringify(plan.features ?? {}, null, 2) }
       : EMPTY_FORM
   );
   const [saving, setSaving] = useState(false);
   const [featuresError, setFeaturesError] = useState('');
 
   const handleSave = async () => {
-    try {
-      JSON.parse(form.features);
-    } catch {
-      setFeaturesError('JSON inválido en features');
-      return;
-    }
+    try { JSON.parse(form.features); } catch { setFeaturesError('JSON inválido en features'); return; }
     setSaving(true);
-    try {
-      await onSave(form);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    try { await onSave(form); onClose(); } finally { setSaving(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-zinc-900">{plan ? 'Editar plan' : 'Nuevo plan'}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-lg"><X className="w-4 h-4" /></button>
+    <Modal open={true} title={plan ? 'Editar plan' : 'Nuevo plan'} onClose={onClose} size="md">
+      <div className="space-y-3">
+        <div>
+          <label className="label">Nombre</label>
+          <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Plan Pro" />
         </div>
-
-        <div className="space-y-3">
+        <div>
+          <label className="label">Descripción</label>
+          <input className="input" value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} placeholder="Descripción breve" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label-sm">Nombre</label>
-            <input className="input-sm" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Plan Pro" />
+            <label className="label">Precio mensual (PYG)</label>
+            <input type="number" className="input" value={form.precio_mensual_pyg} onChange={(e) => setForm((f) => ({ ...f, precio_mensual_pyg: Number(e.target.value) }))} />
           </div>
           <div>
-            <label className="label-sm">Descripción</label>
-            <input className="input-sm" value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} placeholder="Descripción breve" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label-sm">Precio mensual (PYG)</label>
-              <input type="number" className="input-sm" value={form.precio_mensual_pyg}
-                onChange={(e) => setForm((f) => ({ ...f, precio_mensual_pyg: Number(e.target.value) }))} />
-            </div>
-            <div>
-              <label className="label-sm">Límite usuarios</label>
-              <input type="number" className="input-sm" value={form.limite_usuarios}
-                onChange={(e) => setForm((f) => ({ ...f, limite_usuarios: Number(e.target.value) }))} />
-            </div>
-          </div>
-          <div>
-            <label className="label-sm">Límite comprobantes/mes (vacío = ilimitado)</label>
-            <input
-              type="number"
-              className="input-sm"
-              value={form.limite_comprobantes_mes ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))}
-              placeholder="Dejar vacío para ilimitado"
-            />
-          </div>
-          <div>
-            <label className="label-sm">Features (JSON)</label>
-            <textarea
-              className="input-sm font-mono h-24 resize-none"
-              value={form.features}
-              onChange={(e) => { setForm((f) => ({ ...f, features: e.target.value })); setFeaturesError(''); }}
-            />
-            {featuresError && <p className="field-error">{featuresError}</p>}
+            <label className="label">Límite usuarios</label>
+            <input type="number" className="input" value={form.limite_usuarios} onChange={(e) => setForm((f) => ({ ...f, limite_usuarios: Number(e.target.value) }))} />
           </div>
         </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="btn-sm btn-secondary" disabled={saving}>Cancelar</button>
-          <button onClick={() => void handleSave()} disabled={!form.nombre || saving} className="btn-sm btn-primary">
-            {saving ? <Spinner size="xs" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Guardar
-          </button>
+        <div>
+          <label className="label">Límite comprobantes/mes (vacío = ilimitado)</label>
+          <input type="number" className="input" value={form.limite_comprobantes_mes ?? ''} onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))} placeholder="Dejar vacío para ilimitado" />
+        </div>
+        <div>
+          <label className="label">Features (JSON)</label>
+          <textarea className="input font-mono h-24 resize-none" value={form.features} onChange={(e) => { setForm((f) => ({ ...f, features: e.target.value })); setFeaturesError(''); }} />
+          {featuresError && <p className="field-error">{featuresError}</p>}
         </div>
       </div>
-    </div>
+      <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-zinc-100">
+        <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
+        <button onClick={() => void handleSave()} disabled={!form.nombre || saving} className="btn-md btn-primary gap-1.5">
+          {saving ? <Spinner size="xs" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Guardar
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -195,10 +156,13 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   };
 
   const handleDeletePlan = async (id: string) => {
-    if (!confirm('¿Eliminar este plan?')) return;
     setDeletingId(id);
+  };
+
+  const confirmDeletePlan = async () => {
+    if (!deletingId) return;
     try {
-      await api.billing.deletePlan(id);
+      await api.billing.deletePlan(deletingId);
       toastSuccess('Plan eliminado');
       void loadData();
     } catch (err) {
@@ -228,9 +192,8 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+              }`}
           >
             {icon}{label}
           </button>
@@ -392,6 +355,16 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
           onSave={handleSavePlan}
         />
       )}
+
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Eliminar plan"
+        description="¿Eliminar este plan? Los tenants con este plan perderán la configuración."
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={() => void confirmDeletePlan()}
+        onClose={() => setDeletingId(null)}
+      />
 
       {/* Floating refresh indicator */}
       {loading && (

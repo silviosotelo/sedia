@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Palette, Save, RefreshCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 
 interface WhiteLabelProps {
@@ -32,9 +31,8 @@ const DEFAULTS: BrandingData = {
 };
 
 export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
   const [form, setForm] = useState<BrandingData>(DEFAULTS);
   const [loading, setLoading] = useState(false);
@@ -79,18 +77,14 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
   const set = (field: keyof BrandingData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const tenantSelector = isSuperAdmin ? (
-    <TenantSelector value={selectedTenantId} onChange={(id) => { setSelectedTenantId(id); }} />
-  ) : undefined;
 
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="White Label" subtitle="Configuración de marca y apariencia" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Palette className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para configurar su marca</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <Palette className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para configurar su marca</p>
         </div>
       </div>
     );
@@ -105,7 +99,6 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
         subtitle="Configuración de marca y apariencia personalizada"
         onRefresh={loadBranding}
         refreshing={loading}
-        actions={tenantSelector}
       />
 
       <div className="max-w-2xl space-y-6">

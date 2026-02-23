@@ -3,8 +3,7 @@ import { CreditCard, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react'
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { Plan, BillingUsage } from '../types';
 
@@ -117,9 +116,8 @@ function HistoryBar({ month, value, maxValue }: { month: string; value: number; 
 }
 
 export function Billing({ toastSuccess, toastError }: BillingProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
   const [plans, setPlans] = useState<Plan[]>([]);
   const [usage, setUsage] = useState<BillingUsage | null>(null);
@@ -166,18 +164,14 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
   const currentPlanId = usage?.plan?.id;
   const maxHistory = Math.max(...(usage?.historial ?? []).map((h) => h.comprobantes_procesados), 1);
 
-  const tenantSelector = isSuperAdmin ? (
-    <TenantSelector value={selectedTenantId} onChange={(id) => setSelectedTenantId(id)} />
-  ) : undefined;
 
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="Planes y Billing" subtitle="Gestión de suscripción y uso de recursos" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <CreditCard className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su billing</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <CreditCard className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su billing</p>
         </div>
       </div>
     );
@@ -192,15 +186,13 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         subtitle="Gestión de suscripción y uso de recursos"
         onRefresh={load}
         refreshing={loading}
-        actions={tenantSelector}
       />
 
       {trialDaysLeft !== null && trialDaysLeft <= 14 && (
-        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
-          trialDaysLeft <= 3
+        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${trialDaysLeft <= 3
             ? 'bg-rose-50 border-rose-200 text-rose-700'
             : 'bg-amber-50 border-amber-200 text-amber-700'
-        }`}>
+          }`}>
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>
             {trialDaysLeft === 0

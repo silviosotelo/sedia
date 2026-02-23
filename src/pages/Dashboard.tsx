@@ -21,8 +21,8 @@ import {
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
-import { TenantSelector } from '../components/ui/TenantSelector';
 import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatRelative, JOB_TYPE_LABELS } from '../lib/utils';
 import type { Tenant, Job, DashboardStats, DashboardAvanzado, ForecastResult } from '../types';
@@ -99,10 +99,11 @@ function fmtGs(n: number) {
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const { isSuperAdmin, userTenantId } = useAuth();
+  const { activeTenantId, tenants: allTenants } = useTenant();
   const isTenantUser = !isSuperAdmin && !!userTenantId;
-  const [advancedTenantId, setAdvancedTenantId] = useState(userTenantId ?? '');
+  const activeTid = activeTenantId ?? '';
 
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [tenants, setTenants] = useState<Tenant[]>(allTenants);
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,7 +150,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [isTenantUser, userTenantId]);
 
   const loadAdvanced = useCallback(async () => {
-    const tid = isTenantUser ? userTenantId : (isSuperAdmin ? advancedTenantId : undefined);
+    const tid = activeTid;
     if (!tid) return;
     setAdvancedLoading(true);
     try {
@@ -164,7 +165,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     } finally {
       setAdvancedLoading(false);
     }
-  }, [isTenantUser, userTenantId, isSuperAdmin, advancedTenantId]);
+  }, [activeTid]);
 
   useEffect(() => {
     load();
@@ -275,15 +276,14 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
                   >
                     <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        job.estado === 'DONE'
-                          ? 'bg-emerald-50'
-                          : job.estado === 'FAILED'
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${job.estado === 'DONE'
+                        ? 'bg-emerald-50'
+                        : job.estado === 'FAILED'
                           ? 'bg-rose-50'
                           : job.estado === 'RUNNING'
-                          ? 'bg-sky-50'
-                          : 'bg-amber-50'
-                      }`}
+                            ? 'bg-sky-50'
+                            : 'bg-amber-50'
+                        }`}
                     >
                       {job.estado === 'DONE' ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -434,20 +434,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             {advancedLoading && (
               <div className="w-4 h-4 border-2 border-zinc-200 border-t-zinc-600 rounded-full animate-spin ml-1" />
             )}
-            {isSuperAdmin && (
-              <div className="ml-auto">
-                <TenantSelector
-                  value={advancedTenantId}
-                  onChange={(id) => setAdvancedTenantId(id)}
-                  label="Ver análisis de"
-                />
-              </div>
-            )}
           </div>
 
-          {isSuperAdmin && !advancedTenantId && (
+          {!activeTid && (
             <div className="card p-8 text-center text-sm text-zinc-400">
-              Seleccioná una empresa para ver su análisis fiscal
+              Seleccioná una empresa en el menú lateral para ver su análisis fiscal
             </div>
           )}
 
@@ -547,11 +538,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="section-title mb-0">Proyección de gastos (3 meses)</h3>
                 {forecast.tendencia && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                    forecast.tendencia === 'CRECIENTE' ? 'bg-rose-50 text-rose-600'
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${forecast.tendencia === 'CRECIENTE' ? 'bg-rose-50 text-rose-600'
                     : forecast.tendencia === 'DECRECIENTE' ? 'bg-emerald-50 text-emerald-600'
-                    : 'bg-zinc-100 text-zinc-500'
-                  }`}>
+                      : 'bg-zinc-100 text-zinc-500'
+                    }`}>
                     {forecast.tendencia}
                   </span>
                 )}
