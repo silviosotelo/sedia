@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import * as JSZip from 'jszip';
 import ExcelJS from 'exceljs';
 import iconv from 'iconv-lite';
 import { storageService } from './storage.service';
@@ -138,7 +139,42 @@ function parseCSV(buffer: Buffer): RawTransaction[] {
 
 async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  if (!buffer || buffer.length === 0) {
+    throw new Error('El archivo está vacío o no es válido');
+  }
+
+  // Verificar Magic Number (PK para .xlsx)
+  const magic = buffer.toString('hex', 0, 2);
+  logger.info('Procesando archivo Excel', {
+    size: buffer.length,
+    magic,
+    isPK: magic === '504b'
+  });
+
+  try {
+    const zip = await JSZip.loadAsync(buffer);
+    const entries = Object.keys(zip.files);
+    logger.info('Entradas del archivo ZIP', { entries });
+
+    if (zip.files['xl/workbook.xml']) {
+      const workbookXml = await zip.files['xl/workbook.xml'].async('string');
+      logger.info('Contenido de xl/workbook.xml (snippet)', {
+        snippet: workbookXml.slice(0, 500),
+        length: workbookXml.length
+      });
+    } else {
+      logger.warn('No se encontró xl/workbook.xml en el ZIP');
+    }
+
+    await workbook.xlsx.load(buffer as any);
+  } catch (err) {
+    logger.error('Error detallado cargando archivo Excel', {
+      error: (err as Error).message,
+      stack: (err as Error).stack,
+      size: buffer.length
+    });
+    throw new Error('El archivo no pudo ser leído como Excel (.xlsx). Verifique el formato.');
+  }
 
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];

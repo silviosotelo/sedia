@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Landmark, Plus, Upload, X } from 'lucide-react';
+import { Landmark, Plus, Upload } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
@@ -52,16 +52,19 @@ function AccountCard({
     );
 }
 
+import { Modal } from '../components/ui/Modal';
+
 // ─── UploadModal ──────────────────────────────────────────────────────────────
 
 function UploadModal({
-    accountId, tenantId, onClose, onSuccess, toastError,
+    accountId, tenantId, onClose, onSuccess, toastError, open,
 }: {
     accountId: string;
     tenantId: string;
     onClose: () => void;
     onSuccess: () => void;
     toastError: (msg: string) => void;
+    open: boolean;
 }) {
     const [file, setFile] = useState<File | null>(null);
     const [periodoDesde, setPeriodoDesde] = useState('');
@@ -92,18 +95,25 @@ function UploadModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-6 animate-slide-up">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h3 className="text-xl font-semibold text-zinc-900">Importar extracto</h3>
-                        <p className="text-sm text-zinc-500 mt-1">Carga el archivo del banco para conciliar</p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
-                        <X className="w-5 h-5 text-zinc-400" />
+        <Modal
+            open={open}
+            onClose={onClose}
+            title="Importar extracto"
+            description="Carga el archivo del banco para conciliar"
+            footer={
+                <>
+                    <button onClick={onClose} className="btn-md btn-secondary" disabled={uploading}>Cancelar</button>
+                    <button
+                        onClick={() => void handleUpload()}
+                        disabled={!file || !periodoDesde || !periodoHasta || uploading}
+                        className="btn-md btn-primary grow sm:grow-0"
+                    >
+                        {uploading ? <Spinner size="sm" /> : <Upload className="w-4 h-4" />} Subir archivo
                     </button>
-                </div>
-
+                </>
+            }
+        >
+            <div className="space-y-6">
                 <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
@@ -134,32 +144,22 @@ function UploadModal({
                         <input type="date" className="input" value={periodoHasta} onChange={(e) => setPeriodoHasta(e.target.value)} />
                     </div>
                 </div>
-
-                <div className="flex justify-end gap-3 pt-2">
-                    <button onClick={onClose} className="btn-md btn-secondary" disabled={uploading}>Cancelar</button>
-                    <button
-                        onClick={() => void handleUpload()}
-                        disabled={!file || !periodoDesde || !periodoHasta || uploading}
-                        className="btn-md btn-primary grow sm:grow-0"
-                    >
-                        {uploading ? <Spinner size="sm" /> : <Upload className="w-4 h-4" />} Subir archivo
-                    </button>
-                </div>
             </div>
-        </div>
+        </Modal>
     );
 }
 
 // ─── NewAccountModal ──────────────────────────────────────────────────────────
 
 function NewAccountModal({
-    tenantId, banks, onClose, onSuccess, toastError,
+    tenantId, banks, onClose, onSuccess, toastError, open,
 }: {
     tenantId: string;
     banks: Bank[];
     onClose: () => void;
     onSuccess: () => void;
     toastError: (msg: string) => void;
+    open: boolean;
 }) {
     const [form, setForm] = useState({ bank_id: '', alias: '', numero_cuenta: '', moneda: 'PYG', tipo: 'corriente' });
     const [saving, setSaving] = useState(false);
@@ -179,57 +179,12 @@ function NewAccountModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-md p-8 space-y-6 animate-slide-up">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-semibold text-zinc-900">Nueva cuenta</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
-                        <X className="w-5 h-5 text-zinc-400" />
-                    </button>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <label className="label">Banco</label>
-                        <select className="input" value={form.bank_id} onChange={(e) => setForm((f) => ({ ...f, bank_id: e.target.value }))}>
-                            <option value="">Seleccionar banco</option>
-                            {banks.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <label className="label">Alias / Nombre</label>
-                        <input
-                            className="input"
-                            placeholder="Ej: Cuenta Principal ITAU"
-                            value={form.alias}
-                            onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="label">Nro. de cuenta</label>
-                            <input className="input" placeholder="0000000" value={form.numero_cuenta}
-                                onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))} />
-                        </div>
-                        <div>
-                            <label className="label">Moneda</label>
-                            <select className="input" value={form.moneda} onChange={(e) => setForm((f) => ({ ...f, moneda: e.target.value }))}>
-                                <option value="PYG">PYG</option>
-                                <option value="USD">USD</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="label">Tipo de cuenta</label>
-                        <select className="input" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
-                            <option value="corriente">Cuenta Corriente</option>
-                            <option value="ahorro">Caja de Ahorro</option>
-                            <option value="virtual">Billetera / Virtual</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-2">
+        <Modal
+            open={open}
+            onClose={onClose}
+            title="Nueva cuenta"
+            footer={
+                <>
                     <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
                     <button
                         onClick={() => void handleSave()}
@@ -238,9 +193,50 @@ function NewAccountModal({
                     >
                         {saving ? <Spinner size="sm" /> : <Plus className="w-4 h-4" />} Crear cuenta
                     </button>
+                </>
+            }
+        >
+            <div className="space-y-4">
+                <div>
+                    <label className="label">Banco</label>
+                    <select className="input" value={form.bank_id} onChange={(e) => setForm((f) => ({ ...f, bank_id: e.target.value }))}>
+                        <option value="">Seleccionar banco</option>
+                        {banks.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="label">Alias / Nombre</label>
+                    <input
+                        className="input"
+                        placeholder="Ej: Cuenta Principal ITAU"
+                        value={form.alias}
+                        onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="label">Nro. de cuenta</label>
+                        <input className="input" placeholder="0000000" value={form.numero_cuenta}
+                            onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))} />
+                    </div>
+                    <div>
+                        <label className="label">Moneda</label>
+                        <select className="input" value={form.moneda} onChange={(e) => setForm((f) => ({ ...f, moneda: e.target.value }))}>
+                            <option value="PYG">PYG</option>
+                            <option value="USD">USD</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label className="label">Tipo de cuenta</label>
+                    <select className="input" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
+                        <option value="corriente">Cuenta Corriente</option>
+                        <option value="ahorro">Caja de Ahorro</option>
+                        <option value="virtual">Billetera / Virtual</option>
+                    </select>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 }
 
@@ -366,7 +362,7 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                                         variant={s.estado_procesamiento === 'PROCESADO' ? 'success' : s.estado_procesamiento === 'ERROR' ? 'danger' : 'warning'}
                                         size="sm"
                                     >
-                                        {s.estado_procesamiento}
+                                        {s.estado_procesamiento === 'PROCESADO' ? 'Procesado' : s.estado_procesamiento === 'ERROR' ? 'Error' : 'Pendiente'}
                                     </Badge>
                                     {s.r2_signed_url && (
                                         <a href={s.r2_signed_url} target="_blank" rel="noopener noreferrer" className="btn-sm btn-secondary text-[11px] h-7">
@@ -381,27 +377,25 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
             )}
 
             {/* Modals */}
-            {uploadModalAccountId && (
-                <UploadModal
-                    accountId={uploadModalAccountId}
-                    tenantId={activeTenantId}
-                    toastError={toastError}
-                    onClose={() => setUploadModalAccountId(null)}
-                    onSuccess={() => {
-                        toastSuccess('Extracto subido correctamente');
-                        if (uploadModalAccountId === selectedAccountId) loadStatements(uploadModalAccountId);
-                    }}
-                />
-            )}
-            {showNewAccount && (
-                <NewAccountModal
-                    tenantId={activeTenantId}
-                    banks={banks}
-                    toastError={toastError}
-                    onClose={() => setShowNewAccount(false)}
-                    onSuccess={() => { loadAll(); }}
-                />
-            )}
+            <UploadModal
+                open={!!uploadModalAccountId}
+                accountId={uploadModalAccountId || ''}
+                tenantId={activeTenantId}
+                toastError={toastError}
+                onClose={() => setUploadModalAccountId(null)}
+                onSuccess={() => {
+                    toastSuccess('Extracto subido correctamente');
+                    if (uploadModalAccountId === selectedAccountId) loadStatements(uploadModalAccountId!);
+                }}
+            />
+            <NewAccountModal
+                open={showNewAccount}
+                tenantId={activeTenantId}
+                banks={banks}
+                toastError={toastError}
+                onClose={() => setShowNewAccount(false)}
+                onSuccess={() => { loadAll(); }}
+            />
         </div>
     );
 }

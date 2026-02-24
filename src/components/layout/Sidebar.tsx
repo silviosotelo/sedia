@@ -165,9 +165,11 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
   return (
     <aside
       className={cn(
-        'h-screen bg-white border-r border-zinc-200 flex flex-col transition-all duration-300 ease-in-out fixed inset-y-0 left-0 z-40',
+        'h-screen bg-white border-r border-zinc-200 flex flex-col transition-all duration-300 ease-in-out z-40',
         collapsed ? 'w-16' : 'w-64',
-        open ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        // Mobile: Fixed drawer. Desktop: Static sidebar.
+        'fixed inset-y-0 left-0 lg:static lg:translate-x-0',
+        open ? 'translate-x-0' : '-translate-x-full'
       )}
     >
       <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-100 bg-zinc-50/50">

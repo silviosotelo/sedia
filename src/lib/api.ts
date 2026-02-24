@@ -426,7 +426,7 @@ export const api = {
       fd.append('periodo_desde', periodoDesde);
       fd.append('periodo_hasta', periodoHasta);
       const t = getToken();
-      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/accounts/${accountId}/statements`, {
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/accounts/${accountId}/statements/upload`, {
         method: 'POST',
         headers: t ? { Authorization: `Bearer ${t}` } : {},
         body: fd,
@@ -471,7 +471,7 @@ export const api = {
       const fd = new FormData();
       fd.append('file', file);
       const t = getToken();
-      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/payment-processors/${processorId}/upload`, {
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/processors/${processorId}/transactions/upload`, {
         method: 'POST',
         headers: t ? { Authorization: `Bearer ${t}` } : {},
         body: fd,
