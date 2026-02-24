@@ -119,6 +119,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       tipo_comprobante?: string;
       ruc_vendedor?: string;
       xml_descargado?: string;
+      modo?: string;
       page?: string;
       limit?: string;
     };
@@ -140,6 +141,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       tipo_comprobante,
       ruc_vendedor,
       xml_descargado,
+      modo,
       page = '1',
       limit = '20',
     } = req.query;
@@ -160,6 +162,8 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         tipo_comprobante: tipo_comprobante as TipoComprobante | undefined,
         ruc_vendedor,
         xml_descargado: xmlDescargadoFilter,
+        modo: modo as 'ventas' | 'compras' | undefined,
+        tenant_ruc: tenant.ruc,
       },
       { page: pageNum, limit: limitNum }
     );
@@ -272,6 +276,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       tipo_comprobante?: string;
       ruc_vendedor?: string;
       xml_descargado?: string;
+      modo?: string;
       formato?: string;
     };
   }>(
@@ -292,6 +297,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         tipo_comprobante,
         ruc_vendedor,
         xml_descargado,
+        modo,
         formato = 'json',
       } = req.query;
 
@@ -308,6 +314,8 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
           tipo_comprobante: tipo_comprobante as TipoComprobante | undefined,
           ruc_vendedor,
           xml_descargado: xmlDescargadoFilter,
+          modo: modo as 'ventas' | 'compras' | undefined,
+          tenant_ruc: tenant.ruc,
         },
         { page: 1, limit: 10000 }
       );

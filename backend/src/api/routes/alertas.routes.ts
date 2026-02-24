@@ -1,9 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 
 export async function alertasRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('alertas'));
 
   app.get<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/alertas',
@@ -22,10 +24,12 @@ export async function alertasRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.post<{ Params: { tenantId: string }; Body: {
-    nombre: string; tipo: string; config: Record<string, unknown>;
-    canal?: string; webhook_id?: string; activo?: boolean; cooldown_minutos?: number;
-  } }>(
+  app.post<{
+    Params: { tenantId: string }; Body: {
+      nombre: string; tipo: string; config: Record<string, unknown>;
+      canal?: string; webhook_id?: string; activo?: boolean; cooldown_minutos?: number;
+    }
+  }>(
     '/tenants/:tenantId/alertas',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
@@ -42,10 +46,12 @@ export async function alertasRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.put<{ Params: { tenantId: string; id: string }; Body: {
-    nombre?: string; tipo?: string; config?: Record<string, unknown>;
-    canal?: string; webhook_id?: string | null; activo?: boolean; cooldown_minutos?: number;
-  } }>(
+  app.put<{
+    Params: { tenantId: string; id: string }; Body: {
+      nombre?: string; tipo?: string; config?: Record<string, unknown>;
+      canal?: string; webhook_id?: string | null; activo?: boolean; cooldown_minutos?: number;
+    }
+  }>(
     '/tenants/:tenantId/alertas/:id',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;

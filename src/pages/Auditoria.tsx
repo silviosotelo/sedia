@@ -4,8 +4,7 @@ import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { AuditLogEntry } from '../types';
 
@@ -68,9 +67,8 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
 }
 
 export function Auditoria({ toastError }: AuditoriaProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,21 +116,14 @@ export function Auditoria({ toastError }: AuditoriaProps) {
     document.body.removeChild(a);
   };
 
-  const tenantSelector = isSuperAdmin ? (
-    <TenantSelector
-      value={selectedTenantId}
-      onChange={(id) => { setSelectedTenantId(id); setPage(1); }}
-    />
-  ) : undefined;
 
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="Auditoría" subtitle="Registro de acciones del sistema" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <ShieldCheck className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su auditoría</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <ShieldCheck className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su auditoría</p>
         </div>
       </div>
     );
@@ -148,13 +139,10 @@ export function Auditoria({ toastError }: AuditoriaProps) {
         onRefresh={load}
         refreshing={loading}
         actions={
-          <div className="flex items-center gap-2">
-            {tenantSelector}
-            <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
-              <Download className="w-3.5 h-3.5" />
-              Exportar CSV
-            </button>
-          </div>
+          <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
+            <Download className="w-3.5 h-3.5" />
+            Exportar CSV
+          </button>
         }
       />
 

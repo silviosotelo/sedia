@@ -21,3 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+build_err2.txt
+build_err.txt
+backend/package-lock.json
+package-lock.json

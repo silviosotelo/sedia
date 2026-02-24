@@ -31,6 +31,7 @@ export interface UsuarioConRol extends UsuarioRow {
   rol: RolRow;
   permisos: string[];
   tenant_nombre?: string;
+  plan_features: Record<string, any>;
 }
 
 export function hashPassword(password: string): string {
@@ -72,10 +73,12 @@ export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null
             r.descripcion as rol_descripcion,
             r.nivel as rol_nivel,
             r.es_sistema as rol_es_sistema,
-            t.nombre_fantasia as tenant_nombre
+            t.nombre_fantasia as tenant_nombre,
+            p.features as plan_features
      FROM usuarios u
      JOIN roles r ON r.id = u.rol_id
      LEFT JOIN tenants t ON t.id = u.tenant_id
+     LEFT JOIN plans p ON p.id = t.plan_id
      WHERE u.id = $1`,
     [id]
   );
@@ -99,6 +102,7 @@ export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null
     },
     permisos: permisos.map((p) => `${p.recurso}:${p.accion}`),
     tenant_nombre: row.tenant_nombre,
+    plan_features: (row as any).plan_features || {},
   };
 }
 
@@ -192,10 +196,11 @@ export async function listUsuarios(tenantId?: string, soloTenant?: string): Prom
   }
 
   const rows = await query<UsuarioRow & { rol_nombre: string; rol_nivel: number; tenant_nombre: string }>(
-    `SELECT u.*, r.nombre as rol_nombre, r.nivel as rol_nivel, t.nombre_fantasia as tenant_nombre
+    `SELECT u.*, r.nombre as rol_nombre, r.nivel as rol_nivel, t.nombre_fantasia as tenant_nombre, p.features as plan_features
      FROM usuarios u
      JOIN roles r ON r.id = u.rol_id
      LEFT JOIN tenants t ON t.id = u.tenant_id
+     LEFT JOIN plans p ON p.id = t.plan_id
      ${whereClause}
      ORDER BY r.nivel ASC, u.nombre ASC`,
     params
@@ -206,6 +211,7 @@ export async function listUsuarios(tenantId?: string, soloTenant?: string): Prom
     rol: { id: row.rol_id, nombre: row.rol_nombre, descripcion: '', nivel: row.rol_nivel, es_sistema: true },
     permisos: [],
     tenant_nombre: row.tenant_nombre,
+    plan_features: (row as any).plan_features || {},
   }));
 }
 
@@ -272,8 +278,17 @@ export async function deleteUsuario(id: string): Promise<void> {
   await query('DELETE FROM usuarios WHERE id = $1', [id]);
 }
 
-export async function listRoles(): Promise<RolRow[]> {
-  return query<RolRow>('SELECT * FROM roles ORDER BY nivel ASC');
+export async function listRoles(tenantId?: string): Promise<RolRow[]> {
+  const params: any[] = [];
+  let sql = 'SELECT * FROM roles WHERE tenant_id IS NULL';
+
+  if (tenantId) {
+    sql += ' OR tenant_id = $1';
+    params.push(tenantId);
+  }
+
+  sql += ' ORDER BY nivel ASC';
+  return query<RolRow>(sql, params);
 }
 
 export async function ensureSuperAdmin(): Promise<void> {

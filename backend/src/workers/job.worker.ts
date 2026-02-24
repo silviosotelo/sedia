@@ -1,8 +1,9 @@
 import { claimNextPendingJobTransaction, markJobDone, markJobFailed } from '../db/repositories/job.repository';
 import { SyncService } from '../services/sync.service';
+import { procesarImportacion } from '../services/processorImport.service';
 import { ejecutarConciliacion } from '../services/reconciliation.service';
 import { logger } from '../config/logger';
-import { Job, SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload, ReconciliarCuentaJobPayload } from '../types';
+import { Job, SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload, ReconciliarCuentaJobPayload, ImportarProcesadorJobPayload } from '../types';
 
 const syncService = new SyncService();
 
@@ -38,6 +39,11 @@ async function processJob(job: Job): Promise<void> {
     case 'RECONCILIAR_CUENTA': {
       const payload = job.payload as unknown as ReconciliarCuentaJobPayload;
       await ejecutarConciliacion(payload.run_id);
+      break;
+    }
+    case 'IMPORTAR_PROCESADOR': {
+      const payload = job.payload as unknown as ImportarProcesadorJobPayload;
+      await procesarImportacion(job.tenant_id, payload);
       break;
     }
     default: {

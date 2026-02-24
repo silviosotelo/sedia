@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Sidebar, type Page } from './Sidebar';
 
 interface ShellProps {
@@ -9,12 +10,39 @@ interface ShellProps {
 }
 
 export function Shell({ current, onNavigate, apiStatus, mockMode, children }: ShellProps) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [current]);
+
+  useEffect(() => {
+    const handler = () => setSidebarOpen((s) => !s);
+    window.addEventListener('toggle-sidebar', handler);
+    return () => window.removeEventListener('toggle-sidebar', handler);
+  }, []);
+
   return (
-    <div className={`flex min-h-screen bg-zinc-50 ${mockMode ? 'pt-6' : ''}`}>
-      <Sidebar current={current} onNavigate={onNavigate} apiStatus={apiStatus} mockMode={mockMode} />
-      <main className="flex-1 min-w-0 overflow-auto">
-        <div className="max-w-7xl mx-auto px-8 py-8">{children}</div>
-      </main>
+    <div className={`flex h-screen overflow-hidden bg-zinc-50 ${mockMode ? 'pt-6' : ''}`}>
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      <Sidebar
+        current={current}
+        onNavigate={onNavigate}
+        apiStatus={apiStatus}
+        mockMode={mockMode}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <main className="flex-1 overflow-y-auto p-6 lg:px-8 lg:py-8">
+          <div className="max-w-7xl mx-auto">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

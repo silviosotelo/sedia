@@ -157,7 +157,8 @@ export async function exportarComprobantesPDF(
       { label: 'Tipo', x: 175, w: 90 },
       { label: 'Fecha', x: 270, w: 80 },
       { label: 'RUC Vendedor', x: 355, w: 95 },
-      { label: 'Razón Social', x: 455, w: 190 },
+      { label: 'Razón Social', x: 455, w: 140 },
+      { label: 'Origen', x: 600, w: 45 },
       { label: 'Total', x: 650, w: 80 },
     ];
 
@@ -207,7 +208,8 @@ export async function exportarComprobantesPDF(
       doc.text(c.tipo_comprobante, 175, y + 3, { width: 90 });
       doc.text(fecha, 270, y + 3, { width: 80 });
       doc.text(c.ruc_vendedor, 355, y + 3, { width: 95 });
-      doc.text((c.razon_social_vendedor ?? '').slice(0, 30), 455, y + 3, { width: 190 });
+      doc.text((c.razon_social_vendedor ?? '').slice(0, 30), 455, y + 3, { width: 140 });
+      doc.text(c.origen, 600, y + 3, { width: 45 });
       doc.text(total.toLocaleString('es-PY'), 650, y + 3, { width: 80, align: 'right' });
 
       y += 14;

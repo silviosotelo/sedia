@@ -8,12 +8,57 @@ import {
   ProcessorTransaction,
   ReconciliationRun,
   ReconciliationMatch,
+  BankConnection,
+  ProcessorConnection
 } from '../../types';
+import { decrypt, encrypt } from '../../services/crypto.service';
 
 // ─── Banks ────────────────────────────────────────────────────────────────────
 
 export async function findBanks(): Promise<Bank[]> {
-  return query<Bank>('SELECT * FROM banks WHERE activo = true ORDER BY nombre');
+  return query<Bank>('SELECT * FROM banks ORDER BY nombre');
+}
+
+export async function createBank(data: {
+  nombre: string;
+  codigo: string;
+  pais?: string;
+  activo?: boolean;
+}): Promise<Bank> {
+  const rows = await query<Bank>(
+    `INSERT INTO banks (nombre, codigo, pais, activo)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [data.nombre, data.codigo, data.pais ?? 'PRY', data.activo ?? true]
+  );
+  return rows[0];
+}
+
+export async function updateBank(
+  id: string,
+  data: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean }>
+): Promise<Bank | null> {
+  const sets: string[] = [];
+  const params: unknown[] = [id];
+  let i = 2;
+
+  if (data.nombre !== undefined) { sets.push(`nombre = $${i++}`); params.push(data.nombre); }
+  if (data.codigo !== undefined) { sets.push(`codigo = $${i++}`); params.push(data.codigo); }
+  if (data.pais !== undefined) { sets.push(`pais = $${i++}`); params.push(data.pais); }
+  if (data.activo !== undefined) { sets.push(`activo = $${i++}`); params.push(data.activo); }
+
+  if (sets.length === 0) return null;
+
+  const rows = await query<Bank>(
+    `UPDATE banks SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+    params
+  );
+  return rows[0] ?? null;
+}
+
+export async function deleteBank(id: string): Promise<boolean> {
+  await query('DELETE FROM banks WHERE id = $1', [id]);
+  return true;
 }
 
 // ─── Bank Accounts ────────────────────────────────────────────────────────────
@@ -119,6 +164,82 @@ export async function findStatementByHash(bankAccountId: string, hash: string): 
 
 // ─── Bank Transactions ────────────────────────────────────────────────────────
 
+export async function upsertBankConnection(
+  tenantId: string,
+  bankAccountId: string,
+  data: Partial<BankConnection> & { password?: string }
+): Promise<BankConnection> {
+  const sets: string[] = [];
+  const params: unknown[] = [tenantId, bankAccountId];
+  let i = 3;
+
+  if (data.tipo_conexion !== undefined) { sets.push(`tipo_conexion = $${i++}`); params.push(data.tipo_conexion); }
+  if (data.url_portal !== undefined) { sets.push(`url_portal = $${i++}`); params.push(data.url_portal); }
+  if (data.usuario !== undefined) { sets.push(`usuario = $${i++}`); params.push(data.usuario); }
+  if (data.password !== undefined) { sets.push(`password_encrypted = $${i++}`); params.push(data.password ? encrypt(data.password) : null); }
+  if (data.params !== undefined) { sets.push(`params = $${i++}`); params.push(JSON.stringify(data.params)); }
+  if (data.auto_descargar !== undefined) { sets.push(`auto_descargar = $${i++}`); params.push(data.auto_descargar); }
+  if (data.formato_preferido !== undefined) { sets.push(`formato_preferido = $${i++}`); params.push(data.formato_preferido); }
+  if (data.activo !== undefined) { sets.push(`activo = $${i++}`); params.push(data.activo); }
+
+  if (sets.length === 0) {
+    // If nothing to update, just try inserting empty or returning existing
+    // A proper upsert needs all fields or a simpler INSERT DO UPDATE.
+  }
+
+  // Use a proper UPSERT query
+  const queryText = `
+    INSERT INTO bank_connections 
+      (tenant_id, bank_account_id, tipo_conexion, url_portal, usuario, password_encrypted, params, auto_descargar, formato_preferido, activo)
+    VALUES 
+      ($1, $2, COALESCE($3, 'API'), $4, $5, $6, COALESCE($7, '{}'::jsonb), COALESCE($8, false), COALESCE($9, 'CSV'), COALESCE($10, true))
+    ON CONFLICT (tenant_id, bank_account_id)
+    DO UPDATE SET 
+      tipo_conexion = COALESCE(EXCLUDED.tipo_conexion, bank_connections.tipo_conexion),
+      url_portal = COALESCE(EXCLUDED.url_portal, bank_connections.url_portal),
+      usuario = COALESCE(EXCLUDED.usuario, bank_connections.usuario),
+      password_encrypted = COALESCE(EXCLUDED.password_encrypted, bank_connections.password_encrypted),
+      params = COALESCE(EXCLUDED.params, bank_connections.params),
+      auto_descargar = COALESCE(EXCLUDED.auto_descargar, bank_connections.auto_descargar),
+      formato_preferido = COALESCE(EXCLUDED.formato_preferido, bank_connections.formato_preferido),
+      activo = COALESCE(EXCLUDED.activo, bank_connections.activo),
+      updated_at = NOW()
+    RETURNING *;
+  `;
+
+  // Provide parameters sequentially matching the INSERT part
+  const insertParams = [
+    tenantId, bankAccountId,
+    data.tipo_conexion ?? null,
+    data.url_portal ?? null,
+    data.usuario ?? null,
+    data.password ? encrypt(data.password) : null,
+    data.params ? JSON.stringify(data.params) : null,
+    data.auto_descargar ?? null,
+    data.formato_preferido ?? null,
+    data.activo ?? null
+  ];
+
+  const rows = await query<any>(queryText, insertParams);
+  return rows[0];
+}
+
+export async function getBankConnection(tenantId: string, bankAccountId: string): Promise<(BankConnection & { password?: string }) | null> {
+  const row = await queryOne<any>(
+    'SELECT * FROM bank_connections WHERE tenant_id = $1 AND bank_account_id = $2',
+    [tenantId, bankAccountId]
+  );
+  if (!row) return null;
+  const result: BankConnection & { password?: string, password_encrypted?: string } = { ...row };
+  if (result.password_encrypted) {
+    try {
+      result.password = decrypt(result.password_encrypted);
+    } catch (e) { /* ignore */ }
+  }
+  return result;
+}
+
+// ─── Bank Transactions ────────────────────────────────────────────────────────
 export async function upsertTransactions(
   tenantId: string,
   bankAccountId: string,
@@ -332,4 +453,97 @@ export async function updateMatch(
      WHERE id = $1`,
     [matchId, estado, usuarioId, notas ?? null]
   );
+}
+
+// ─── Processor Connections ──────────────────────────────────────────────────────
+
+export async function upsertProcessorConnection(
+  tenantId: string,
+  processorId: string,
+  data: Partial<ProcessorConnection> & { credenciales_plain?: Record<string, string> }
+): Promise<ProcessorConnection> {
+  const queryText = `
+    INSERT INTO processor_connections 
+      (tenant_id, processor_id, tipo_conexion, credenciales, url_base, activo)
+    VALUES 
+      ($1, $2, COALESCE($3, 'API_REST'), COALESCE($4, '{}'::jsonb), $5, COALESCE($6, true))
+    ON CONFLICT (tenant_id, processor_id)
+    DO UPDATE SET 
+      tipo_conexion = COALESCE(EXCLUDED.tipo_conexion, processor_connections.tipo_conexion),
+      credenciales = COALESCE(EXCLUDED.credenciales, processor_connections.credenciales),
+      url_base = COALESCE(EXCLUDED.url_base, processor_connections.url_base),
+     activo = COALESCE(EXCLUDED.activo, processor_connections.activo),
+      updated_at = NOW()
+    RETURNING *;
+  `;
+
+  let credsEncrypted: Record<string, string> = {};
+  if (data.credenciales_plain) {
+    for (const [k, v] of Object.entries(data.credenciales_plain)) {
+      // Only encrypt true strings, fall back or encrypt properly
+      credsEncrypted[k] = encrypt(v);
+    }
+  }
+
+  const insertParams = [
+    tenantId, processorId,
+    data.tipo_conexion ?? null,
+    data.credenciales_plain ? JSON.stringify(credsEncrypted) : null,
+    data.url_base ?? null,
+    data.activo ?? null
+  ];
+
+  const rows = await query<any>(queryText, insertParams);
+  return rows[0];
+}
+
+export async function getProcessorConnection(
+  tenantId: string,
+  processorId: string
+): Promise<(ProcessorConnection & { credenciales_plain?: Record<string, string> }) | null> {
+  const row = await queryOne<any>(
+    'SELECT * FROM processor_connections WHERE tenant_id = $1 AND processor_id = $2',
+    [tenantId, processorId]
+  );
+  if (!row) return null;
+  const result: ProcessorConnection & { credenciales_plain?: Record<string, string>, credenciales?: any } = { ...row };
+
+  if (result.credenciales && typeof result.credenciales === 'object') {
+    result.credenciales_plain = {};
+    for (const [k, v] of Object.entries(result.credenciales)) {
+      if (typeof v === 'string') {
+        try {
+          result.credenciales_plain[k] = decrypt(v);
+        } catch (e) {
+          result.credenciales_plain[k] = v;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+export async function findProcessorLotesByPeriod(
+  tenantId: string,
+  desde: string,
+  hasta: string
+): Promise<{ lote: string; fecha: string; monto_neto_total: number; processor_id: string; tx_ids: string[] }[]> {
+  const rows = await query<any>(
+    `SELECT 
+       lote, fecha, processor_id,
+       SUM(monto_neto) as monto_neto_total,
+       array_agg(id) as tx_ids
+     FROM processor_transactions
+     WHERE tenant_id = $1 AND fecha >= $2 AND fecha <= $3 AND lote IS NOT NULL
+     GROUP BY lote, fecha, processor_id`,
+    [tenantId, desde, hasta]
+  );
+
+  return rows.map(r => ({
+    lote: r.lote,
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().split('T')[0] : r.fecha,
+    monto_neto_total: parseFloat(r.monto_neto_total),
+    processor_id: r.processor_id,
+    tx_ids: r.tx_ids
+  }));
 }

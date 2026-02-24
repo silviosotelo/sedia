@@ -13,6 +13,14 @@ async function main(): Promise<void> {
     logger.warn('No se pudo verificar super admin', { error: (err as Error).message });
   }
 
+  // Cargar configuración de storage desde la DB
+  try {
+    const { storageService } = require('./services/storage.service');
+    await storageService.reconfigureFromDB();
+  } catch (err) {
+    logger.warn('No se pudo cargar configuración de storage desde la DB', { error: (err as Error).message });
+  }
+
   try {
     await server.listen({
       port: config.server.port,

@@ -255,6 +255,12 @@ export interface SyncFacturasVirtualesJobPayload {
   numero_control?: string;
 }
 
+export interface ImportarProcesadorJobPayload {
+  processor_id: string;
+  mes?: number;
+  anio?: number;
+}
+
 export interface PaginationParams {
   page: number;
   limit: number;
@@ -266,6 +272,8 @@ export interface ComprobanteFilters {
   tipo_comprobante?: TipoComprobante;
   ruc_vendedor?: string;
   xml_descargado?: boolean;
+  modo?: 'ventas' | 'compras';
+  tenant_ruc?: string;
 }
 
 // ─── Export Logs ─────────────────────────────────────────────────────────────
@@ -503,4 +511,32 @@ export interface ForecastResult {
 
 // ─── Extended Job Types ───────────────────────────────────────────────────────
 
-export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA';
+export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA' | 'IMPORTAR_PROCESADOR' | 'SYNC_BANCO_PORTAL';
+
+export interface BankConnection {
+  id: string;
+  tenant_id: string;
+  bank_account_id: string;
+  tipo_conexion: 'PORTAL_WEB' | 'FILE_UPLOAD' | 'API';
+  url_portal: string | null;
+  usuario: string | null;
+  // password NO se expone al frontend
+  params: Record<string, unknown>;
+  auto_descargar: boolean;
+  formato_preferido: 'PDF' | 'CSV' | 'XLS' | 'TXT';
+  activo: boolean;
+  ultimo_sync_at: string | null;
+  created_at: Date;
+}
+
+export interface ProcessorConnection {
+  id: string;
+  tenant_id: string;
+  processor_id: string;
+  tipo_conexion: 'PORTAL_WEB' | 'API_REST' | 'SFTP' | 'FILE_UPLOAD';
+  // credenciales NO se exponen al frontend
+  url_base: string | null;
+  activo: boolean;
+  ultimo_sync_at: string | null;
+  created_at: Date;
+}

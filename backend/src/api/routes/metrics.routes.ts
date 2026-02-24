@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { query, queryOne } from '../../db/connection';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { generarProyeccion } from '../../services/forecast.service';
 
 export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.addHook('preHandler', requireAuth);
+  fastify.addHook('preHandler', checkFeature('metricas'));
 
   fastify.get('/metrics/overview', async (request, reply) => {
     if (request.currentUser!.rol.nombre !== 'super_admin') {

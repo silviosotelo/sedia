@@ -4,8 +4,7 @@ import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { AnomalyDetection } from '../types';
 
@@ -34,9 +33,8 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
   const [anomalias, setAnomalias] = useState<AnomalyDetection[]>([]);
   const [summary, setSummary] = useState<AnomaliasSummary | null>(null);
@@ -83,21 +81,13 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
     }
   };
 
-  const tenantSelector = isSuperAdmin ? (
-    <TenantSelector
-      value={selectedTenantId}
-      onChange={(id) => { setSelectedTenantId(id); setPage(1); }}
-    />
-  ) : undefined;
-
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="Anomalías" subtitle="Detección automática de comprobantes inusuales" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <TrendingUp className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver sus anomalías</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <TrendingUp className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver sus anomalías</p>
         </div>
       </div>
     );
@@ -112,7 +102,6 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         subtitle="Detección automática de comprobantes inusuales"
         onRefresh={load}
         refreshing={loading}
-        actions={tenantSelector}
       />
 
       {summary && (

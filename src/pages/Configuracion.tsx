@@ -1,20 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
 import {
   Settings, CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
-  Edit2, Trash2, X, RefreshCw,
+  Edit2, Trash2,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
+import { Modal } from '../components/ui/Modal';
+import { useState, useEffect, useCallback } from 'react';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { api } from '../lib/api';
 import type { Plan, MetricsOverview, MetricsSaas } from '../types';
+
+interface SystemSetting {
+  key: string;
+  value: any;
+  description: string;
+  is_secret: boolean;
+}
 
 interface ConfiguracionProps {
   toastSuccess: (msg: string) => void;
   toastError: (msg: string) => void;
 }
 
-type Tab = 'overview' | 'planes';
+type Tab = 'overview' | 'planes' | 'sistema';
 
 function fmtGs(n: number) {
   if (n === 0) return 'Gratis';
@@ -40,103 +49,62 @@ const EMPTY_FORM: PlanFormData = {
 };
 
 function PlanModal({
-  plan,
-  onClose,
-  onSave,
+  plan, onClose, onSave,
 }: {
-  plan?: Plan;
-  onClose: () => void;
-  onSave: (data: PlanFormData) => Promise<void>;
+  plan?: Plan; onClose: () => void; onSave: (data: PlanFormData) => Promise<void>;
 }) {
   const [form, setForm] = useState<PlanFormData>(
     plan
-      ? {
-          nombre: plan.nombre,
-          descripcion: plan.descripcion ?? '',
-          precio_mensual_pyg: plan.precio_mensual_pyg,
-          limite_comprobantes_mes: plan.limite_comprobantes_mes,
-          limite_usuarios: plan.limite_usuarios,
-          features: JSON.stringify(plan.features ?? {}, null, 2),
-        }
+      ? { nombre: plan.nombre, descripcion: plan.descripcion ?? '', precio_mensual_pyg: plan.precio_mensual_pyg, limite_comprobantes_mes: plan.limite_comprobantes_mes, limite_usuarios: plan.limite_usuarios, features: JSON.stringify(plan.features ?? {}, null, 2) }
       : EMPTY_FORM
   );
   const [saving, setSaving] = useState(false);
   const [featuresError, setFeaturesError] = useState('');
 
   const handleSave = async () => {
-    try {
-      JSON.parse(form.features);
-    } catch {
-      setFeaturesError('JSON inválido en features');
-      return;
-    }
+    try { JSON.parse(form.features); } catch { setFeaturesError('JSON inválido en features'); return; }
     setSaving(true);
-    try {
-      await onSave(form);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+    try { await onSave(form); onClose(); } finally { setSaving(false); }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold text-zinc-900">{plan ? 'Editar plan' : 'Nuevo plan'}</h3>
-          <button onClick={onClose} className="p-1 hover:bg-zinc-100 rounded-lg"><X className="w-4 h-4" /></button>
+    <Modal open={true} title={plan ? 'Editar plan' : 'Nuevo plan'} onClose={onClose} size="md">
+      <div className="space-y-3">
+        <div>
+          <label className="label">Nombre</label>
+          <input className="input" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Plan Pro" />
         </div>
-
-        <div className="space-y-3">
+        <div>
+          <label className="label">Descripción</label>
+          <input className="input" value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} placeholder="Descripción breve" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="label-sm">Nombre</label>
-            <input className="input-sm" value={form.nombre} onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Plan Pro" />
+            <label className="label">Precio mensual (PYG)</label>
+            <input type="number" className="input" value={form.precio_mensual_pyg} onChange={(e) => setForm((f) => ({ ...f, precio_mensual_pyg: Number(e.target.value) }))} />
           </div>
           <div>
-            <label className="label-sm">Descripción</label>
-            <input className="input-sm" value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} placeholder="Descripción breve" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label-sm">Precio mensual (PYG)</label>
-              <input type="number" className="input-sm" value={form.precio_mensual_pyg}
-                onChange={(e) => setForm((f) => ({ ...f, precio_mensual_pyg: Number(e.target.value) }))} />
-            </div>
-            <div>
-              <label className="label-sm">Límite usuarios</label>
-              <input type="number" className="input-sm" value={form.limite_usuarios}
-                onChange={(e) => setForm((f) => ({ ...f, limite_usuarios: Number(e.target.value) }))} />
-            </div>
-          </div>
-          <div>
-            <label className="label-sm">Límite comprobantes/mes (vacío = ilimitado)</label>
-            <input
-              type="number"
-              className="input-sm"
-              value={form.limite_comprobantes_mes ?? ''}
-              onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))}
-              placeholder="Dejar vacío para ilimitado"
-            />
-          </div>
-          <div>
-            <label className="label-sm">Features (JSON)</label>
-            <textarea
-              className="input-sm font-mono h-24 resize-none"
-              value={form.features}
-              onChange={(e) => { setForm((f) => ({ ...f, features: e.target.value })); setFeaturesError(''); }}
-            />
-            {featuresError && <p className="field-error">{featuresError}</p>}
+            <label className="label">Límite usuarios</label>
+            <input type="number" className="input" value={form.limite_usuarios} onChange={(e) => setForm((f) => ({ ...f, limite_usuarios: Number(e.target.value) }))} />
           </div>
         </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="btn-sm btn-secondary" disabled={saving}>Cancelar</button>
-          <button onClick={() => void handleSave()} disabled={!form.nombre || saving} className="btn-sm btn-primary">
-            {saving ? <Spinner size="xs" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Guardar
-          </button>
+        <div>
+          <label className="label">Límite comprobantes/mes (vacío = ilimitado)</label>
+          <input type="number" className="input" value={form.limite_comprobantes_mes ?? ''} onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))} placeholder="Dejar vacío para ilimitado" />
+        </div>
+        <div>
+          <label className="label">Features (JSON)</label>
+          <textarea className="input font-mono h-24 resize-none" value={form.features} onChange={(e) => { setForm((f) => ({ ...f, features: e.target.value })); setFeaturesError(''); }} />
+          {featuresError && <p className="field-error">{featuresError}</p>}
         </div>
       </div>
-    </div>
+      <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-zinc-100">
+        <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
+        <button onClick={() => void handleSave()} disabled={!form.nombre || saving} className="btn-md btn-primary gap-1.5">
+          {saving ? <Spinner size="xs" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Guardar
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -149,18 +117,23 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [systemConfig, setSystemConfig] = useState<SystemSetting[]>([]);
+  const [editingConfig, setEditingConfig] = useState<SystemSetting | null>(null);
+  const [showConfigModal, setShowConfigModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ov, sm, pl] = await Promise.all([
+      const [ov, sm, pl, sc] = await Promise.all([
         api.metrics.overview(),
         api.metrics.saas(),
         api.billing.listPlans(),
+        api.get('/system/config'),
       ]);
       setOverview(ov);
       setSaasMetrics(sm);
       setPlans(pl);
+      setSystemConfig(sc.data);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -169,6 +142,23 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   }, [toastError]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  const handleEditConfig = (config: SystemSetting) => {
+    setEditingConfig(config);
+    setShowConfigModal(true);
+  };
+
+  const handleSaveSystemConfig = async (value: any) => {
+    if (!editingConfig) return;
+    try {
+      await api.patch(`/system/config/${editingConfig.key}`, { value });
+      toastSuccess('Configuración actualizada');
+      setShowConfigModal(false);
+      void loadData();
+    } catch (err) {
+      toastError('Error al actualizar configuración');
+    }
+  };
 
   const handleSavePlan = async (form: PlanFormData) => {
     try {
@@ -195,10 +185,13 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   };
 
   const handleDeletePlan = async (id: string) => {
-    if (!confirm('¿Eliminar este plan?')) return;
     setDeletingId(id);
+  };
+
+  const confirmDeletePlan = async () => {
+    if (!deletingId) return;
     try {
-      await api.billing.deletePlan(id);
+      await api.billing.deletePlan(deletingId);
       toastSuccess('Plan eliminado');
       void loadData();
     } catch (err) {
@@ -224,13 +217,13 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         {([
           { id: 'overview', label: 'Resumen del sistema', icon: <BarChart3 className="w-3.5 h-3.5" /> },
           { id: 'planes', label: 'Planes de suscripción', icon: <CreditCard className="w-3.5 h-3.5" /> },
+          { id: 'sistema', label: 'Configuración Global', icon: <Settings className="w-3.5 h-3.5" /> },
         ] as { id: Tab; label: string; icon: React.ReactNode }[]).map(({ id, label, icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+              }`}
           >
             {icon}{label}
           </button>
@@ -302,7 +295,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
                       <div key={t.tenant_id} className="px-5 py-3 flex items-center gap-3">
                         <span className="text-xs text-zinc-400 w-5 tabular-nums">{i + 1}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-zinc-900 truncate">{t.nombre_fantasia}</p>
+                          <p className="text-sm font-medium text-zinc-900 truncate">{t.nombre}</p>
                         </div>
                         <span className="text-sm font-semibold text-zinc-900 tabular-nums">
                           {t.total_comprobantes.toLocaleString('es-PY')}
@@ -385,6 +378,40 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         </div>
       )}
 
+      {/* ── Tab: Sistema ──────────────────────────────────────────────── */}
+      {tab === 'sistema' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4">
+            {systemConfig.map((item) => (
+              <div key={item.key} className="card p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider">{item.key.replace(/_/g, ' ')}</h3>
+                    <p className="text-xs text-zinc-500">{item.description}</p>
+                  </div>
+                  <Badge variant={item.is_secret ? 'warning' : 'neutral'} size="sm">
+                    {item.is_secret ? 'Sensible' : 'Público'}
+                  </Badge>
+                </div>
+                <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-100">
+                  <pre className="text-[11px] font-mono text-zinc-600 overflow-x-auto">
+                    {JSON.stringify(item.value, null, 2)}
+                  </pre>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <button
+                    onClick={() => handleEditConfig(item)}
+                    className="btn-sm btn-secondary gap-1.5 text-xs"
+                  >
+                    <Edit2 className="w-3 h-3" /> Editar valores
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showPlanModal && (
         <PlanModal
           plan={editingPlan}
@@ -393,12 +420,57 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         />
       )}
 
-      {/* Floating refresh indicator */}
-      {loading && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-full text-xs shadow-lg">
-          <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
-        </div>
+      <ConfirmDialog
+        open={!!deletingId}
+        title="Eliminar plan"
+        description="¿Eliminar este plan? Los tenants con este plan perderán la configuración."
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={() => void confirmDeletePlan()}
+        onClose={() => setDeletingId(null)}
+      />
+
+      {showConfigModal && editingConfig && (
+        <SystemConfigModal
+          config={editingConfig}
+          onClose={() => setShowConfigModal(false)}
+          onSave={handleSaveSystemConfig}
+        />
       )}
     </div>
+  );
+}
+
+function SystemConfigModal({ config, onClose, onSave }: { config: SystemSetting; onClose: () => void; onSave: (val: any) => void }) {
+  const [val, setVal] = useState(JSON.stringify(config.value, null, 2));
+
+  return (
+    <Modal open title={`Editar ${config.key}`} onClose={onClose} size="md">
+      <div className="space-y-4 py-4">
+        <div>
+          <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Valor (JSON)</label>
+          <textarea
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="w-full h-48 font-mono text-xs p-3 rounded-lg border border-zinc-200 focus:ring-2 focus:ring-zinc-900 focus:outline-none"
+          />
+        </div>
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose} className="btn-md btn-secondary">Cancelar</button>
+          <button
+            onClick={() => {
+              try {
+                onSave(JSON.parse(val));
+              } catch (e) {
+                alert('JSON inválido');
+              }
+            }}
+            className="btn-md btn-primary"
+          >
+            Guardar cambios
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

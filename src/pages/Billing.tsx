@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { CreditCard, CheckCircle2, AlertCircle, TrendingUp } from 'lucide-react';
+import { BancardIframe } from 'react-bancard-checkout-js';
+import { CreditCard, CheckCircle2, AlertCircle, TrendingUp, Zap } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
-import { TenantSelector } from '../components/ui/TenantSelector';
-import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
+import { BillingHistory } from './BillingHistory';
 import { api } from '../lib/api';
 import type { Plan, BillingUsage } from '../types';
 
@@ -117,14 +119,17 @@ function HistoryBar({ month, value, maxValue }: { month: string; value: number; 
 }
 
 export function Billing({ toastSuccess, toastError }: BillingProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
-  const [selectedTenantId, setSelectedTenantId] = useState(userTenantId ?? '');
-  const tenantId = isSuperAdmin ? selectedTenantId : (userTenantId ?? '');
+  const { activeTenantId } = useTenant();
+  const tenantId = activeTenantId ?? '';
 
+  const [activeTab, setActiveTab] = useState<'plans' | 'history'>('plans');
   const [plans, setPlans] = useState<Plan[]>([]);
   const [usage, setUsage] = useState<BillingUsage | null>(null);
   const [loading, setLoading] = useState(false);
   const [selecting, setSelecting] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [checkoutData, setCheckoutData] = useState<any>(null);
 
   const load = useCallback(async () => {
     if (!tenantId) return;
@@ -145,15 +150,29 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const handleChangePlan = async (planId: string) => {
-    if (!tenantId) return;
+  const handleSelectPlan = (planId: string) => {
+    setSelectedPlanId(planId);
+    setShowCheckout(true);
+  };
+
+  const handleCheckout = async (method: 'vpos' | 'qr') => {
+    if (!tenantId || !selectedPlanId) return;
     setSelecting(true);
     try {
-      await api.billing.changePlan(tenantId, planId);
-      toastSuccess('Plan actualizado correctamente');
-      void load();
+      const res = await api.post(`/tenants/${tenantId}/billing/checkout`, {
+        plan_id: selectedPlanId,
+        method
+      });
+
+      if (method === 'qr') {
+        setCheckoutData(res.data);
+      } else {
+        // vPOS 2.0 Iframe integration
+        const { process_id } = res.data;
+        setCheckoutData({ method: 'vpos', process_id });
+      }
     } catch (err) {
-      toastError((err as Error).message);
+      toastError('Error al iniciar el pago');
     } finally {
       setSelecting(false);
     }
@@ -166,18 +185,14 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
   const currentPlanId = usage?.plan?.id;
   const maxHistory = Math.max(...(usage?.historial ?? []).map((h) => h.comprobantes_procesados), 1);
 
-  const tenantSelector = isSuperAdmin ? (
-    <TenantSelector value={selectedTenantId} onChange={(id) => setSelectedTenantId(id)} />
-  ) : undefined;
 
-  if (isSuperAdmin && !tenantId) {
+  if (!tenantId) {
     return (
       <div className="animate-fade-in">
         <Header title="Planes y Billing" subtitle="Gestión de suscripción y uso de recursos" />
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <CreditCard className="w-12 h-12 text-zinc-300" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa para ver su billing</p>
-          <TenantSelector value="" onChange={setSelectedTenantId} />
+        <div className="flex flex-col items-center justify-center py-20">
+          <CreditCard className="w-12 h-12 text-zinc-300 mb-3" />
+          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su billing</p>
         </div>
       </div>
     );
@@ -192,15 +207,13 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         subtitle="Gestión de suscripción y uso de recursos"
         onRefresh={load}
         refreshing={loading}
-        actions={tenantSelector}
       />
 
       {trialDaysLeft !== null && trialDaysLeft <= 14 && (
-        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
-          trialDaysLeft <= 3
-            ? 'bg-rose-50 border-rose-200 text-rose-700'
-            : 'bg-amber-50 border-amber-200 text-amber-700'
-        }`}>
+        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${trialDaysLeft <= 3
+          ? 'bg-rose-50 border-rose-200 text-rose-700'
+          : 'bg-amber-50 border-amber-200 text-amber-700'
+          }`}>
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>
             {trialDaysLeft === 0
@@ -210,67 +223,151 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         </div>
       )}
 
-      {usage?.uso && (
-        <div className="card p-5 mb-6 space-y-4">
-          <div className="flex items-center gap-2 mb-2">
-            <TrendingUp className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-sm font-semibold text-zinc-700">Uso del mes actual</h3>
-          </div>
-          <UsageBar
-            value={usage.uso.comprobantes_procesados}
-            max={usage.plan?.limite_comprobantes_mes ?? null}
-            label="Comprobantes procesados"
-          />
-          <div className="grid grid-cols-3 gap-4 pt-2 border-t border-zinc-100">
-            <div>
-              <p className="text-lg font-bold text-zinc-900">{usage.uso.xmls_descargados.toLocaleString('es-PY')}</p>
-              <p className="text-xs text-zinc-500">XMLs descargados</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-zinc-900">{usage.uso.exportaciones.toLocaleString('es-PY')}</p>
-              <p className="text-xs text-zinc-500">Exportaciones</p>
-            </div>
-            <div>
-              <p className="text-lg font-bold text-zinc-900">{usage.uso.webhooks_enviados.toLocaleString('es-PY')}</p>
-              <p className="text-xs text-zinc-500">Webhooks enviados</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {(usage?.historial ?? []).length > 0 && (
-        <div className="card p-5 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="w-4 h-4 text-zinc-400" />
-            <h3 className="text-sm font-semibold text-zinc-700">Historial de uso (6 meses)</h3>
-          </div>
-          <div className="flex gap-2 items-end">
-            {usage!.historial.slice(-6).map((h) => {
-              const label = new Date(h.anio, h.mes - 1).toLocaleDateString('es-PY', { month: 'short' });
-              return (
-                <HistoryBar
-                  key={`${h.anio}-${h.mes}`}
-                  month={label}
-                  value={h.comprobantes_procesados}
-                  maxValue={maxHistory}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plans.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            current={plan.id === currentPlanId}
-            onSelect={(id) => void handleChangePlan(id)}
-            selecting={selecting}
-          />
-        ))}
+      <div className="flex border-b border-zinc-100 mb-6 gap-6">
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'plans' ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+        >
+          Planes y Uso
+          {activeTab === 'plans' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'history' ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+            }`}
+        >
+          Historial de Pagos
+          {activeTab === 'history' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900" />
+          )}
+        </button>
       </div>
+
+      {activeTab === 'plans' ? (
+        <>
+          {usage?.uso && (
+            <div className="card p-5 mb-6 space-y-4">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="w-4 h-4 text-zinc-400" />
+                <h3 className="text-sm font-semibold text-zinc-700">Uso del mes actual</h3>
+              </div>
+              <UsageBar
+                value={usage.uso.comprobantes_procesados}
+                max={usage.plan?.limite_comprobantes_mes ?? null}
+                label="Comprobantes procesados"
+              />
+              <div className="grid grid-cols-3 gap-4 pt-2 border-t border-zinc-100">
+                <div>
+                  <p className="text-lg font-bold text-zinc-900">{usage.uso.xmls_descargados.toLocaleString('es-PY')}</p>
+                  <p className="text-xs text-zinc-500">XMLs descargados</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-zinc-900">{usage.uso.exportaciones.toLocaleString('es-PY')}</p>
+                  <p className="text-xs text-zinc-500">Exportaciones</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-zinc-900">{usage.uso.webhooks_enviados.toLocaleString('es-PY')}</p>
+                  <p className="text-xs text-zinc-500">Webhooks enviados</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(usage?.historial ?? []).length > 0 && (
+            <div className="card p-5 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <CreditCard className="w-4 h-4 text-zinc-400" />
+                <h3 className="text-sm font-semibold text-zinc-700">Historial de uso (6 meses)</h3>
+              </div>
+              <div className="flex gap-2 items-end">
+                {usage!.historial.slice(-6).map((h) => {
+                  const label = new Date(h.anio, h.mes - 1).toLocaleDateString('es-PY', { month: 'short' });
+                  return (
+                    <HistoryBar
+                      key={`${h.anio}-${h.mes}`}
+                      month={label}
+                      value={h.comprobantes_procesados}
+                      maxValue={maxHistory}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {plans.map((plan) => (
+              <PlanCard
+                key={plan.id}
+                plan={plan}
+                current={plan.id === currentPlanId}
+                onSelect={handleSelectPlan}
+                selecting={selecting}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <BillingHistory tenantId={tenantId} />
+      )}
+
+      <Modal open={showCheckout} title="Finalizar Suscripción" onClose={() => { setShowCheckout(false); setCheckoutData(null); }} size="md">
+        {!checkoutData ? (
+          <div className="space-y-4 py-4 text-center">
+            <p className="text-sm text-zinc-500">Seleccioná tu método de pago para activar el plan</p>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => handleCheckout('vpos')}
+                disabled={selecting}
+                className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-zinc-100 hover:border-zinc-900 transition-all group"
+              >
+                <CreditCard className="w-8 h-8 text-zinc-400 group-hover:text-zinc-900" />
+                <span className="font-bold text-zinc-900">Tarjeta (VPOS)</span>
+              </button>
+              <button
+                onClick={() => handleCheckout('qr')}
+                disabled={selecting}
+                className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-zinc-100 hover:border-zinc-900 transition-all group"
+              >
+                <div className="w-8 h-8 rounded bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-900 transition-colors">
+                  <Zap className="w-5 h-5 text-zinc-400 group-hover:text-white" />
+                </div>
+                <span className="font-bold text-zinc-900">QR / Billetera</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="py-6 text-center space-y-4">
+            {checkoutData.method === 'vpos' ? (
+              <div className="min-h-[400px]">
+                <BancardIframe
+                  processId={checkoutData.process_id}
+                  onSuccess={() => {
+                    setShowCheckout(false);
+                    toastSuccess('Pago procesado correctamente');
+                    void load();
+                  }}
+                  onError={() => {
+                    toastError('Error al procesar el pago');
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                <h4 className="font-bold text-zinc-900">Escaneá el código QR</h4>
+                <div className="bg-white p-4 rounded-xl border border-zinc-200 inline-block mx-auto">
+                  <img src={checkoutData.qr_url} alt="QR Bancard" className="w-48 h-48" />
+                </div>
+                <p className="text-xs text-zinc-500">Válido por 10 minutos</p>
+              </>
+            )}
+            <button onClick={() => { setShowCheckout(false); setCheckoutData(null); }} className="btn-md btn-secondary w-full">Cerrar</button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

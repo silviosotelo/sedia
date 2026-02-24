@@ -15,16 +15,73 @@ interface AuthContextValue {
   isUsuarioEmpresa: boolean;
   isReadonly: boolean;
   userTenantId: string | null;
+  branding: {
+    nombre_app: string;
+    color_primario: string;
+    color_secundario: string;
+    logo_url: string;
+    favicon_url: string;
+  };
+  refreshBranding: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string) || '/api';
 
+const DEFAULT_BRANDING = {
+  nombre_app: 'SEDIA',
+  color_primario: '#18181b',
+  color_secundario: '#f4f4f5',
+  logo_url: '',
+  favicon_url: '',
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [loading, setLoading] = useState(true);
+  const [branding, setBranding] = useState(DEFAULT_BRANDING);
+
+  const refreshBranding = useCallback(async () => {
+    try {
+      // First try to get by current domain (public)
+      const domain = window.location.hostname;
+      const resPublic = await fetch(`${BASE_URL}/tenants/by-domain/${domain}`);
+      if (resPublic.ok) {
+        const data = await resPublic.json();
+        if (data.data) {
+          setBranding(data.data);
+          return;
+        }
+      }
+
+      // If logged in, get tenant-specific branding
+      if (token && user?.tenant_id) {
+        const resPrivate = await fetch(`${BASE_URL}/tenants/${user.tenant_id}/branding`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resPrivate.ok) {
+          const data = await resPrivate.json();
+          const { data: tenantData, global } = data;
+
+          setBranding({
+            nombre_app: tenantData?.wl_nombre_app || global?.wl_nombre_app || DEFAULT_BRANDING.nombre_app,
+            color_primario: tenantData?.wl_color_primario || global?.wl_color_primario || DEFAULT_BRANDING.color_primario,
+            color_secundario: tenantData?.wl_color_secundario || global?.wl_color_secundario || DEFAULT_BRANDING.color_secundario,
+            logo_url: tenantData?.wl_logo_url || global?.wl_logo_url || DEFAULT_BRANDING.logo_url,
+            favicon_url: tenantData?.wl_favicon_url || global?.wl_favicon_url || DEFAULT_BRANDING.favicon_url,
+          });
+          return;
+        }
+      }
+
+      // Fallback if no specific branding found
+      setBranding(DEFAULT_BRANDING);
+    } catch {
+      setBranding(DEFAULT_BRANDING);
+    }
+  }, [token, user?.tenant_id]);
 
   const fetchMe = useCallback(async (t: string) => {
     try {
@@ -49,7 +106,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token, fetchMe]);
 
+  useEffect(() => {
+    void refreshBranding();
+  }, [refreshBranding]);
+
+  // Apply branding colors to CSS variables
+  useEffect(() => {
+    document.documentElement.style.setProperty('--brand-primary', branding.color_primario);
+    document.documentElement.style.setProperty('--brand-secondary', branding.color_secundario);
+    if (branding.nombre_app) document.title = branding.nombre_app;
+  }, [branding]);
+
   const login = async (email: string, password: string) => {
+    // ... (rest of the code)
     const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,7 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const userTenantId = user?.tenant_id ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, hasPermission, isSuperAdmin, isAdminEmpresa, isUsuarioEmpresa, isReadonly, userTenantId }}>
+    <AuthContext.Provider value={{
+      user, token, loading, login, logout,
+      hasPermission, isSuperAdmin, isAdminEmpresa,
+      isUsuarioEmpresa, isReadonly, userTenantId,
+      branding, refreshBranding
+    }}>
       {children}
     </AuthContext.Provider>
   );

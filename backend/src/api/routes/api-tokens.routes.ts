@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import crypto from 'crypto';
 
@@ -12,6 +13,7 @@ function generateToken(): { raw: string; hash: string; prefix: string } {
 
 export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('api_tokens'));
 
   app.get<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/api-tokens',
@@ -26,9 +28,11 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  app.post<{ Params: { tenantId: string }; Body: {
-    nombre: string; permisos?: string[]; expira_at?: string;
-  } }>(
+  app.post<{
+    Params: { tenantId: string }; Body: {
+      nombre: string; permisos?: string[]; expira_at?: string;
+    }
+  }>(
     '/tenants/:tenantId/api-tokens',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;

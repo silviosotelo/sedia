@@ -189,6 +189,8 @@ export interface Comprobante {
   xml_url: string | null;
   xml_descargado_at: string | null;
   detalles_xml: DetallesXml | null;
+  numero_control: string | null;
+  detalles_virtual: any | null;
   estado_sifen: string | null;
   nro_transaccion_sifen: string | null;
   fecha_estado_sifen: string | null;
@@ -226,6 +228,7 @@ export interface Usuario {
   rol: Rol;
   permisos: string[];
   tenant_nombre?: string;
+  plan_features: Record<string, any>;
 }
 
 export interface MetricsOverview {

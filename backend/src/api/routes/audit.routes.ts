@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { AuditLogEntry } from '../../types';
 
 export async function auditRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('auditoria'));
 
   app.get<{
     Params: { id: string };
@@ -26,14 +28,14 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
 
     const { usuario_id, accion, fecha_desde, fecha_hasta, page = '1', limit = '50' } = req.query;
 
-    const conditions: string[] = ['tenant_id = $1'];
+    const conditions: string[] = ['al.tenant_id = $1'];
     const values: unknown[] = [req.params.id];
     let i = 2;
 
-    if (usuario_id) { conditions.push(`usuario_id = $${i++}`); values.push(usuario_id); }
-    if (accion) { conditions.push(`accion = $${i++}`); values.push(accion); }
-    if (fecha_desde) { conditions.push(`created_at >= $${i++}`); values.push(fecha_desde); }
-    if (fecha_hasta) { conditions.push(`created_at <= $${i++}`); values.push(fecha_hasta + 'T23:59:59Z'); }
+    if (usuario_id) { conditions.push(`al.usuario_id = $${i++}`); values.push(usuario_id); }
+    if (accion) { conditions.push(`al.accion = $${i++}`); values.push(accion); }
+    if (fecha_desde) { conditions.push(`al.created_at >= $${i++}`); values.push(fecha_desde); }
+    if (fecha_hasta) { conditions.push(`al.created_at <= $${i++}`); values.push(fecha_hasta + 'T23:59:59Z'); }
 
     const where = conditions.join(' AND ');
     const pageNum = parseInt(page);
@@ -50,7 +52,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
          LIMIT $${i} OFFSET $${i + 1}`,
         [...values, limitNum, offset]
       ),
-      queryOne<{ count: string }>(`SELECT COUNT(*) as count FROM audit_log WHERE ${where}`, values),
+      queryOne<{ count: string }>(`SELECT COUNT(*) as count FROM audit_log al WHERE ${where}`, values),
     ]);
 
     return reply.send({

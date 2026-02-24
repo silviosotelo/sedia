@@ -56,7 +56,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     try {
       const body = await res.json();
       msg = body.message || body.error || msg;
-    } catch (_) {}
+    } catch (_) { }
     throw new Error(msg);
   }
 
@@ -146,6 +146,7 @@ export const api = {
         tipo_comprobante?: string;
         ruc_vendedor?: string;
         xml_descargado?: boolean;
+        modo?: 'ventas' | 'compras';
         page?: number;
         limit?: number;
       }
@@ -158,6 +159,7 @@ export const api = {
       if (params?.ruc_vendedor) q.set('ruc_vendedor', params.ruc_vendedor);
       if (params?.xml_descargado !== undefined)
         q.set('xml_descargado', String(params.xml_descargado));
+      if (params?.modo) q.set('modo', params.modo);
       if (params?.page) q.set('page', String(params.page));
       if (params?.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
@@ -189,6 +191,7 @@ export const api = {
         tipo_comprobante?: string;
         ruc_vendedor?: string;
         xml_descargado?: boolean;
+        modo?: 'ventas' | 'compras';
       }
     ): string => {
       const q = new URLSearchParams({ formato });
@@ -197,6 +200,7 @@ export const api = {
       if (params?.tipo_comprobante) q.set('tipo_comprobante', params.tipo_comprobante);
       if (params?.ruc_vendedor) q.set('ruc_vendedor', params.ruc_vendedor);
       if (params?.xml_descargado !== undefined) q.set('xml_descargado', String(params.xml_descargado));
+      if (params?.modo) q.set('modo', params.modo);
       return `${BASE_URL}/tenants/${tenantId}/comprobantes/exportar?${q.toString()}`;
     },
     patch: (
@@ -392,16 +396,29 @@ export const api = {
     listBanks: (): Promise<Bank[]> =>
       request<{ data: Bank[] }>('/banks').then((r) => r.data ?? []),
 
+    createBank: (body: Partial<Bank>): Promise<Bank> =>
+      request<{ data: Bank }>('/banks', {
+        method: 'POST', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    updateBank: (id: string, body: Partial<Bank>): Promise<Bank> =>
+      request<{ data: Bank }>(`/banks/${id}`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    deleteBank: (id: string): Promise<void> =>
+      request<void>(`/banks/${id}`, { method: 'DELETE' }),
+
     listAccounts: (tenantId: string): Promise<BankAccount[]> =>
-      request<{ data: BankAccount[] }>(`/tenants/${tenantId}/bank-accounts`).then((r) => r.data ?? []),
+      request<{ data: BankAccount[] }>(`/tenants/${tenantId}/banks/accounts`).then((r) => r.data ?? []),
 
     createAccount: (tenantId: string, body: Partial<BankAccount>): Promise<BankAccount> =>
-      request<{ data: BankAccount }>(`/tenants/${tenantId}/bank-accounts`, {
+      request<{ data: BankAccount }>(`/tenants/${tenantId}/banks/accounts`, {
         method: 'POST', body: JSON.stringify(body),
       }).then((r) => r.data),
 
     listStatements: (tenantId: string, accountId: string): Promise<BankStatement[]> =>
-      request<{ data: BankStatement[] }>(`/tenants/${tenantId}/bank-accounts/${accountId}/statements`).then((r) => r.data ?? []),
+      request<{ data: BankStatement[] }>(`/tenants/${tenantId}/banks/accounts/${accountId}/statements`).then((r) => r.data ?? []),
 
     uploadStatement: async (tenantId: string, accountId: string, file: File, periodoDesde: string, periodoHasta: string): Promise<BankStatement> => {
       const fd = new FormData();
@@ -409,14 +426,14 @@ export const api = {
       fd.append('periodo_desde', periodoDesde);
       fd.append('periodo_hasta', periodoHasta);
       const t = getToken();
-      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/bank-accounts/${accountId}/statements`, {
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/accounts/${accountId}/statements/upload`, {
         method: 'POST',
         headers: t ? { Authorization: `Bearer ${t}` } : {},
         body: fd,
       });
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
         throw new Error(msg);
       }
       const data = await res.json() as { data: BankStatement };
@@ -428,14 +445,14 @@ export const api = {
       if (params?.desde) q.set('desde', params.desde);
       if (params?.hasta) q.set('hasta', params.hasta);
       const qs = q.toString();
-      return request<{ data: BankTransaction[] }>(`/tenants/${tenantId}/bank-accounts/${accountId}/transactions${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
+      return request<{ data: BankTransaction[] }>(`/tenants/${tenantId}/banks/accounts/${accountId}/transactions${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
     },
 
     listRuns: (tenantId: string): Promise<ReconciliationRun[]> =>
       request<{ data: ReconciliationRun[] }>(`/tenants/${tenantId}/reconciliation-runs`).then((r) => r.data ?? []),
 
     createRun: (tenantId: string, body: { bank_account_id?: string; periodo_desde: string; periodo_hasta: string }): Promise<ReconciliationRun> =>
-      request<{ data: ReconciliationRun }>(`/tenants/${tenantId}/reconciliation-runs`, {
+      request<{ data: ReconciliationRun }>(`/tenants/${tenantId}/banks/reconcile`, {
         method: 'POST', body: JSON.stringify(body),
       }).then((r) => r.data),
 
@@ -448,23 +465,43 @@ export const api = {
       }).then((r) => r.data),
 
     listProcessors: (tenantId: string): Promise<PaymentProcessor[]> =>
-      request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/payment-processors`).then((r) => r.data ?? []),
+      request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/banks/processors`).then((r) => r.data ?? []),
 
     uploadProcessorFile: async (tenantId: string, processorId: string, file: File): Promise<void> => {
       const fd = new FormData();
       fd.append('file', file);
       const t = getToken();
-      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/payment-processors/${processorId}/upload`, {
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/processors/${processorId}/transactions/upload`, {
         method: 'POST',
         headers: t ? { Authorization: `Bearer ${t}` } : {},
         body: fd,
       });
       if (!res.ok) {
         let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) {}
+        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
         throw new Error(msg);
       }
     },
+  },
+
+  procesadoras: {
+    list: (tenantId: string): Promise<any[]> =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/processors`).then((r) => r.data ?? []),
+
+    create: (tenantId: string, body: { nombre: string; tipo?: string }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/banks/processors`, {
+        method: 'POST', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    updateConnection: (tenantId: string, processorId: string, body: { tipo_conexion?: string; url_base?: string; activo?: boolean; credenciales_plain?: Record<string, string> }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/processors/${processorId}/connection`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    importar: (tenantId: string, processorId: string, body?: { mes?: number; anio?: number }): Promise<{ job_id: string; status: string }> =>
+      request<{ data: { job_id: string; status: string } }>(`/tenants/${tenantId}/processors/${processorId}/import`, {
+        method: 'POST', body: JSON.stringify(body || {}),
+      }).then((r) => r.data),
   },
 
   billing: {
@@ -556,4 +593,11 @@ export const api = {
         method: 'PUT', body: JSON.stringify(body),
       }).then((r) => r.data),
   },
+
+  // Métodos genéricos para facilitar migraciones y nuevas rutas
+  get: (url: string) => request<any>(url),
+  post: (url: string, body?: any) => request<any>(url, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  put: (url: string, body?: any) => request<any>(url, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
+  delete: (url: string) => request<any>(url, { method: 'DELETE' }),
+  patch: (url: string, body?: any) => request<any>(url, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
 };

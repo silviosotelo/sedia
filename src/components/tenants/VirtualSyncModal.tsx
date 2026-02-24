@@ -15,11 +15,10 @@ const MONTHS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-type SearchMode = 'periodo' | 'numero_control';
-
 export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading }: VirtualSyncModalProps) {
   const now = new Date();
-  const [mode, setMode] = useState<SearchMode>('periodo');
+  const [usePeriodo, setUsePeriodo] = useState(false);
+  const [useControl, setUseControl] = useState(false);
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [anio, setAnio] = useState(now.getFullYear());
   const [numeroControl, setNumeroControl] = useState('');
@@ -27,14 +26,14 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() - i);
 
   const handleSubmit = async () => {
-    if (mode === 'numero_control') {
-      await onSubmit({ numero_control: numeroControl.trim() || undefined });
+    if (useControl && numeroControl.trim()) {
+      await onSubmit({ numero_control: numeroControl.trim() });
     } else {
-      await onSubmit({ mes, anio });
+      await onSubmit(usePeriodo ? { mes, anio } : {});
     }
   };
 
-  const canSubmit = mode === 'periodo' || (mode === 'numero_control' && numeroControl.trim().length > 0);
+  const canSubmit = !useControl || (useControl && numeroControl.trim().length > 0);
 
   return (
     <Modal
@@ -56,78 +55,100 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
       }
     >
       <div className="space-y-4">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode('periodo')}
-            className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
-              mode === 'periodo'
-                ? 'bg-zinc-900 text-white border-zinc-900'
-                : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-            }`}
-          >
-            Por periodo
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('numero_control')}
-            className={`flex-1 px-3 py-2 text-xs font-medium rounded-lg border transition-colors ${
-              mode === 'numero_control'
-                ? 'bg-zinc-900 text-white border-zinc-900'
-                : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'
-            }`}
-          >
-            Por numero de control
-          </button>
+        {/* Toggle Periodo */}
+        <div className={`p-4 rounded-xl border transition-colors ${!useControl ? 'bg-zinc-50 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-zinc-200'}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-medium text-zinc-900">Sincronización por período</p>
+              <p className="text-xs text-zinc-500">Descarga masiva de facturas virtuales</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { setUsePeriodo(!usePeriodo); setUseControl(false); }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${usePeriodo && !useControl ? 'bg-emerald-500' : 'bg-zinc-300'
+                  }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${usePeriodo && !useControl ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="text-xs text-zinc-500 mb-3">
+            {usePeriodo && !useControl ? 'Período específico' : 'Por defecto sincroniza el mes actual'}
+          </div>
+
+          {!useControl && usePeriodo && (
+            <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-zinc-200/60">
+              <div>
+                <label className="label">Mes</label>
+                <select
+                  className="input text-sm"
+                  value={mes}
+                  onChange={(e) => setMes(Number(e.target.value))}
+                >
+                  {MONTHS.map((m, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Año</label>
+                <select
+                  className="input text-sm"
+                  value={anio}
+                  onChange={(e) => setAnio(Number(e.target.value))}
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
-        {mode === 'periodo' && (
-          <div className="grid grid-cols-2 gap-3">
+        {/* Toggle Control Number */}
+        <div className={`p-4 rounded-xl border transition-colors ${useControl ? 'bg-zinc-50 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-zinc-200'}`}>
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <label className="label">Mes</label>
-              <select
-                className="input"
-                value={mes}
-                onChange={(e) => setMes(Number(e.target.value))}
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={i + 1} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+              <p className="text-sm font-medium text-zinc-900">Sincronización exacta</p>
+              <p className="text-xs text-zinc-500">Por número de control hexadecimal</p>
             </div>
-            <div>
-              <label className="label">Ano</label>
-              <select
-                className="input"
-                value={anio}
-                onChange={(e) => setAnio(Number(e.target.value))}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { setUseControl(!useControl); setUsePeriodo(false); }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useControl ? 'bg-emerald-500' : 'bg-zinc-300'
+                  }`}
               >
-                {years.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${useControl ? 'translate-x-4' : 'translate-x-0.5'
+                    }`}
+                />
+              </button>
             </div>
           </div>
-        )}
 
-        {mode === 'numero_control' && (
-          <div>
-            <label className="label">Numero de control</label>
-            <input
-              className="input"
-              placeholder="Ej: 3a4b5c6d7e8f..."
-              value={numeroControl}
-              onChange={(e) => setNumeroControl(e.target.value)}
-            />
-            <p className="text-xs text-zinc-400 mt-1.5">
-              Codigo de control hexadecimal del comprobante virtual
-            </p>
-          </div>
-        )}
+          {useControl && (
+            <div className="mt-4 pt-3 border-t border-zinc-200/60">
+              <label className="label">Número de control</label>
+              <input
+                className="input text-sm"
+                placeholder="Ej: 3a4b5c6d7e8f..."
+                value={numeroControl}
+                onChange={(e) => setNumeroControl(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
 
         <p className="text-xs text-zinc-400">
           Se encolara un job <span className="font-mono font-medium">SYNC_FACTURAS_VIRTUALES</span> que
