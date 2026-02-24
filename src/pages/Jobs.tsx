@@ -71,13 +71,7 @@ function JobTypeIcon({ tipo }: { tipo: JobType }) {
   );
 }
 
-const STATUS_FILTERS: { value: string; label: string }[] = [
-  { value: '', label: 'Todos' },
-  { value: 'PENDING', label: 'Pendientes' },
-  { value: 'RUNNING', label: 'En ejecución' },
-  { value: 'DONE', label: 'Completados' },
-  { value: 'FAILED', label: 'Fallidos' },
-];
+
 
 const TYPE_FILTERS: { value: string; label: string }[] = [
   { value: '', label: 'Todos los tipos' },
@@ -144,57 +138,56 @@ function JobRow({ job, tenant, expanded, onToggle }: JobRowProps) {
         </td>
         <td className="table-td">
           <ChevronDown
-            className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
-              expanded ? 'rotate-180' : ''
-            }`}
+            className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''
+              }`}
           />
         </td>
       </tr>
 
       {expanded && (
-        <tr className="bg-zinc-50/80">
-          <td colSpan={6} className="px-5 py-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
-              <div>
-                <p className="font-semibold text-zinc-600 mb-2">Detalles del job</p>
-                <dl className="space-y-1.5">
-                  <MiniRow label="ID" value={<span className="font-mono">{job.id}</span>} />
-                  <MiniRow label="Tipo" value={job.tipo_job} />
+        <tr className="bg-zinc-50/50">
+          <td colSpan={6} className="px-6 py-5 border-b border-zinc-100">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Detalles del Job</p>
+                <dl className="space-y-2.5 text-xs">
+                  <MiniRow label="ID" value={<span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-700">{job.id}</span>} />
+                  <MiniRow label="Tipo" value={<span className="font-medium text-zinc-900">{job.tipo_job}</span>} />
                   <MiniRow label="Estado" value={<JobStatusBadge status={job.estado} />} />
-                  <MiniRow label="Intentos" value={`${job.intentos} / ${job.max_intentos}`} />
+                  <MiniRow label="Intentos" value={<span className="font-mono">{job.intentos} / {job.max_intentos}</span>} />
                 </dl>
               </div>
-              <div>
-                <p className="font-semibold text-zinc-600 mb-2">Timestamps</p>
-                <dl className="space-y-1.5">
-                  <MiniRow label="Creado" value={formatDateTime(job.created_at)} />
+              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Línea de Tiempo</p>
+                <dl className="space-y-2.5 text-xs">
+                  <MiniRow label="Creado" value={<span className="text-zinc-700">{formatDateTime(job.created_at)}</span>} />
                   <MiniRow
                     label="Última ejecución"
-                    value={job.last_run_at ? formatDateTime(job.last_run_at) : '—'}
+                    value={<span className="text-zinc-700">{job.last_run_at ? formatDateTime(job.last_run_at) : '—'}</span>}
                   />
                   <MiniRow
                     label="Próxima ejecución"
-                    value={job.next_run_at ? formatDateTime(job.next_run_at) : '—'}
+                    value={<span className="text-zinc-700">{job.next_run_at ? formatDateTime(job.next_run_at) : '—'}</span>}
                   />
                 </dl>
               </div>
-              <div>
-                <p className="font-semibold text-zinc-600 mb-2">Payload</p>
+              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm flex flex-col">
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Payload</p>
                 {Object.keys(job.payload).length > 0 ? (
-                  <pre className="font-mono text-xs bg-white border border-zinc-200 rounded-lg p-3 overflow-x-auto">
+                  <pre className="font-mono text-[11px] bg-zinc-950 text-emerald-400 rounded-lg p-3 overflow-x-auto flex-1 whitespace-pre leading-relaxed">
                     {JSON.stringify(job.payload, null, 2)}
                   </pre>
                 ) : (
-                  <p className="text-zinc-400">Sin payload</p>
+                  <p className="text-xs text-zinc-400 italic">Sin payload proporcionado</p>
                 )}
               </div>
               {job.error_message && (
-                <div className="lg:col-span-3">
-                  <div className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-200 rounded-lg">
-                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                <div className="md:col-span-3">
+                  <div className="flex items-start gap-3 p-4 bg-rose-50/50 border border-rose-200 rounded-xl shadow-sm">
+                    <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-semibold text-rose-700 mb-1">Error</p>
-                      <p className="font-mono text-xs text-rose-600 whitespace-pre-wrap break-all">
+                      <p className="text-sm font-semibold text-rose-800 mb-1">Error registrado</p>
+                      <p className="font-mono text-xs text-rose-600 whitespace-pre-wrap break-all leading-relaxed bg-white border border-rose-100 p-2 rounded-lg mt-2 shadow-sm">
                         {job.error_message}
                       </p>
                     </div>
@@ -311,9 +304,8 @@ export function Jobs({ toastError }: JobsProps) {
           <button
             key={key}
             onClick={() => setStatusFilter(statusFilter === key ? '' : key)}
-            className={`card p-4 flex items-center gap-3 transition-all hover:shadow-sm text-left ${
-              statusFilter === key ? 'ring-2 ring-zinc-900 ring-offset-1' : ''
-            }`}
+            className={`card p-4 flex items-center gap-3 transition-all hover:shadow-sm text-left ${statusFilter === key ? 'ring-2 ring-zinc-900 ring-offset-1' : ''
+              }`}
           >
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg}`}>
               {icon}
@@ -383,7 +375,7 @@ export function Jobs({ toastError }: JobsProps) {
                 <th className="table-th w-8" />
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-50">
               {paginated.map((job) => (
                 <JobRow
                   key={job.id}

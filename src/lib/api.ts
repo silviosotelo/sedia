@@ -507,6 +507,20 @@ export const api = {
       request<{ data: { job_id: string; status: string } }>(`/tenants/${tenantId}/processors/${processorId}/import`, {
         method: 'POST', body: JSON.stringify(body || {}),
       }).then((r) => r.data),
+
+    listJobs: (tenantId: string, processorId?: string): Promise<any[]> => {
+      const q = new URLSearchParams();
+      if (processorId) q.set('processor_id', processorId);
+      const qs = q.toString();
+      return request<{ data: any[] }>(`/tenants/${tenantId}/processors/jobs${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
+    },
+
+    listTransactions: (tenantId: string, processorId?: string): Promise<any[]> => {
+      const q = new URLSearchParams();
+      if (processorId) q.set('processor_id', processorId);
+      const qs = q.toString();
+      return request<{ data: any[] }>(`/tenants/${tenantId}/processors/transactions${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
+    },
   },
 
   billing: {

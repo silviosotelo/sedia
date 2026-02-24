@@ -125,7 +125,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
         }
       />
 
-      <div className="bg-white rounded-xl border border-zinc-200 overflow-hidden shadow-sm">
+      <div className="card overflow-hidden">
         {loading && logs.length === 0 ? (
           <div className="flex items-center justify-center py-16">
             <Spinner />
@@ -139,14 +139,14 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-zinc-50/50 border-b border-zinc-100">
-                    <th className="text-left py-3 px-4 font-medium text-zinc-500">Evento</th>
-                    <th className="text-left py-3 px-4 font-medium text-zinc-500">Asunto</th>
-                    <th className="text-left py-3 px-4 font-medium text-zinc-500">Destinatario</th>
-                    <th className="text-left py-3 px-4 font-medium text-zinc-500">Estado</th>
-                    <th className="text-left py-3 px-4 font-medium text-zinc-500">Fecha</th>
+              <table className="w-full text-sm">
+                <thead className="bg-zinc-50 border-b border-zinc-200">
+                  <tr>
+                    <th className="table-th">Evento</th>
+                    <th className="table-th">Asunto</th>
+                    <th className="table-th">Destinatario</th>
+                    <th className="table-th">Estado</th>
+                    <th className="table-th">Fecha</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-50">
@@ -154,13 +154,13 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                     const estadoCfg = ESTADO_CONFIG[log.estado] ?? ESTADO_CONFIG.PENDING;
                     const Icon = estadoCfg.icon;
                     return (
-                      <tr key={log.id} className="hover:bg-zinc-50/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-zinc-700">
+                      <tr key={log.id} className="table-tr">
+                        <td className="table-td">
+                          <span className="font-medium text-zinc-900">
                             {EVENTO_LABELS[log.evento] ?? log.evento}
                           </span>
                         </td>
-                        <td className="py-3 px-4 max-w-xs">
+                        <td className="table-td max-w-xs">
                           <p className="text-zinc-600 truncate" title={log.asunto}>{log.asunto}</p>
                           {log.error_message && (
                             <p className="text-rose-500 mt-0.5 truncate text-[10px]" title={log.error_message}>
@@ -168,8 +168,8 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                             </p>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-zinc-500 font-mono">{log.destinatario}</td>
-                        <td className="py-3 px-4">
+                        <td className="table-td text-zinc-500 font-mono text-xs">{log.destinatario}</td>
+                        <td className="table-td">
                           <div className="flex items-center gap-1.5">
                             <Icon className={cn(
                               'w-3.5 h-3.5',
@@ -181,7 +181,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                             </Badge>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-zinc-400 whitespace-nowrap">
+                        <td className="table-td text-zinc-400 text-xs whitespace-nowrap">
                           {formatDate(log.created_at)}
                         </td>
                       </tr>

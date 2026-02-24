@@ -38,7 +38,7 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string }>
   jobs: { roles: null },
   comprobantes: { roles: null },
   usuarios: { roles: ['super_admin', 'admin_empresa'] },
-  roles: { roles: ['super_admin', 'admin_empresa'] },
+  roles: { roles: ['super_admin'] },
   metricas: { roles: ['super_admin'], feature: 'metricas' },
   notificaciones: { roles: ['super_admin', 'admin_empresa'] },
   webhooks: { roles: ['super_admin', 'admin_empresa'], feature: 'webhooks' },
@@ -54,7 +54,7 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string }>
   configuracion: { roles: ['super_admin'] },
   'white-label': { roles: ['super_admin', 'admin_empresa'], feature: 'whitelabel' },
   procesadoras: { roles: ['super_admin', 'admin_empresa'] },
-  sifen: { roles: ['super_admin', 'admin_empresa'] },
+  sifen: { roles: ['super_admin', 'admin_empresa'], feature: 'facturacion_electronica' },
 };
 
 interface NavParams {

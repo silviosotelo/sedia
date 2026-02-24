@@ -55,4 +55,47 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
         await roleService.deleteRole(req.params.roleId, req.params.tenantId);
         return { success: true };
     });
+    // RUTAS GLOBALES (Solo Super Admin)
+
+    // Listar roles globales
+    app.get('/roles', async (req, reply) => {
+        if (req.currentUser?.rol.nombre !== 'super_admin') {
+            return reply.status(403).send({ error: 'Solo el super_admin puede ver los roles globales' });
+        }
+        const roles = await listRoles(undefined);
+        return { data: roles };
+    });
+
+    // Crear rol global
+    app.post<{ Body: { nombre: string; descripcion: string; nivel: number; permisosIds: string[] } }>('/roles', async (req, reply) => {
+        if (req.currentUser?.rol.nombre !== 'super_admin') {
+            return reply.status(403).send({ error: 'Solo el super_admin puede crear roles globales' });
+        }
+        const id = await roleService.createRole(
+            null,
+            req.body.nombre,
+            req.body.descripcion,
+            req.body.nivel || 10,
+            req.body.permisosIds
+        );
+        return { id };
+    });
+
+    // Editar rol global
+    app.put<{ Params: { roleId: string }; Body: { nombre?: string; descripcion?: string; permisosIds?: string[] } }>('/roles/:roleId', async (req, reply) => {
+        if (req.currentUser?.rol.nombre !== 'super_admin') {
+            return reply.status(403).send({ error: 'Solo el super_admin puede editar roles globales' });
+        }
+        await roleService.updateRole(req.params.roleId, null, req.body);
+        return { success: true };
+    });
+
+    // Eliminar rol global
+    app.delete<{ Params: { roleId: string } }>('/roles/:roleId', async (req, reply) => {
+        if (req.currentUser?.rol.nombre !== 'super_admin') {
+            return reply.status(403).send({ error: 'Solo el super_admin puede eliminar roles' });
+        }
+        await roleService.deleteRole(req.params.roleId, null);
+        return { success: true };
+    });
 }

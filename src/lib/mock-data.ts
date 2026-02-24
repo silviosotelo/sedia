@@ -312,7 +312,7 @@ const makeXmlContenido = (cdc: string, ruc: string, razon: string, numero: strin
   </DE>
 </rDE>`;
 
-export const MOCK_COMPROBANTES: Comprobante[] = [
+const MOCK_COMPROBANTES_RAW = [
   {
     id: 'comp-001',
     tenant_id: 'tenant-001',
@@ -607,6 +607,20 @@ export const MOCK_COMPROBANTES: Comprobante[] = [
     updated_at: '2024-11-19T14:00:00Z',
   },
 ];
+
+export const MOCK_COMPROBANTES: Comprobante[] = MOCK_COMPROBANTES_RAW.map(c => ({
+  ...c,
+  numero_control: null,
+  detalles_virtual: null,
+  estado_sifen: null,
+  nro_transaccion_sifen: null,
+  fecha_estado_sifen: null,
+  sistema_facturacion_sifen: null,
+  nro_ot: null,
+  sincronizar: false,
+  sincronizar_actualizado_at: null,
+  sincronizar_actualizado_por: null,
+} as Comprobante));
 
 let _tenants = [...MOCK_TENANTS];
 let _tenantsWithConfig = { ...MOCK_TENANTS_WITH_CONFIG };

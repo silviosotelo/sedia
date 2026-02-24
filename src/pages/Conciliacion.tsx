@@ -6,6 +6,7 @@ import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Modal } from '../components/ui/Modal';
 import type { BankAccount, ReconciliationRun, ReconciliationMatch, Comprobante } from '../types';
 
 function fmtGs(n: number) {
@@ -49,40 +50,13 @@ function RunModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6 animate-slide-up">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-zinc-900">Nueva conciliación</h3>
-          <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
-            <XCircle className="w-5 h-5 text-zinc-400" />
-          </button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="label">Cuenta bancaria (opcional)</label>
-            <select
-              className="input"
-              value={form.bank_account_id}
-              onChange={(e) => setForm((f) => ({ ...f, bank_account_id: e.target.value }))}
-            >
-              <option value="">Todas las cuentas</option>
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Desde</label>
-              <input type="date" className="input" value={form.periodo_desde}
-                onChange={(e) => setForm((f) => ({ ...f, periodo_desde: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Hasta</label>
-              <input type="date" className="input" value={form.periodo_hasta}
-                onChange={(e) => setForm((f) => ({ ...f, periodo_hasta: e.target.value }))} />
-            </div>
-          </div>
-        </div>
-        <div className="flex justify-end gap-3 pt-2">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Nueva conciliación"
+      size="sm"
+      footer={
+        <>
           <button onClick={onClose} className="btn-md btn-secondary" disabled={creating}>Cancelar</button>
           <button
             onClick={() => void handleCreate()}
@@ -91,9 +65,35 @@ function RunModal({
           >
             {creating ? <Spinner size="sm" /> : <CheckCircle2 className="w-4 h-4" />} Iniciar proceso
           </button>
+        </>
+      }
+    >
+      <div className="space-y-4 pt-2">
+        <div>
+          <label className="label">Cuenta bancaria (opcional)</label>
+          <select
+            className="input"
+            value={form.bank_account_id}
+            onChange={(e) => setForm((f) => ({ ...f, bank_account_id: e.target.value }))}
+          >
+            <option value="">Todas las cuentas</option>
+            {accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Desde</label>
+            <input type="date" className="input" value={form.periodo_desde}
+              onChange={(e) => setForm((f) => ({ ...f, periodo_desde: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Hasta</label>
+            <input type="date" className="input" value={form.periodo_hasta}
+              onChange={(e) => setForm((f) => ({ ...f, periodo_hasta: e.target.value }))} />
+          </div>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -160,49 +160,14 @@ function ManualMatchModal({
   const totalAsignado = allocations.reduce((acc, a) => acc + a.monto, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-6 animate-slide-up max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between shrink-0">
-          <div>
-            <h3 className="text-xl font-semibold text-zinc-900">Conciliación Manual</h3>
-            <p className="text-sm text-zinc-500 mt-1">
-              Transacción bancaria de {fmtGs(Math.abs(matchDoc.diferencia_monto ?? 0))}. Seleccioná los comprobantes a saldar.
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
-            <XCircle className="w-5 h-5 text-zinc-400" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-[300px] border rounded-lg p-2">
-          {loading ? <Spinner /> : comprobantes.length === 0 ? <p className="text-sm text-zinc-500 text-center py-4">No hay comprobantes pendientes</p> : (
-            comprobantes.map((c) => {
-              const checked = allocations.find((a) => a.comprobante_id === c.id);
-              return (
-                <div key={c.id} className={`flex items-center gap-4 p-3 border rounded-xl transition-colors ${checked ? 'border-primary ring-1 ring-primary bg-primary/5' : 'hover:bg-zinc-50'}`}>
-                  <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="w-4 h-4 text-primary rounded" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{c.numero_comprobante || 'S/N'}</p>
-                    <p className="text-xs text-zinc-500">{fmtDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
-                  </div>
-                  {checked && (
-                    <div className="w-32">
-                      <label className="text-[10px] text-zinc-500 font-semibold mb-1 block uppercase">Monto Asignado</label>
-                      <input
-                        type="number"
-                        className="input py-1 text-sm h-8"
-                        value={checked.monto}
-                        onChange={(e) => updateAmount(c.id, e.target.value)}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className="shrink-0 flex items-center justify-between pt-4 border-t border-zinc-100">
+    <Modal
+      open={true}
+      onClose={onClose}
+      title="Conciliación Manual"
+      description={`Transacción bancaria de ${fmtGs(Math.abs(matchDoc.diferencia_monto ?? 0))}. Seleccioná los comprobantes a saldar.`}
+      size="lg"
+      footer={
+        <div className="flex items-center justify-between w-full">
           <p className="text-sm text-zinc-600">Total asignado: <strong className="text-zinc-900">{fmtGs(totalAsignado)}</strong></p>
           <div className="flex gap-3">
             <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
@@ -215,8 +180,36 @@ function ManualMatchModal({
             </button>
           </div>
         </div>
+      }
+    >
+      <div className="space-y-3 min-h-[200px]">
+        {loading ? <div className="py-8 text-center"><Spinner /></div> : comprobantes.length === 0 ? <p className="text-sm text-zinc-500 text-center py-8">No hay comprobantes pendientes en este periodo</p> : (
+          comprobantes.map((c) => {
+            const checked = allocations.find((a) => a.comprobante_id === c.id);
+            return (
+              <div key={c.id} className={`flex items-center gap-4 p-4 border rounded-xl transition-colors ${checked ? 'border-primary ring-1 ring-primary bg-primary/5' : 'hover:bg-zinc-50 border-zinc-200'}`}>
+                <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="checkbox" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate text-zinc-900">{c.numero_comprobante || 'S/N'}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{fmtDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
+                </div>
+                {checked && (
+                  <div className="w-32">
+                    <label className="label-sm">Monto Asignado</label>
+                    <input
+                      type="number"
+                      className="input py-1.5 text-sm h-9"
+                      value={checked.monto}
+                      onChange={(e) => updateAmount(c.id, e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -383,7 +376,15 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                             : sinComprobanteMatches;
 
                         if (displayMatches.length === 0) {
-                          return <EmptyState title="Sin registros" description="No hay coincidencias en esta categoría para este periodo." className="py-12" />;
+                          return (
+                            <div className="py-12">
+                              <EmptyState
+                                icon={<Briefcase className="w-5 h-5" />}
+                                title="Sin registros"
+                                description="No hay coincidencias en esta categoría para este periodo."
+                              />
+                            </div>
+                          );
                         }
 
                         return (

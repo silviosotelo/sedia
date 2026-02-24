@@ -357,6 +357,37 @@ export async function upsertProcessorTransactions(
   return inserted;
 }
 
+export async function findProcessorTransactionsByTenant(
+  tenantId: string,
+  params: { fecha_desde?: string; fecha_hasta?: string; processor_id?: string; page: number; limit: number }
+): Promise<{ data: ProcessorTransaction[]; total: number }> {
+  const conditions: string[] = ['pt.tenant_id = $1'];
+  const values: unknown[] = [tenantId];
+  let i = 2;
+
+  if (params.processor_id) { conditions.push(`pt.processor_id = $${i++}`); values.push(params.processor_id); }
+  if (params.fecha_desde) { conditions.push(`pt.fecha >= $${i++}`); values.push(params.fecha_desde); }
+  if (params.fecha_hasta) { conditions.push(`pt.fecha <= $${i++}`); values.push(params.fecha_hasta); }
+
+  const where = conditions.join(' AND ');
+  const offset = (params.page - 1) * params.limit;
+
+  const [data, countRow] = await Promise.all([
+    query<ProcessorTransaction>(
+      `SELECT pt.*, p.nombre as processor_nombre 
+       FROM processor_transactions pt
+       JOIN payment_processors p ON pt.processor_id = p.id
+       WHERE ${where} 
+       ORDER BY pt.created_at DESC 
+       LIMIT $${i} OFFSET $${i + 1}`,
+      [...values, params.limit, offset]
+    ),
+    queryOne<{ count: string }>(`SELECT COUNT(*) as count FROM processor_transactions pt WHERE ${where}`, values),
+  ]);
+
+  return { data, total: parseInt(countRow?.count ?? '0') };
+}
+
 // ─── Reconciliation Runs ──────────────────────────────────────────────────────
 
 export async function createRun(data: {

@@ -301,7 +301,7 @@ export function Metricas({ toastError }: MetricasProps) {
                   <th className="table-th">Tasa éxito</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-50">
                 {(saas?.jobs_ultimos_7_dias ?? []).map((d) => {
                   const exitosos = parseInt(String(d.exitosos));
                   const fallidos = parseInt(String(d.fallidos));

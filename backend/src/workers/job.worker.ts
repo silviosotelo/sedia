@@ -52,6 +52,25 @@ async function processJob(job: Job): Promise<void> {
       await handleEmitirSifen(job.id, job.tenant_id, job.payload);
       break;
     }
+    case 'SIFEN_EMITIR_DE': {
+      await handleEmitirSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_ENVIAR_LOTE': {
+      const { handleEnviarLoteSifen } = require('./sifen.worker');
+      await handleEnviarLoteSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_CONSULTAR_LOTE': {
+      const { handleConsultarLoteSifen } = require('./sifen.worker');
+      await handleConsultarLoteSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_REINTENTAR_FALLIDOS': {
+      const { handleReintentarFallidosSifen } = require('./sifen.worker');
+      await handleReintentarFallidosSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
     case 'SEND_INVOICE_EMAIL': {
       const payload = job.payload as any;
       const success = await enviarFacturaEmail(payload);
@@ -78,14 +97,14 @@ export async function processSingleJob(): Promise<boolean> {
     });
     return true;
   } catch (err) {
-    const errorMessage = (err as Error).message;
+    const errorDetails = err instanceof Error ? (err.stack || err.message) : String(err);
     logger.error('Error procesando job', {
       job_id: job.id,
       tenant_id: job.tenant_id,
       tipo_job: job.tipo_job,
-      error: errorMessage,
+      error: errorDetails,
     });
-    await markJobFailed(job.id, errorMessage, job.max_intentos);
+    await markJobFailed(job.id, errorDetails, job.max_intentos);
     return true;
   }
 }

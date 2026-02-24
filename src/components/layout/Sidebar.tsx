@@ -130,17 +130,27 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           if (onClose) onClose();
         }}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm group relative',
+          'w-full flex items-center transition-all duration-200 text-sm group relative',
+          collapsed ? 'justify-center p-2 rounded-xl mb-1' : 'gap-3 px-3 py-2.5 rounded-xl mb-1.5',
           active
-            ? 'text-white font-medium shadow-sm'
-            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+            ? 'text-zinc-900 font-bold bg-white shadow-sm shadow-zinc-200/50 border border-zinc-200/60'
+            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/80 border border-transparent'
         )}
-        style={active ? { backgroundColor: branding.color_primario } : {}}
+        style={active && collapsed ? { borderColor: branding.color_primario, color: branding.color_primario } : {}}
       >
+        {active && !collapsed && (
+          <div
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-zinc-900"
+            style={{ backgroundColor: branding.color_primario }}
+          />
+        )}
         <span className={cn(
-          'flex-shrink-0 transition-colors',
-          active ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-600'
-        )}>
+          'flex-shrink-0 transition-colors flex items-center justify-center',
+          active ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600',
+          collapsed ? 'w-5 h-5' : ''
+        )}
+          style={active ? { color: branding.color_primario } : {}}
+        >
           {item.icon}
         </span>
         {!collapsed && (
@@ -154,7 +164,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           </>
         )}
         {collapsed && (
-          <div className="absolute left-full ml-2 px-2 py-1 bg-zinc-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+          <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 shadow-xl text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
             {item.label}
           </div>
         )}
@@ -172,40 +182,49 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
         open ? 'translate-x-0' : '-translate-x-full'
       )}
     >
-      <div className="h-16 flex items-center justify-between px-4 border-b border-zinc-100 bg-zinc-50/50">
-        <div className="flex items-center gap-2 overflow-hidden">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
-            style={{ backgroundColor: branding.color_primario }}
-          >
-            {branding.logo_url ? (
-              <img src={branding.logo_url} alt="Logo" className="w-full h-full object-contain" />
-            ) : (
-              <Zap className="w-5 h-5 text-white" />
-            )}
-          </div>
-          {!collapsed && (
+      <div className={cn(
+        "h-16 flex items-center border-b border-zinc-100 bg-zinc-50/50",
+        collapsed ? "justify-center p-0 flex-col" : "justify-between px-4",
+      )}>
+        {!collapsed && (
+          <div className="flex items-center gap-2 overflow-hidden px-1">
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden"
+              style={{ backgroundColor: branding.color_primario }}
+            >
+              {branding.logo_url ? (
+                <img src={branding.logo_url} alt="Logo" className="w-full h-full object-contain" />
+              ) : (
+                <Zap className="w-5 h-5 text-white" />
+              )}
+            </div>
             <span
-              className="font-bold text-xl tracking-tight"
+              className="font-bold text-xl tracking-tight truncate"
               style={{ color: branding.color_primario }}
             >
               {branding.nombre_app}
             </span>
-          )}
-        </div>
+          </div>
+        )}
         <button
           onClick={() => {
             const next = !collapsed;
             setCollapsed(next);
             localStorage.setItem('sedia_sidebar_collapsed', String(next));
           }}
-          className="lg:flex hidden p-1.5 rounded-lg hover:bg-zinc-200 text-zinc-500 transition-colors"
+          className={cn(
+            "lg:flex hidden rounded-lg text-zinc-500 transition-colors",
+            collapsed ? "p-3 hover:bg-zinc-200" : "p-1.5 hover:bg-zinc-200"
+          )}
         >
-          {collapsed ? <ChevronsRight className="w-4 h-4" /> : <ChevronsLeft className="w-4 h-4" />}
+          {collapsed ? <ChevronsRight className="w-5 h-5" /> : <ChevronsLeft className="w-4 h-4" />}
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-6 scrollbar-thin scrollbar-thumb-zinc-200">
+      <div className={cn(
+        "flex-1 overflow-y-auto overflow-x-hidden space-y-6 scrollbar-thin scrollbar-thumb-zinc-200",
+        collapsed ? "px-2 py-4" : "p-3"
+      )}>
         <div className="space-y-1">
           {filterItems(ALL_NAV_ITEMS).map(item => (
             <NavLink key={item.id} item={item} />
@@ -272,11 +291,20 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
         </div>
       </div>
 
-      <div className="p-3 border-t border-zinc-100 bg-zinc-50/50 space-y-3">
+      <div className={cn(
+        "border-t border-zinc-100 bg-zinc-50/50 space-y-3",
+        collapsed ? "p-2" : "p-3"
+      )}>
         {!collapsed && <GlobalTenantSelector />}
 
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white border border-zinc-100 shadow-sm">
-          <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 text-xs font-bold border border-zinc-200 flex-shrink-0">
+        <div className={cn(
+          "flex items-center bg-white border border-zinc-100 shadow-sm",
+          collapsed ? "flex-col p-1.5 gap-2 rounded-2xl" : "gap-3 px-3 py-2 rounded-xl"
+        )}>
+          <div className={cn(
+            "rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold border border-zinc-200 flex-shrink-0",
+            collapsed ? "w-8 h-8 text-xs bg-zinc-50" : "w-8 h-8 text-xs"
+          )}>
             {user?.nombre?.charAt(0) || 'U'}
           </div>
           {!collapsed && (
@@ -287,7 +315,10 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           )}
           <button
             onClick={logout}
-            className="p-1.5 rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500 transition-all group"
+            className={cn(
+              "rounded-lg hover:bg-rose-50 text-zinc-400 hover:text-rose-500 transition-all group flex items-center justify-center",
+              collapsed ? "w-8 h-8 p-0" : "p-1.5"
+            )}
             title="Cerrar sesión"
           >
             <LogOut className="w-4 h-4" />

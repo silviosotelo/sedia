@@ -29,7 +29,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Cambiar plan (Solo Super Admin - Manual)
-  app.post<{
+  app.put<{
     Params: { id: string };
     Body: { plan_id: string };
   }>('/tenants/:id/billing/plan', async (req, reply) => {

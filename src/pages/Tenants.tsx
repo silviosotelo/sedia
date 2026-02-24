@@ -4,7 +4,6 @@ import {
   Plus,
   Search,
   MoreHorizontal,
-  RefreshCw,
   Play,
   Edit3,
   X,
@@ -12,7 +11,6 @@ import {
   Download,
   Settings,
   CheckCircle2,
-  XCircle,
   FileText,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
@@ -226,13 +224,13 @@ export function Tenants({
         }
       />
 
-      {view === 'list' && (
+      {(view === 'list' || view === 'create') && (
         <>
-          <div className="flex items-center gap-3 mb-5">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+          <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-xl shadow-sm border border-zinc-200/60 sticky top-0 z-10 backdrop-blur-md bg-white/90">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
               <input
-                className="input pl-9"
+                className="input pl-9 border-transparent shadow-none bg-zinc-50 hover:bg-zinc-100 focus:bg-white"
                 placeholder="Buscar por nombre o RUC..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -240,32 +238,34 @@ export function Tenants({
               {search && (
                 <button
                   onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 bg-white rounded-md p-0.5 shadow-sm border border-zinc-200"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
-            <p className="text-sm text-zinc-500 ml-auto">
+            <p className="text-sm font-semibold text-zinc-500 ml-auto mr-1 tracking-tight">
               {filtered.length} empresa{filtered.length !== 1 ? 's' : ''}
             </p>
           </div>
 
           {filtered.length === 0 ? (
-            <EmptyState
-              icon={<Building2 className="w-5 h-5" />}
-              title="Sin empresas"
-              description="Registrá la primera empresa para comenzar a sincronizar comprobantes"
-              action={
-                <button onClick={() => setView('create')} className="btn-md btn-primary">
-                  <Plus className="w-3.5 h-3.5" /> Nueva empresa
-                </button>
-              }
-            />
+            <div className="card p-1">
+              <EmptyState
+                icon={<Building2 className="w-5 h-5" />}
+                title="Sin empresas"
+                description="Registrá la primera empresa para comenzar a sincronizar comprobantes"
+                action={
+                  <button onClick={() => setView('create')} className="btn-md btn-primary">
+                    <Plus className="w-4 h-4" /> Nueva empresa
+                  </button>
+                }
+              />
+            </div>
           ) : (
-            <div className="card overflow-hidden">
+            <div className="card overflow-hidden !border-zinc-200/80">
               <table className="w-full">
-                <thead className="bg-zinc-50 border-b border-zinc-200">
+                <thead className="bg-zinc-50/80 backdrop-blur-sm border-b border-zinc-200/80">
                   <tr>
                     <th className="table-th">Empresa</th>
                     <th className="table-th">RUC</th>
@@ -274,7 +274,7 @@ export function Tenants({
                     <th className="table-th w-10" />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-zinc-50">
                   {filtered.map((tenant) => (
                     <tr key={tenant.id} className="table-tr">
                       <td className="table-td">
@@ -359,22 +359,17 @@ export function Tenants({
         </>
       )}
 
-      {view === 'create' && isSuperAdmin && (
-        <div>
-          <button onClick={() => setView('list')} className="btn-sm btn-ghost mb-6 -ml-1">
-            <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
-          </button>
-          <div className="max-w-2xl">
-            <h2 className="text-base font-semibold text-zinc-900 mb-1">Nueva empresa</h2>
-            <p className="text-sm text-zinc-500 mb-6">
-              Completá los datos básicos y configurá las credenciales de Marangatu
-            </p>
-            <div className="card p-6">
-              <TenantForm onSubmit={handleCreate} loading={formLoading} />
-            </div>
-          </div>
+      <Modal
+        open={view === 'create'}
+        onClose={() => setView('list')}
+        title="Nueva empresa"
+        description="Completá los datos básicos y configurá las credenciales de Marangatu"
+        size="lg"
+      >
+        <div className="py-2">
+          <TenantForm onSubmit={handleCreate} loading={formLoading} />
         </div>
-      )}
+      </Modal>
 
       {(view === 'detail' || view === 'edit') && selectedTenant && (
         <div>
@@ -383,184 +378,181 @@ export function Tenants({
               <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
             </button>
           )}
-
-          {view === 'detail' && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center">
-                    <span className="text-sm font-bold text-zinc-600">
-                      {selectedTenant.nombre_fantasia.slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-zinc-900">
-                      {selectedTenant.nombre_fantasia}
-                    </h2>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="tag">{selectedTenant.ruc}</span>
-                      <Badge variant={selectedTenant.activo ? 'success' : 'neutral'} dot>
-                        {selectedTenant.activo ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </div>
-                  </div>
+          <div className="space-y-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-100 flex items-center justify-center">
+                  <span className="text-sm font-bold text-zinc-600">
+                    {selectedTenant.nombre_fantasia.slice(0, 2).toUpperCase()}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSyncModalOpen(true)}
-                    className="btn-md btn-emerald"
-                  >
-                    <Play className="w-3.5 h-3.5" /> Sincronizar
-                  </button>
-                  <button
-                    onClick={() => setVirtualSyncModalOpen(true)}
-                    className="btn-md btn-secondary"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> Facturas virtuales
-                  </button>
-                  <button
-                    onClick={() => setXmlModalOpen(true)}
-                    className="btn-md btn-secondary"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Descargar XML
-                  </button>
-                  <button
-                    onClick={() => setView('edit')}
-                    className="btn-md btn-secondary"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" /> Editar
-                  </button>
+                <div>
+                  <h2 className="text-lg font-semibold text-zinc-900">
+                    {selectedTenant.nombre_fantasia}
+                  </h2>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="tag">{selectedTenant.ruc}</span>
+                    <Badge variant={selectedTenant.activo ? 'success' : 'neutral'} dot>
+                      {selectedTenant.activo ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSyncModalOpen(true)}
+                  className="btn-md btn-emerald"
+                >
+                  <Play className="w-3.5 h-3.5" /> Sincronizar
+                </button>
+                <button
+                  onClick={() => setVirtualSyncModalOpen(true)}
+                  className="btn-md btn-secondary"
+                >
+                  <FileText className="w-3.5 h-3.5" /> Facturas virtuales
+                </button>
+                <button
+                  onClick={() => setXmlModalOpen(true)}
+                  className="btn-md btn-secondary"
+                >
+                  <Download className="w-3.5 h-3.5" /> Descargar XML
+                </button>
+                <button
+                  onClick={() => setView('edit')}
+                  className="btn-md btn-secondary"
+                >
+                  <Edit3 className="w-3.5 h-3.5" /> Editar
+                </button>
+              </div>
+            </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="card p-5">
+                <h3 className="section-title">Información general</h3>
+                <dl className="space-y-3">
+                  <Row label="Nombre" value={selectedTenant.nombre_fantasia} />
+                  <Row label="RUC" value={<span className="tag">{selectedTenant.ruc}</span>} />
+                  <Row
+                    label="Email"
+                    value={selectedTenant.email_contacto || <span className="text-zinc-400">—</span>}
+                  />
+                  <Row label="Timezone" value={selectedTenant.timezone} />
+                  <Row
+                    label="Creado"
+                    value={formatDateTime(selectedTenant.created_at)}
+                  />
+                  <Row
+                    label="Actualizado"
+                    value={formatDateTime(selectedTenant.updated_at)}
+                  />
+                </dl>
+              </div>
+
+              {selectedTenant.config && (
                 <div className="card p-5">
-                  <h3 className="section-title">Información general</h3>
+                  <h3 className="section-title">Configuración Marangatu</h3>
                   <dl className="space-y-3">
-                    <Row label="Nombre" value={selectedTenant.nombre_fantasia} />
-                    <Row label="RUC" value={<span className="tag">{selectedTenant.ruc}</span>} />
+                    <Row label="Usuario" value={selectedTenant.config.usuario_marangatu} />
+                    <Row label="RUC login" value={<span className="tag">{selectedTenant.config.ruc_login}</span>} />
                     <Row
-                      label="Email"
-                      value={selectedTenant.email_contacto || <span className="text-zinc-400">—</span>}
+                      label="Clave"
+                      value={
+                        <span className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Cifrada AES-256
+                        </span>
+                      }
                     />
-                    <Row label="Timezone" value={selectedTenant.timezone} />
                     <Row
-                      label="Creado"
-                      value={formatDateTime(selectedTenant.created_at)}
+                      label="URL base"
+                      value={
+                        <span className="tag truncate max-w-[180px]">
+                          {selectedTenant.config.marangatu_base_url}
+                        </span>
+                      }
                     />
                     <Row
-                      label="Actualizado"
-                      value={formatDateTime(selectedTenant.updated_at)}
+                      label="Sync cada"
+                      value={`${selectedTenant.config.frecuencia_sincronizacion_minutos} min`}
                     />
                   </dl>
                 </div>
+              )}
 
-                {selectedTenant.config && (
-                  <div className="card p-5">
-                    <h3 className="section-title">Configuración Marangatu</h3>
-                    <dl className="space-y-3">
-                      <Row label="Usuario" value={selectedTenant.config.usuario_marangatu} />
-                      <Row label="RUC login" value={<span className="tag">{selectedTenant.config.ruc_login}</span>} />
-                      <Row
-                        label="Clave"
-                        value={
-                          <span className="flex items-center gap-1.5 text-emerald-600 text-xs">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Cifrada AES-256
-                          </span>
-                        }
-                      />
-                      <Row
-                        label="URL base"
-                        value={
-                          <span className="tag truncate max-w-[180px]">
-                            {selectedTenant.config.marangatu_base_url}
-                          </span>
-                        }
-                      />
-                      <Row
-                        label="Sync cada"
-                        value={`${selectedTenant.config.frecuencia_sincronizacion_minutos} min`}
-                      />
-                    </dl>
+              {selectedTenant.config?.ords_base_url && (
+                <div className="card p-5 lg:col-span-2">
+                  <h3 className="section-title">Configuración ORDS</h3>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+                    <Row
+                      label="Envío automático"
+                      value={
+                        <Badge
+                          variant={
+                            selectedTenant.config.enviar_a_ords_automaticamente
+                              ? 'success'
+                              : 'neutral'
+                          }
+                          dot
+                        >
+                          {selectedTenant.config.enviar_a_ords_automaticamente
+                            ? 'Activado'
+                            : 'Desactivado'}
+                        </Badge>
+                      }
+                    />
+                    <Row
+                      label="Autenticación"
+                      value={
+                        <Badge>
+                          {selectedTenant.config.ords_tipo_autenticacion}
+                        </Badge>
+                      }
+                    />
+                    <Row
+                      label="URL base"
+                      value={
+                        <span className="tag truncate max-w-[250px]">
+                          {selectedTenant.config.ords_base_url}
+                        </span>
+                      }
+                    />
+                    <Row
+                      label="Endpoint"
+                      value={
+                        <span className="tag">{selectedTenant.config.ords_endpoint_facturas}</span>
+                      }
+                    />
+                    {selectedTenant.config.ords_usuario && (
+                      <Row label="Usuario" value={selectedTenant.config.ords_usuario} />
+                    )}
+                    <Row
+                      label="Credencial"
+                      value={
+                        <span className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Cifrada AES-256
+                        </span>
+                      }
+                    />
                   </div>
-                )}
-
-                {selectedTenant.config?.ords_base_url && (
-                  <div className="card p-5 lg:col-span-2">
-                    <h3 className="section-title">Configuración ORDS</h3>
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-                      <Row
-                        label="Envío automático"
-                        value={
-                          <Badge
-                            variant={
-                              selectedTenant.config.enviar_a_ords_automaticamente
-                                ? 'success'
-                                : 'neutral'
-                            }
-                            dot
-                          >
-                            {selectedTenant.config.enviar_a_ords_automaticamente
-                              ? 'Activado'
-                              : 'Desactivado'}
-                          </Badge>
-                        }
-                      />
-                      <Row
-                        label="Autenticación"
-                        value={
-                          <Badge>
-                            {selectedTenant.config.ords_tipo_autenticacion}
-                          </Badge>
-                        }
-                      />
-                      <Row
-                        label="URL base"
-                        value={
-                          <span className="tag truncate max-w-[250px]">
-                            {selectedTenant.config.ords_base_url}
-                          </span>
-                        }
-                      />
-                      <Row
-                        label="Endpoint"
-                        value={
-                          <span className="tag">{selectedTenant.config.ords_endpoint_facturas}</span>
-                        }
-                      />
-                      {selectedTenant.config.ords_usuario && (
-                        <Row label="Usuario" value={selectedTenant.config.ords_usuario} />
-                      )}
-                      <Row
-                        label="Credencial"
-                        value={
-                          <span className="flex items-center gap-1.5 text-emerald-600 text-xs">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Cifrada AES-256
-                          </span>
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
-          {view === 'edit' && (
-            <div className="max-w-2xl">
-              <h2 className="text-base font-semibold text-zinc-900 mb-1">
-                Editar empresa
-              </h2>
-              <p className="text-sm text-zinc-500 mb-6">{selectedTenant.nombre_fantasia}</p>
-              <div className="card p-6">
-                <TenantForm
-                  initialData={selectedTenant}
-                  onSubmit={handleUpdate}
-                  loading={formLoading}
-                />
-              </div>
+          <Modal
+            open={view === 'edit'}
+            onClose={() => setView('detail')}
+            title="Editar empresa"
+            description={selectedTenant.nombre_fantasia}
+            size="lg"
+          >
+            <div className="py-2">
+              <TenantForm
+                initialData={selectedTenant}
+                onSubmit={handleUpdate}
+                loading={formLoading}
+              />
             </div>
-          )}
+          </Modal>
         </div>
       )}
 
@@ -632,10 +624,10 @@ function Row({
   value: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-2">
-      <dt className="text-xs text-zinc-500 w-28 flex-shrink-0 pt-0.5">{label}</dt>
-      <dd className="text-sm text-zinc-900 flex-1 min-w-0">
-        {typeof value === 'string' ? value : value}
+    <div className="flex items-start gap-3 py-1">
+      <dt className="text-xs font-semibold text-zinc-500 uppercase tracking-wider w-32 flex-shrink-0 pt-[3px]">{label}</dt>
+      <dd className="text-sm font-medium text-zinc-900 flex-1 min-w-0">
+        {value}
       </dd>
     </div>
   );

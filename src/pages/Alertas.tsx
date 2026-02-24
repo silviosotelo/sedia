@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   AlertTriangle, Plus, Trash2, Bell, Clock, DollarSign,
-  UserPlus, Copy, Zap, Save,
+  UserPlus, Copy, Zap, Save, Pencil,
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
@@ -133,7 +133,7 @@ function AlertaForm({
         </div>
         <div className="flex items-end pb-1">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="w-4 h-4 accent-zinc-900" checked={form.activo}
+            <input type="checkbox" className="checkbox" checked={form.activo}
               onChange={(e) => setField('activo', e.target.checked)} />
             <span className="text-sm text-zinc-700">Activa</span>
           </label>
@@ -225,6 +225,7 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
     try {
       await api.alertas.create(tenantId, {
         ...data,
+        tipo: data.tipo as any,
         webhook_id: data.webhook_id || null,
         config: data.config as Record<string, unknown>,
       });
@@ -241,6 +242,7 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
     try {
       await api.alertas.update(tenantId, editingAlerta.id, {
         ...data,
+        tipo: data.tipo as any,
         webhook_id: data.webhook_id || null,
         config: data.config as Record<string, unknown>,
       });
@@ -338,7 +340,7 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
                     className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors"
                     title="Editar"
                   >
-                    <Save className="w-3.5 h-3.5 text-zinc-500" />
+                    <Pencil className="w-3.5 h-3.5 text-zinc-500" />
                   </button>
                   <button
                     onClick={() => setDeletingId(a.id)}

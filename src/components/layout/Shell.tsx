@@ -29,7 +29,7 @@ export function Shell({ current, onNavigate, apiStatus, mockMode, children }: Sh
     <div className={`flex h-screen overflow-hidden bg-zinc-50 ${mockMode ? 'pt-6' : ''}`}>
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-30 bg-black/20 backdrop-blur-sm lg:hidden transition-all duration-300 animate-in fade-in"
           onClick={() => setSidebarOpen(false)}
         />
       )}

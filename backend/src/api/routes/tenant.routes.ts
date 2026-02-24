@@ -10,6 +10,7 @@ import {
 } from '../../db/repositories/tenant.repository';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { query, queryOne } from '../../db/connection';
+import { findAllPlans, billingManager } from '../../services/billing.service';
 
 const createTenantSchema = z.object({
   nombre_fantasia: z.string().min(1).max(255),
@@ -101,6 +102,17 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
     const { config: configInput, ...tenantInput } = parsed.data;
     const tenant = await createTenant(tenantInput);
+
+    try {
+      // Auto-asignar plan free por defecto
+      const plans = await findAllPlans();
+      const freePlan = plans.find(p => Number(p.precio_mensual_pyg) === 0);
+      if (freePlan) {
+        await billingManager.updateSubscription(tenant.id, freePlan.id, 'ACTIVE');
+      }
+    } catch (e) {
+      req.log.error({ err: e }, 'Error al auto-asignar plan free');
+    }
 
     if (configInput) {
       if (!configInput.ruc_login || !configInput.usuario_marangatu || !configInput.clave_marangatu) {

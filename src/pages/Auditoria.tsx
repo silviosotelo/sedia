@@ -33,7 +33,7 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
   return (
     <>
       <tr
-        className="hover:bg-zinc-50 cursor-pointer"
+        className="table-tr cursor-pointer"
         onClick={() => setExpanded((v) => !v)}
       >
         <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
@@ -183,8 +183,8 @@ export function Auditoria({ toastError }: AuditoriaProps) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
+                <tr>
                   <th className="table-th">Fecha/Hora</th>
                   <th className="table-th">Usuario</th>
                   <th className="table-th">Acción</th>

@@ -1,28 +1,23 @@
-import { cn } from '../../lib/utils';
+import React from 'react';
 
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon: React.ReactNode;
   title: string;
-  description?: string;
+  description: string;
   action?: React.ReactNode;
-  className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className={cn('flex flex-col items-center justify-center py-20 text-center animate-fade-in', className)}>
-      {icon && (
-        <div className="w-16 h-16 rounded-[24px] bg-zinc-50 border border-zinc-100 flex items-center justify-center mb-6 text-zinc-400 shadow-sm">
-          {icon}
-        </div>
-      )}
-      <h3 className="text-base font-semibold text-zinc-900 leading-none">{title}</h3>
-      {description && (
-        <p className="text-sm text-zinc-400 mt-2 max-w-[320px] leading-relaxed">
-          {description}
-        </p>
-      )}
-      {action && <div className="mt-8">{action}</div>}
+    <div className="empty-state w-full">
+      <div className="w-16 h-16 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 mb-6 shadow-sm">
+        {React.cloneElement(icon as React.ReactElement, { className: 'w-8 h-8' })}
+      </div>
+      <h3 className="text-lg font-bold text-zinc-900 tracking-tight mb-2">{title}</h3>
+      <p className="text-sm font-medium text-zinc-500 max-w-sm mx-auto mb-6">
+        {description}
+      </p>
+      {action && <div>{action}</div>}
     </div>
   );
 }

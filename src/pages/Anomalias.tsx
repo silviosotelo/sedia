@@ -150,8 +150,8 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100">
+              <thead className="bg-zinc-50 border-b border-zinc-200">
+                <tr>
                   <th className="table-th">Fecha</th>
                   <th className="table-th">Tipo</th>
                   <th className="table-th">Severidad</th>
@@ -164,7 +164,7 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
               </thead>
               <tbody className="divide-y divide-zinc-50">
                 {anomalias.map((a) => (
-                  <tr key={a.id} className="hover:bg-zinc-50">
+                  <tr key={a.id} className="table-tr">
                     <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
                       {new Date(a.created_at).toLocaleDateString('es-PY')}
                     </td>

@@ -23,16 +23,22 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
     if (!isSuperAdmin && tenants.length <= 1) {
         if (collapsed) return null;
         return (
-            <div className="px-5 py-3 border-b border-zinc-100 bg-zinc-50/50">
-                <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-zinc-200 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Building2 className="w-4 h-4 text-zinc-600" />
+            <div className="px-5 py-4 border-b border-zinc-200/80 bg-zinc-50/50">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-gradient-to-tr from-zinc-800 to-zinc-700 shadow-sm border border-zinc-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                        {activeTenant ? (
+                            <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                                {activeTenant.nombre_fantasia.slice(0, 2)}
+                            </span>
+                        ) : (
+                            <Building2 className="w-4 h-4 text-zinc-300" />
+                        )}
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-zinc-900 truncate">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-zinc-900 truncate">
                             {activeTenant?.nombre_fantasia || 'Mi Empresa123'}
                         </p>
-                        <p className="text-[9px] text-emerald-600 font-medium">Empresa actual</p>
+                        <p className="text-[10px] text-zinc-500 font-medium tracking-tight mt-0.5">Empresa activa</p>
                     </div>
                 </div>
             </div>
@@ -40,26 +46,26 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
     }
 
     return (
-        <div className={cn("border-b border-zinc-100 bg-zinc-50/50 relative", collapsed ? "p-2 flex justify-center" : "p-4")} ref={dropdownRef}>
+        <div className={cn("border-b border-zinc-200/80 bg-zinc-50/50 relative", collapsed ? "p-3 flex justify-center" : "px-4 py-4")} ref={dropdownRef}>
             {loading && tenants.length === 0 ? (
-                <div className={cn("animate-pulse bg-zinc-200 rounded-lg", collapsed ? "w-8 h-8" : "h-10 w-full")} />
+                <div className={cn("animate-pulse bg-zinc-200/80 rounded-xl", collapsed ? "w-9 h-9" : "h-[42px] w-full")} />
             ) : (
                 <>
                     <button
                         onClick={() => setIsOpen(!isOpen)}
                         title={collapsed ? activeTenant?.nombre_fantasia : undefined}
                         className={cn(
-                            "flex items-center text-left bg-white border border-zinc-200 rounded-lg hover:border-zinc-300 hover:bg-zinc-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
-                            collapsed ? "p-1.5 justify-center" : "w-full p-2 gap-2"
+                            "flex items-center text-left bg-white border border-zinc-200/80 rounded-xl shadow-sm hover:shadow hover:border-zinc-300 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 active:scale-[0.98] group",
+                            collapsed ? "p-1.5 justify-center" : "w-full p-2.5 gap-3"
                         )}
                     >
-                        <div className="w-7 h-7 bg-zinc-100 rounded-md flex items-center justify-center flex-shrink-0">
+                        <div className="w-8 h-8 bg-gradient-to-tr from-zinc-800 to-zinc-700 shadow-sm border border-zinc-600 rounded-lg flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105">
                             {activeTenant ? (
-                                <span className="text-[10px] font-bold text-zinc-600 uppercase">
+                                <span className="text-[11px] font-bold text-white uppercase tracking-wider">
                                     {activeTenant.nombre_fantasia.slice(0, 2)}
                                 </span>
                             ) : (
-                                <Building2 className="w-4 h-4 text-zinc-500" />
+                                <Building2 className="w-4 h-4 text-zinc-300" />
                             )}
                         </div>
 
@@ -69,17 +75,17 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
                                     <p className="text-xs font-semibold text-zinc-900 truncate">
                                         {activeTenant ? activeTenant.nombre_fantasia : 'Seleccionar Empresa'}
                                     </p>
-                                    <p className="text-[10px] text-zinc-500 truncate">
-                                        {activeTenant ? 'Empresa activa' : 'Haga clic para elegir'}
+                                    <p className="text-[10px] text-zinc-500 truncate font-medium mt-0.5">
+                                        {activeTenant ? 'Cambiar empresa' : 'Haga clic para elegir'}
                                     </p>
                                 </div>
-                                <ChevronDown className="w-4 h-4 text-zinc-400 flex-shrink-0" />
+                                <ChevronDown className="w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform group-hover:text-zinc-600" />
                             </>
                         )}
                     </button>
 
                     {isOpen && (
-                        <div className={cn("absolute z-50 mt-1 bg-white rounded-lg shadow-lg border border-zinc-200 py-1 max-h-64 overflow-y-auto", collapsed ? "left-14 top-2 w-48" : "left-4 right-4 top-14")}>
+                        <div className={cn("absolute z-50 mt-2 bg-white rounded-xl shadow-xl shadow-black/5 border border-zinc-200/80 p-1.5 max-h-[300px] overflow-y-auto animate-pop-in origin-top", collapsed ? "left-16 top-2 w-56 fixed" : "left-4 right-4 top-[72px]")}>
                             {tenants.map(t => (
                                 <button
                                     key={t.id}
@@ -87,19 +93,28 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
                                         setActiveTenantId(t.id);
                                         setIsOpen(false);
                                     }}
-                                    className="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-zinc-50 transition-colors group"
+                                    className={cn(
+                                        "w-full text-left px-3 py-2.5 flex items-center gap-3 rounded-lg hover:bg-zinc-50 transition-colors group",
+                                        activeTenantId === t.id ? 'bg-zinc-50/80' : ''
+                                    )}
                                 >
-                                    <div className="flex-1 min-w-0 pr-3">
-                                        <p className={cn("text-xs truncate transition-colors", activeTenantId === t.id ? "font-semibold text-emerald-700" : "font-medium text-zinc-700 group-hover:text-zinc-900")}>
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 border ${activeTenantId === t.id ? 'bg-white border-zinc-200 shadow-sm' : 'bg-zinc-100 border-transparent group-hover:bg-white group-hover:border-zinc-200 group-hover:shadow-sm transition-all'}`}>
+                                        <span className={cn("text-[9px] font-bold uppercase", activeTenantId === t.id ? "text-zinc-800" : "text-zinc-500 group-hover:text-zinc-600")}>
+                                            {t.nombre_fantasia.slice(0, 2)}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={cn("text-xs truncate transition-colors", activeTenantId === t.id ? "font-semibold text-zinc-900" : "font-medium text-zinc-600 group-hover:text-zinc-900")}>
                                             {t.nombre_fantasia}
                                         </p>
+                                        <p className="text-[10px] font-mono text-zinc-400 mt-0.5 truncate group-hover:text-zinc-500 transition-colors">{t.ruc}</p>
                                     </div>
-                                    {activeTenantId === t.id && <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />}
+                                    {activeTenantId === t.id && <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
                                 </button>
                             ))}
                             {tenants.length === 0 && (
-                                <div className="px-3 py-2 text-xs text-zinc-500 text-center">
-                                    No hay empresas
+                                <div className="px-3 py-4 text-xs text-zinc-500 text-center bg-zinc-50/50 rounded-lg border border-zinc-100 mt-0.5 mx-0.5">
+                                    No hay empresas disponibles
                                 </div>
                             )}
                         </div>

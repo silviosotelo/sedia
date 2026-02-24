@@ -48,35 +48,35 @@ export function BillingHistory({ tenantId }: { tenantId: string }) {
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                    <thead className="bg-zinc-50 text-zinc-500 font-medium">
+                    <thead className="bg-zinc-50 border-b border-zinc-200">
                         <tr>
-                            <th className="px-5 py-3 border-b border-zinc-100">Fecha</th>
-                            <th className="px-5 py-3 border-b border-zinc-100">Concepto</th>
-                            <th className="px-5 py-3 border-b border-zinc-100">Monto</th>
-                            <th className="px-5 py-3 border-b border-zinc-100">Estado</th>
-                            <th className="px-5 py-3 border-b border-zinc-100 text-right">Documentos</th>
+                            <th className="table-th">Fecha</th>
+                            <th className="table-th">Concepto</th>
+                            <th className="table-th">Monto</th>
+                            <th className="table-th">Estado</th>
+                            <th className="table-th text-right">Documentos</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-100">
+                    <tbody className="divide-y divide-zinc-50">
                         {history.length === 0 ? (
                             <tr>
                                 <td colSpan={5} className="px-5 py-10 text-center text-zinc-400">No hay facturas registradas</td>
                             </tr>
                         ) : (
                             history.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-zinc-50/50 transition-colors">
-                                    <td className="px-5 py-4 whitespace-nowrap text-zinc-600">
+                                <tr key={inv.id} className="table-tr">
+                                    <td className="table-td whitespace-nowrap text-zinc-600">
                                         {new Date(inv.created_at).toLocaleDateString('es-PY')}
                                     </td>
-                                    <td className="px-5 py-4">
+                                    <td className="table-td">
                                         <div className="font-medium text-zinc-900 capitalize">
                                             {inv.billing_reason.replace(/_/g, ' ')}
                                         </div>
                                     </td>
-                                    <td className="px-5 py-4 font-semibold text-zinc-900">
+                                    <td className="table-td font-semibold text-zinc-900">
                                         {fmtGs(inv.amount)}
                                     </td>
-                                    <td className="px-5 py-4">
+                                    <td className="table-td">
                                         {inv.status === 'PAID' && (
                                             <Badge variant="success" className="gap-1">
                                                 <CheckCircle2 className="w-3 h-3" /> Pagado
@@ -93,7 +93,7 @@ export function BillingHistory({ tenantId }: { tenantId: string }) {
                                             </Badge>
                                         )}
                                     </td>
-                                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                                    <td className="table-td text-right whitespace-nowrap">
                                         {inv.status === 'PAID' && (
                                             <div className="flex justify-end gap-2 text-zinc-400">
                                                 <button className="p-1 hover:text-zinc-900 transition-colors" title="Ver Factura">

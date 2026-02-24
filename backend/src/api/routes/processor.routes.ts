@@ -67,4 +67,41 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
 
         return reply.status(202).send({ data: { job_id: job.id, status: 'PENDING' } });
     });
+
+    app.get<{
+        Params: { id: string };
+        Querystring: { fecha_desde?: string; fecha_hasta?: string; processor_id?: string; page?: string; limit?: string };
+    }>('/tenants/:id/processors/transactions', async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const { fecha_desde, fecha_hasta, processor_id, page = '1', limit = '50' } = req.query;
+        const { findProcessorTransactionsByTenant } = await import('../../db/repositories/bank.repository');
+        const { data, total } = await findProcessorTransactionsByTenant(req.params.id, {
+            fecha_desde, fecha_hasta, processor_id,
+            page: parseInt(page), limit: parseInt(limit),
+        });
+        return reply.send({ data, meta: { total, page: parseInt(page), limit: parseInt(limit) } });
+    });
+
+    app.get<{
+        Params: { id: string };
+        Querystring: { processor_id?: string; limit?: string; offset?: string };
+    }>('/tenants/:id/processors/jobs', async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const { limit = '50', offset = '0' } = req.query;
+        const { findJobs } = await import('../../db/repositories/job.repository');
+
+        // Find jobs of tipo_job = IMPORTAR_PROCESADOR
+        let jobs = await findJobs({
+            tenant_id: req.params.id,
+            tipo_job: 'IMPORTAR_PROCESADOR',
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        });
+
+        if (req.query.processor_id) {
+            jobs = jobs.filter(j => (j.payload as any)?.processor_id === req.query.processor_id);
+        }
+
+        return reply.send({ data: jobs, total: jobs.length });
+    });
 }

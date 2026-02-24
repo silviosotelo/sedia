@@ -236,20 +236,25 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
 
   const buildPayload = (): TenantFormData => {
     const extra = { ...form.config.extra_config };
-    if (!extra.smtp_password && initialData?.config?.extra_config) {
-      const raw = initialData.config.extra_config as Record<string, unknown>;
-      if (raw.smtp_password_set) {
-        delete extra.smtp_password;
+    if (!extra.smtp_password) delete (extra as any).smtp_password;
+
+    const modifiedConfig = { ...form.config, extra_config: extra };
+
+    if (initialData) {
+      if (!modifiedConfig.clave_marangatu) {
+        delete (modifiedConfig as any).clave_marangatu;
+      }
+      if (!modifiedConfig.ords_password) {
+        delete (modifiedConfig as any).ords_password;
+      }
+      if (!modifiedConfig.ords_token) {
+        delete (modifiedConfig as any).ords_token;
       }
     }
-    if (!extra.smtp_password) delete (extra as Record<string, unknown>).smtp_password;
 
     return {
       ...form,
-      config: {
-        ...form.config,
-        extra_config: extra,
-      },
+      config: modifiedConfig,
     };
   };
 
@@ -449,7 +454,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
                 <PasswordInput
                   value={ex.solvecaptcha_api_key}
                   onChange={(v) => setExtra('solvecaptcha_api_key', v)}
-                  placeholder={initialData?.config?.extra_config && (initialData.config.extra_config as Record<string,unknown>).solvecaptcha_api_key ? '(configurada — dejar vacío para no cambiar)' : 'sc_xxxxxxxxxxxxxxxxxxxxxxxx'}
+                  placeholder={initialData?.config?.extra_config && (initialData.config.extra_config as Record<string, unknown>).solvecaptcha_api_key ? '(configurada — dejar vacío para no cambiar)' : 'sc_xxxxxxxxxxxxxxxxxxxxxxxx'}
                 />
               </Field>
             </section>

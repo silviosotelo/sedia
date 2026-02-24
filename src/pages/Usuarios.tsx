@@ -183,7 +183,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
                 <th className="table-th text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-50">
               {usuarios.map((u) => (
                 <tr key={u.id} className="table-tr">
                   <td className="table-td">

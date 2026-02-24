@@ -1,56 +1,76 @@
 import { logger } from '../config/logger';
-import { sifenService } from '../services/sifen.service';
-import { markJobDone, markJobFailed, createJob } from '../db/repositories/job.repository';
+import { sifenXmlService } from '../services/sifenXml.service';
+import { sifenSignService } from '../services/sifenSign.service';
+import { sifenQrService } from '../services/sifenQr.service';
+import { sifenLoteService } from '../services/sifenLote.service';
+import { markJobDone, markJobFailed } from '../db/repositories/job.repository';
 import { queryOne, query } from '../db/connection';
 
 export async function handleEmitirSifen(jobId: string, tenantId: string, payload: any): Promise<void> {
     try {
         logger.info(`Iniciando job EMITIR_SIFEN ${jobId} para tenant ${tenantId}`);
 
-        // Call existing service (which was just modified to read dynamically from DB based on tenantId)
-        const result = await sifenService.processBillingAsync(payload.invoiceId, { ...payload.data, tenantId });
+        const deId = payload.de_id;
+        if (!deId) throw new Error("job payload falta de_id");
 
-        if (result.status === 'SENT') {
-            await markJobDone(jobId);
-            logger.info(`Factura ${payload.invoiceId} emitida con éxito (Lote: ${result.idLote})`);
+        // 1. Generar XML
+        await sifenXmlService.generarXmlDE(tenantId, deId);
 
-            // Trigger outgoing webhook if available
-            await triggerWebhook(tenantId, 'sifen_emitido', { invoiceId: payload.invoiceId, cdc: result.cdc });
+        // 2. Firmar
+        await sifenSignService.firmarXmlDE(tenantId, deId);
 
-            const comprobante = await queryOne<{ hash_unico: string; receptor_email: string; receptor_nombre: string }>(
-                `SELECT hash_unico, receptor_email, receptor_nombre FROM comprobantes WHERE id = $1`,
-                [payload.invoiceId]
-            );
+        // 3. Generar QR
+        await sifenQrService.generarQrDE(tenantId, deId);
 
-            if (comprobante && comprobante.receptor_email) {
-                await createJob({
-                    tenant_id: tenantId,
-                    tipo_job: 'SEND_INVOICE_EMAIL',
-                    payload: {
-                        tenantId,
-                        comprobanteId: payload.invoiceId,
-                        hash: comprobante.hash_unico,
-                        emailCliente: comprobante.receptor_email,
-                        nombreCliente: comprobante.receptor_nombre,
-                        urlBase: process.env.PUBLIC_URL || 'http://localhost:5173',
-                    },
-                    next_run_at: new Date(),
-                });
-            }
+        // 4. Update status to ENQUEUED so SIFEN_ENVIAR_LOTE can pick it up
+        await query(`UPDATE sifen_de SET estado = 'ENQUEUED' WHERE id = $1 AND tenant_id = $2`, [deId, tenantId]);
 
-        } else {
-            throw new Error(`Estado SIFEN diferente a SENT: ${result.status}`);
-        }
+        await markJobDone(jobId);
+        logger.info(`DE ${deId} emitido localmente con exito, encolado para batch`);
 
+        // Trigger outgoing webhook if available
+        await triggerWebhook(tenantId, 'sifen_de_encolado', { de_id: deId });
     } catch (err: any) {
-        const errorMsg = err.message || 'Error emitiendo factura SIFEN';
+        const errorMsg = err.message || 'Error emitiendo documento DE SIFEN';
         logger.error('Error en handleEmitirSifen', { jobId, error: errorMsg });
 
-        // Mark Job as Failed
         await markJobFailed(jobId, errorMsg, 3);
+        await crearAlertaFallo(tenantId, payload.de_id, errorMsg);
+    }
+}
 
-        // Creates an alert for the tenant
-        await crearAlertaFallo(tenantId, payload.invoiceId, errorMsg);
+export async function handleEnviarLoteSifen(jobId: string, tenantId: string, payload: any): Promise<void> {
+    try {
+        logger.info(`Iniciando job SIFEN_ENVIAR_LOTE ${jobId} para tenant ${tenantId}`);
+        await sifenLoteService.enviarLote(tenantId, payload.lote_id);
+        await markJobDone(jobId);
+    } catch (err: any) {
+        await markJobFailed(jobId, err.message, 3);
+    }
+}
+
+export async function handleConsultarLoteSifen(jobId: string, tenantId: string, payload: any): Promise<void> {
+    try {
+        logger.info(`Iniciando job SIFEN_CONSULTAR_LOTE ${jobId} para tenant ${tenantId}`);
+        const res = await sifenLoteService.consultarLote(tenantId, payload.lote_id);
+        if (res && (res.codigo === '0300' || res.codigo === '0301' || res.codigo === '0303')) {
+            await markJobDone(jobId);
+        } else {
+            // still processing, fail to retry later based on backoff
+            throw new Error("Batch processing ongoing or unhandled response");
+        }
+    } catch (err: any) {
+        await markJobFailed(jobId, err.message, 5); // Allow more retries for polling
+    }
+}
+
+export async function handleReintentarFallidosSifen(jobId: string, tenantId: string, _payload: any): Promise<void> {
+    try {
+        logger.info(`Iniciando job SIFEN_REINTENTAR_FALLIDOS ${jobId} para tenant ${tenantId}`);
+        // Logica para consultar estados caídos y re-encolar
+        await markJobDone(jobId);
+    } catch (err: any) {
+        await markJobFailed(jobId, err.message, 2);
     }
 }
 
@@ -59,13 +79,13 @@ async function triggerWebhook(tenantId: string, evento: string, metadata: any) {
     logger.info(`Disparando webhook ${evento} para tenant ${tenantId}`, metadata);
 }
 
-async function crearAlertaFallo(tenantId: string, invoiceId: string, errorMsg: string) {
+async function crearAlertaFallo(tenantId: string, referenceId: string, errorMsg: string) {
     try {
         const alertConfig = await queryOne<{ id: string }>("SELECT id FROM tenant_alertas WHERE tenant_id = $1 AND tipo = 'job_fallido' AND activo = true", [tenantId]);
         if (alertConfig && alertConfig.id) {
             await query(
                 `INSERT INTO alerta_log (alerta_id, tenant_id, mensaje, metadata) VALUES ($1, $2, $3, $4)`,
-                [alertConfig.id, tenantId, `Fallo en emisión SIFEN para factura ${invoiceId}: ${errorMsg}`, JSON.stringify({ invoiceId, error: errorMsg })]
+                [alertConfig.id, tenantId, `Fallo en operación SIFEN para referencia ${referenceId}: ${errorMsg}`, JSON.stringify({ referenceId, error: errorMsg })]
             );
         }
     } catch (e) {

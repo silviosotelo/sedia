@@ -1,6 +1,6 @@
 import {
   Settings, CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
-  Edit2, Trash2,
+  Edit2, Trash2, Check
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { useState, useEffect, useCallback } from 'react';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { cn } from '../lib/utils';
 import { api } from '../lib/api';
 import type { Plan, MetricsOverview, MetricsSaas } from '../types';
 
@@ -36,7 +37,7 @@ interface PlanFormData {
   precio_mensual_pyg: number;
   limite_comprobantes_mes: number | null;
   limite_usuarios: number;
-  features: string;
+  features: Record<string, boolean>;
 }
 
 const EMPTY_FORM: PlanFormData = {
@@ -45,8 +46,20 @@ const EMPTY_FORM: PlanFormData = {
   precio_mensual_pyg: 0,
   limite_comprobantes_mes: null,
   limite_usuarios: 5,
-  features: '{}',
+  features: {},
 };
+
+const AVAILABLE_FEATURES = [
+  { id: 'metricas', label: 'Métricas Avanzadas', desc: 'Análisis y tableros estadísticos' },
+  { id: 'webhooks', label: 'Webhooks API', desc: 'Envío de notificaciones a sistemas externos' },
+  { id: 'api_tokens', label: 'API Externa', desc: 'Generación de tokens API para integración' },
+  { id: 'alertas', label: 'Alertas Personalizadas', desc: 'Avisos proactivos por correo/webhook' },
+  { id: 'conciliacion', label: 'Conciliación Automática', desc: 'Matching automático de comprobantes e ITI' },
+  { id: 'auditoria', label: 'Panel de Auditoría', desc: 'Historial inmutable de acciones' },
+  { id: 'anomalias', label: 'Detección de Anomalías', desc: 'Notifica desvíos agresivos en la facturación' },
+  { id: 'whitelabel', label: 'Marca Blanca', desc: 'Posibilidad de cambiar logos y colores' },
+  { id: 'facturacion_electronica', label: 'Emisión e-Kuatia', desc: 'Generar y timbrar facturas electrónicas' }
+];
 
 function PlanModal({
   plan, onClose, onSave,
@@ -55,14 +68,22 @@ function PlanModal({
 }) {
   const [form, setForm] = useState<PlanFormData>(
     plan
-      ? { nombre: plan.nombre, descripcion: plan.descripcion ?? '', precio_mensual_pyg: plan.precio_mensual_pyg, limite_comprobantes_mes: plan.limite_comprobantes_mes, limite_usuarios: plan.limite_usuarios, features: JSON.stringify(plan.features ?? {}, null, 2) }
+      ? { nombre: plan.nombre, descripcion: plan.descripcion ?? '', precio_mensual_pyg: plan.precio_mensual_pyg, limite_comprobantes_mes: plan.limite_comprobantes_mes, limite_usuarios: plan.limite_usuarios, features: (plan.features as Record<string, boolean>) || {} }
       : EMPTY_FORM
   );
   const [saving, setSaving] = useState(false);
-  const [featuresError, setFeaturesError] = useState('');
+
+  const toggleFeature = (id: string) => {
+    setForm(f => ({
+      ...f,
+      features: {
+        ...f.features,
+        [id]: !f.features[id]
+      }
+    }));
+  };
 
   const handleSave = async () => {
-    try { JSON.parse(form.features); } catch { setFeaturesError('JSON inválido en features'); return; }
     setSaving(true);
     try { await onSave(form); onClose(); } finally { setSaving(false); }
   };
@@ -92,10 +113,27 @@ function PlanModal({
           <label className="label">Límite comprobantes/mes (vacío = ilimitado)</label>
           <input type="number" className="input" value={form.limite_comprobantes_mes ?? ''} onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))} placeholder="Dejar vacío para ilimitado" />
         </div>
-        <div>
-          <label className="label">Features (JSON)</label>
-          <textarea className="input font-mono h-24 resize-none" value={form.features} onChange={(e) => { setForm((f) => ({ ...f, features: e.target.value })); setFeaturesError(''); }} />
-          {featuresError && <p className="field-error">{featuresError}</p>}
+        <label className="label mb-3">Módulos Exclusivos (Add-ons)</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+          {AVAILABLE_FEATURES.map(f => {
+            const isChecked = !!form.features[f.id];
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => toggleFeature(f.id)}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30 shadow-[0_2px_10px_-4px_rgba(16,185,129,0.3)]' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'}`}
+              >
+                <div className={`mt-0.5 w-[18px] h-[18px] rounded flex items-center justify-center flex-shrink-0 transition-colors ${isChecked ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white border-2 border-zinc-300'}`}>
+                  {isChecked && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                </div>
+                <div>
+                  <p className={cn("text-xs font-bold capitalize", isChecked ? "text-emerald-900" : "text-zinc-700")}>{f.label}</p>
+                  <p className="text-[10px] text-zinc-500 leading-tight mt-0.5">{f.desc}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4 mt-4 border-t border-zinc-100">
@@ -168,7 +206,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         precio_mensual_pyg: form.precio_mensual_pyg,
         limite_comprobantes_mes: form.limite_comprobantes_mes,
         limite_usuarios: form.limite_usuarios,
-        features: JSON.parse(form.features) as Record<string, unknown>,
+        features: form.features,
       };
       if (editingPlan) {
         await api.billing.updatePlan(editingPlan.id, body);
@@ -213,7 +251,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-zinc-200 mb-6">
+      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
         {([
           { id: 'overview', label: 'Resumen del sistema', icon: <BarChart3 className="w-3.5 h-3.5" /> },
           { id: 'planes', label: 'Planes de suscripción', icon: <CreditCard className="w-3.5 h-3.5" /> },
@@ -222,7 +260,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${tab === id ? 'border-zinc-900 text-zinc-900' : 'border-transparent text-zinc-500 hover:text-zinc-700'
+            className={`px-5 flex items-center gap-1.5 py-2 text-xs font-semibold rounded-xl transition-all ${tab === id ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
               }`}
           >
             {icon}{label}
@@ -452,7 +490,7 @@ function SystemConfigModal({ config, onClose, onSave }: { config: SystemSetting;
           <textarea
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            className="w-full h-48 font-mono text-xs p-3 rounded-lg border border-zinc-200 focus:ring-2 focus:ring-zinc-900 focus:outline-none"
+            className="input h-48 font-mono text-xs"
           />
         </div>
         <div className="flex justify-end gap-3">

@@ -7,7 +7,6 @@ import {
   createUsuario,
   updateUsuario,
   deleteUsuario,
-  listRoles,
   findUsuarioById,
 } from '../../services/auth.service';
 
@@ -151,10 +150,6 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
     return reply.status(204).send();
   });
 
-  fastify.get('/roles', async (_request, reply) => {
-    const roles = await listRoles();
-    return reply.send({ data: roles });
-  });
 }
 
 function extractToken(request: { headers: Record<string, string | string[] | undefined> }): string | null {

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart,
+  PieChart, Pie, Cell, Area, AreaChart, Line,
   Legend,
 } from 'recharts';
 import { Header } from '../components/layout/Header';
@@ -43,23 +43,28 @@ interface StatCardProps {
 
 function StatCard({ label, value, icon, iconBg, sub, trend }: StatCardProps) {
   return (
-    <div className="stat-card">
+    <div className="stat-card hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between">
-        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${iconBg}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-zinc-50 border border-zinc-100 ${iconBg}`}>
           {icon}
         </div>
         {trend && (
           <span
-            className={`text-xs font-medium ${trend.positive ? 'text-emerald-600' : 'text-rose-500'}`}
+            className={`text-xs px-2 py-1 rounded-md font-bold tracking-tight ${trend.positive
+              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50'
+              : 'bg-rose-50 text-rose-600 border border-rose-100/50'
+              }`}
           >
-            {trend.positive ? '\u2191' : '\u2193'} {trend.value}
+            {trend.positive ? '↑' : '↓'} {trend.value}
           </span>
         )}
       </div>
-      <div>
-        <p className="text-2xl font-bold text-zinc-900 tabular-nums">{value}</p>
-        <p className="text-xs text-zinc-500 mt-0.5">{label}</p>
-        {sub && <p className="text-xs text-zinc-400 mt-0.5">{sub}</p>}
+      <div className="mt-2">
+        <p className="text-3xl font-bold text-zinc-900 tracking-tight tabular-nums leading-none mb-1">
+          {value}
+        </p>
+        <p className="text-sm font-medium text-zinc-500">{label}</p>
+        {sub && <p className="text-xs text-zinc-400 mt-2 font-medium">{sub}</p>}
       </div>
     </div>
   );
@@ -267,7 +272,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <p className="text-sm text-zinc-500">No hay jobs registrados</p>
             </div>
           ) : (
-            <div className="divide-y divide-zinc-100">
+            <div className="divide-y divide-zinc-50">
               {recentJobs.map((job) => {
                 const tenant = tenants.find((t) => t.id === job.tenant_id);
                 return (
@@ -342,7 +347,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </button>
               </div>
             ) : (
-              <div className="divide-y divide-zinc-100">
+              <div className="divide-y divide-zinc-50">
                 {tenants.slice(0, 6).map((tenant) => (
                   <button
                     key={tenant.id}
@@ -479,7 +484,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     >
                       <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                       <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                      <Tooltip formatter={(v: number) => fmtGs(v)} labelStyle={{ fontSize: 11 }} />
+                      <Tooltip formatter={(v: any) => fmtGs(Number(v))} labelStyle={{ fontSize: 11 }} />
                       <Bar dataKey="monto" name="Monto" fill="#3f3f46" radius={[3, 3, 0, 0]} />
                       <Bar dataKey="iva" name="IVA estimado" fill="#f59e0b" radius={[3, 3, 0, 0]} />
                     </BarChart>
@@ -495,7 +500,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         cx="50%" cy="50%"
                         outerRadius={70}
                         dataKey="value"
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
                         labelLine={false}
                       >
                         {dashAvanzado.por_tipo.map((t, i) => (
@@ -559,7 +564,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 >
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                  <Tooltip formatter={(v: number) => fmtGs(v)} labelStyle={{ fontSize: 11 }} />
+                  <Tooltip formatter={(v: any) => fmtGs(Number(v))} labelStyle={{ fontSize: 11 }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Area type="monotone" dataKey="max" stroke="transparent" fill="#fef3c7" name="Rango proyectado" />
                   <Area type="monotone" dataKey="min" stroke="transparent" fill="#ffffff" />

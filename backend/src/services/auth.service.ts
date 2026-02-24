@@ -282,17 +282,21 @@ export async function deleteUsuario(id: string): Promise<void> {
   await query('DELETE FROM usuarios WHERE id = $1', [id]);
 }
 
-export async function listRoles(tenantId?: string): Promise<RolRow[]> {
+export async function listRoles(tenantId?: string): Promise<(RolRow & { permisos_ids?: string[] })[]> {
   const params: any[] = [];
-  let sql = 'SELECT * FROM roles WHERE tenant_id IS NULL';
+  let sql = `
+    SELECT r.*, COALESCE(array_agg(rp.permiso_id::text) FILTER (WHERE rp.permiso_id IS NOT NULL), ARRAY[]::text[]) as permisos_ids
+    FROM roles r
+    LEFT JOIN rol_permisos rp ON r.id = rp.rol_id
+    WHERE r.tenant_id IS NULL`;
 
   if (tenantId) {
-    sql += ' OR tenant_id = $1';
+    sql += ' OR r.tenant_id = $1';
     params.push(tenantId);
   }
 
-  sql += ' ORDER BY nivel ASC';
-  return query<RolRow>(sql, params);
+  sql += ' GROUP BY r.id ORDER BY r.nivel ASC';
+  return query<RolRow & { permisos_ids: string[] }>(sql, params);
 }
 
 export async function ensureSuperAdmin(): Promise<void> {

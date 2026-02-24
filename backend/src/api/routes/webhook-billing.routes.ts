@@ -23,8 +23,14 @@ export async function webhookBillingRoutes(app: FastifyInstance): Promise<void> 
                 await billingManager.updateInvoiceStatus(invoice.id, 'PAID', { bancard_payload: payload });
                 logger.info('Pago de Bancard confirmado', { processId, invoiceId: invoice.id });
 
+                const plan_id = invoice.detalles?.plan_id;
+                if (plan_id) {
+                    await billingManager.updateSubscription(invoice.tenant_id, plan_id, 'ACTIVE', processId);
+                    logger.info('Suscripción activada por pago de Bancard', { tenant_id: invoice.tenant_id, plan_id });
+                }
+
                 // Si la suscripción estaba en PAST_DUE, reactivarla
-                if (invoice.subscription_id) {
+                if (invoice.subscription_id && !plan_id) {
                     await query(`UPDATE billing_subscriptions SET status = 'ACTIVE', updated_at = NOW() WHERE id = $1`, [invoice.subscription_id]);
                 }
             } else {

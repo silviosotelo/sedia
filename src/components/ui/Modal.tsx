@@ -1,6 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
-import { cn } from '../../lib/utils';
 
 interface ModalProps {
   open: boolean;
@@ -12,61 +11,66 @@ interface ModalProps {
   footer?: React.ReactNode;
 }
 
-const sizeClasses = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
-};
-
-export function Modal({ open, onClose, title, description, children, size = 'md', footer }: ModalProps) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-
+export function Modal({
+  open,
+  onClose,
+  title,
+  description,
+  children,
+  footer,
+  size = 'md',
+}: ModalProps) {
   useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    document.body.style.overflow = 'hidden';
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
     return () => {
-      document.removeEventListener('keydown', handler);
-      document.body.style.overflow = '';
+      document.body.style.overflow = 'unset';
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
+  const sizeClasses = {
+    sm: 'max-w-md',
+    md: 'max-w-xl',
+    lg: 'max-w-3xl',
+    xl: 'max-w-5xl',
+  };
+
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
-    >
-      <div className="absolute inset-0 bg-zinc-900/40 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <div
-        className={cn(
-          'relative w-full bg-white rounded-2xl shadow-lg border border-zinc-200 animate-fade-in flex flex-col max-h-[90vh]',
-          sizeClasses[size]
-        )}
+        className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
+        onClick={onClose}
+      />
+
+      <div
+        className={`relative w-full ${sizeClasses[size]} bg-white rounded-2xl shadow-2xl shadow-black/20 border border-zinc-200/60 overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] animate-pop-in`}
       >
-        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-zinc-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100/80 bg-white/80 backdrop-blur-md sticky top-0 z-10">
           <div>
-            <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
-            {description && <p className="text-sm text-zinc-500 mt-0.5">{description}</p>}
+            <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{title}</h2>
+            {description && (
+              <p className="text-sm font-medium text-zinc-500 mt-0.5">{description}</p>
+            )}
           </div>
           <button
             onClick={onClose}
-            className="btn-sm btn-ghost -mr-1 -mt-1 text-zinc-400 hover:text-zinc-600"
+            className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+
+        <div className="p-6 overflow-y-auto min-h-[100px] flex-1">
+          {children}
+        </div>
+
         {footer && (
-          <div className="px-6 py-4 border-t border-zinc-100 flex items-center justify-end gap-3">
+          <div className="px-6 py-4 border-t border-zinc-100/80 bg-zinc-50/50 backdrop-blur-md flex items-center justify-end gap-3 sticky bottom-0 z-10">
             {footer}
           </div>
         )}

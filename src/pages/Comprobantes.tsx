@@ -35,7 +35,7 @@ import {
 } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
-import type { Comprobante, Tenant, TipoComprobante } from '../types';
+import type { Comprobante, TipoComprobante } from '../types';
 
 interface ComprobantesProps {
   tenantIdForzado?: string;
@@ -353,7 +353,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                 {canEditSync && <th className="table-th text-center">Sync</th>}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-50">
               {comprobantes.map((c) => (
                 <tr key={c.id} className={`table-tr cursor-pointer ${!c.sincronizar ? 'opacity-50' : ''}`} onClick={() => void openDetail(c)}>
                   <td className="table-td">
@@ -403,7 +403,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
 
       {selectedComprobante && (
         <Modal open={!!selectedComprobante} onClose={() => setSelectedComprobante(null)} title={selectedComprobante.numero_comprobante} description={selectedComprobante.razon_social_vendedor || selectedComprobante.ruc_vendedor} size="xl">
-          <div className="flex gap-0 border border-zinc-200 rounded-lg overflow-hidden mb-5 -mt-1">
+          <div className="bg-zinc-100/80 p-1 rounded-xl flex items-center mb-6 -mt-2 w-max">
             {(['info', 'detalles', 'xml'] as const).map((v) => {
               const label = v === 'info' ? 'Información' : v === 'detalles' ? 'Items' : 'XML crudo';
               const disabled = (v === 'xml' && !selectedComprobante.xml_contenido) || (v === 'detalles' && !selectedComprobante.detalles_xml?.items?.length && !selectedComprobante.detalles_virtual?.items?.length);
@@ -411,7 +411,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                 <button
                   key={v}
                   onClick={() => !disabled && setDetailView(v)}
-                  className={`flex-1 py-2 text-xs font-medium transition-colors duration-100 ${detailView === v ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-500 hover:bg-zinc-50'} ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
+                  className={`px-5 py-2 text-xs font-semibold transition-all duration-200 rounded-lg ${detailView === v ? 'bg-white text-zinc-900 shadow-sm ring-1 ring-zinc-200/50' : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200/50'} ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}
                   disabled={disabled}
                 >
                   {label}
@@ -421,75 +421,83 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
           </div>
 
           {detailView === 'info' && (
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Comprobante</p>
-                <dl className="space-y-2.5">
-                  <DR label="Número" value={<span className="tag">{selectedComprobante.numero_comprobante}</span>} />
-                  <DR label="Tipo" value={<TipoComprobanteBadge tipo={selectedComprobante.tipo_comprobante} />} />
-                  <DR label="Origen" value={<Badge variant={selectedComprobante.origen === 'ELECTRONICO' ? 'info' : 'neutral'}>{selectedComprobante.origen}</Badge>} />
-                  <DR label="Fecha emisión" value={formatDate(selectedComprobante.fecha_emision)} />
-                  <DR label="Total" value={<span className="font-mono font-semibold">{formatCurrency(selectedComprobante.total_operacion)}</span>} />
-                  {selectedComprobante.cdc && <DR label="CDC" value={<span className="tag text-[10px] break-all">{selectedComprobante.cdc}</span>} />}
-                </dl>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Datos del Comprobante</p>
+                  <dl className="space-y-3 bg-zinc-50/50 border border-zinc-100 rounded-xl p-4">
+                    <DR label="Número" value={<span className="font-mono font-medium text-zinc-900 bg-white px-2 py-1 rounded-md border border-zinc-200 shadow-sm">{selectedComprobante.numero_comprobante}</span>} />
+                    <DR label="Tipo" value={<TipoComprobanteBadge tipo={selectedComprobante.tipo_comprobante} />} />
+                    <DR label="Origen" value={<Badge variant={selectedComprobante.origen === 'ELECTRONICO' ? 'info' : 'neutral'}>{selectedComprobante.origen}</Badge>} />
+                    <DR label="Fecha Emisión" value={formatDate(selectedComprobante.fecha_emision)} />
+                    <DR label="Total" value={<span className="font-mono text-base font-bold text-emerald-600">{formatCurrency(selectedComprobante.total_operacion)}</span>} />
+                    {selectedComprobante.cdc && <DR label="CDC" value={<span className="font-mono text-[9px] text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded break-all tracking-tight selection:bg-emerald-200">{selectedComprobante.cdc}</span>} />}
+                  </dl>
+                </div>
 
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">Estado SIFEN</p>
-                <dl className="space-y-2.5">
-                  <DR label="Estado" value={<SifenBadge estado={selectedComprobante.estado_sifen} />} />
-                  {selectedComprobante.nro_transaccion_sifen && <DR label="N° Transacción" value={<span className="tag">{selectedComprobante.nro_transaccion_sifen}</span>} />}
-                  {selectedComprobante.fecha_estado_sifen && <DR label="Fecha estado" value={formatDateTime(selectedComprobante.fecha_estado_sifen)} />}
-                  {selectedComprobante.sistema_facturacion_sifen && <DR label="Sist. Facturación" value={selectedComprobante.sistema_facturacion_sifen} />}
-                </dl>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Estado SIFEN</p>
+                  <dl className="space-y-3 bg-zinc-50/50 border border-zinc-100 rounded-xl p-4">
+                    <DR label="Estado" value={<SifenBadge estado={selectedComprobante.estado_sifen} />} />
+                    {selectedComprobante.nro_transaccion_sifen && <DR label="N° Transacción" value={<span className="font-mono text-xs">{selectedComprobante.nro_transaccion_sifen}</span>} />}
+                    {selectedComprobante.fecha_estado_sifen && <DR label="Fecha estado" value={<span className="text-zinc-700">{formatDateTime(selectedComprobante.fecha_estado_sifen)}</span>} />}
+                    {selectedComprobante.sistema_facturacion_sifen && <DR label="Sist. Facturación" value={<span className="text-zinc-700">{selectedComprobante.sistema_facturacion_sifen}</span>} />}
+                  </dl>
+                </div>
               </div>
 
-              <div>
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Vendedor</p>
-                <dl className="space-y-2.5">
-                  <DR label="Razón social" value={selectedComprobante.razon_social_vendedor || '—'} />
-                  <DR label="RUC" value={<span className="tag">{selectedComprobante.ruc_vendedor}</span>} />
-                  {selectedComprobante.detalles_xml?.emisor?.timbrado && <DR label="Timbrado" value={<span className="tag">{selectedComprobante.detalles_xml.emisor.timbrado}</span>} />}
-                  {selectedComprobante.detalles_xml?.emisor?.establecimiento && <DR label="Est. / Punto" value={`${selectedComprobante.detalles_xml.emisor.establecimiento}-${selectedComprobante.detalles_xml.emisor.punto}`} />}
-                </dl>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Vendedor</p>
+                  <dl className="space-y-3 bg-zinc-50/50 border border-zinc-100 rounded-xl p-4">
+                    <DR label="Razón social" value={<span className="font-medium text-zinc-900">{selectedComprobante.razon_social_vendedor || '—'}</span>} />
+                    <DR label="RUC" value={<span className="font-mono text-xs text-zinc-900 bg-white px-2 py-0.5 rounded border border-zinc-200 shadow-sm">{selectedComprobante.ruc_vendedor}</span>} />
+                    {selectedComprobante.detalles_xml?.emisor?.timbrado && <DR label="Timbrado" value={<span className="font-mono text-xs bg-white px-2 py-0.5 rounded border border-zinc-200">{selectedComprobante.detalles_xml.emisor.timbrado}</span>} />}
+                    {selectedComprobante.detalles_xml?.emisor?.establecimiento && <DR label="Est. / Punto" value={<span className="font-mono text-xs text-zinc-700">{`${selectedComprobante.detalles_xml.emisor.establecimiento}-${selectedComprobante.detalles_xml.emisor.punto}`}</span>} />}
+                  </dl>
+                </div>
 
                 {selectedComprobante.detalles_xml?.receptor && (
-                  <>
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mt-5 mb-3">Receptor</p>
-                    <dl className="space-y-2.5">
-                      {selectedComprobante.detalles_xml.receptor.razonSocial && <DR label="Nombre" value={selectedComprobante.detalles_xml.receptor.razonSocial} />}
-                      {selectedComprobante.detalles_xml.receptor.ruc && <DR label="RUC" value={<span className="tag">{selectedComprobante.detalles_xml.receptor.ruc}</span>} />}
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Receptor</p>
+                    <dl className="space-y-3 bg-zinc-50/50 border border-zinc-100 rounded-xl p-4">
+                      {selectedComprobante.detalles_xml.receptor.razonSocial && <DR label="Nombre" value={<span className="font-medium text-zinc-900">{selectedComprobante.detalles_xml.receptor.razonSocial}</span>} />}
+                      {selectedComprobante.detalles_xml.receptor.ruc && <DR label="RUC" value={<span className="font-mono text-xs text-zinc-600 px-2 py-0.5 rounded border border-zinc-200 bg-white shadow-sm">{selectedComprobante.detalles_xml.receptor.ruc}</span>} />}
                     </dl>
-                  </>
+                  </div>
                 )}
 
                 {(canEditOt || canEditSync) && (
-                  <div className="mt-5 space-y-4">
-                    <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">Gestión</p>
-                    {canEditOt && (
-                      <div>
-                        <label className="label flex items-center gap-1.5"><Hash className="w-3 h-3" />Nro. OT <span className="text-zinc-400">(opcional)</span></label>
-                        <div className="flex gap-2">
-                          <input className="input flex-1" value={editingOt} onChange={(e) => setEditingOt(e.target.value)} placeholder="Ej: OT-2024-001" />
-                          <button onClick={() => void handleSaveOt()} disabled={savingOt} className="btn-sm btn-primary gap-1.5">
-                            {savingOt ? <RefreshCcw className="w-3 h-3 animate-spin" /> : null}Guardar
+                  <div>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3">Gestión</p>
+                    <div className="space-y-4 bg-zinc-50/50 border border-zinc-100 rounded-xl p-4">
+                      {canEditOt && (
+                        <div>
+                          <label className="text-xs font-semibold text-zinc-600 flex items-center gap-1.5 mb-2"><Hash className="w-3.5 h-3.5" />Nro. OT <span className="font-normal text-zinc-400">(opcional)</span></label>
+                          <div className="flex gap-2">
+                            <input className="input flex-1" value={editingOt} onChange={(e) => setEditingOt(e.target.value)} placeholder="Ej: OT-2024-001" />
+                            <button onClick={() => void handleSaveOt()} disabled={savingOt} className="btn-md btn-primary gap-1.5 px-4 font-medium shrink-0">
+                              {savingOt ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : null}Guardar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {canEditSync && (
+                        <div className="flex items-center justify-between mt-4">
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-900 mb-0.5">Sincronizar a ORDS</p>
+                            <p className="text-[11px] text-zinc-500">{selectedComprobante.sincronizar ? 'Incluido en sincronización a contabilidad' : 'Excluido de sincronización'}</p>
+                          </div>
+                          <button
+                            disabled={savingSync === selectedComprobante.id}
+                            onClick={() => void handleToggleSincronizar(selectedComprobante, !selectedComprobante.sincronizar)}
+                            className={`w-11 h-6 rounded-full transition-all relative flex-shrink-0 border ${selectedComprobante.sincronizar ? 'bg-emerald-500 border-emerald-600' : 'bg-zinc-200 border-zinc-300'}`}
+                          >
+                            <span className={`absolute top-0.5 w-4.5 h-4.5 bg-white rounded-full shadow-sm transition-all ${selectedComprobante.sincronizar ? 'left-[22px]' : 'left-[3px]'}`} style={{ width: '18px', height: '18px' }} />
                           </button>
                         </div>
-                      </div>
-                    )}
-                    {canEditSync && (
-                      <div className="flex items-center justify-between p-3 bg-zinc-50 rounded-lg border border-zinc-200">
-                        <div>
-                          <p className="text-sm font-medium text-zinc-900">Sincronizar a ORDS</p>
-                          <p className="text-xs text-zinc-500">{selectedComprobante.sincronizar ? 'Incluido en sincronización' : 'Excluido de sincronización'}</p>
-                        </div>
-                        <button
-                          disabled={savingSync === selectedComprobante.id}
-                          onClick={() => void handleToggleSincronizar(selectedComprobante, !selectedComprobante.sincronizar)}
-                          className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${selectedComprobante.sincronizar ? 'bg-emerald-500' : 'bg-zinc-300'}`}
-                        >
-                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${selectedComprobante.sincronizar ? 'left-5' : 'left-0.5'}`} />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -546,8 +554,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
             <div>
               {(selectedComprobante.detalles_xml?.items?.length || selectedComprobante.detalles_virtual?.items?.length) ? (
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-zinc-50 rounded-lg">
+                  <thead className="bg-zinc-50 border-b border-zinc-200">
+                    <tr>
                       <th className="table-th">Descripción</th>
                       <th className="table-th text-right">Cant.</th>
                       <th className="table-th text-right">P. Unitario</th>
@@ -556,7 +564,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       <th className="table-th text-right">Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-zinc-50">
                     {(selectedComprobante.detalles_xml?.items || selectedComprobante.detalles_virtual?.items || []).map((item: any, i: number) => (
                       <tr key={i} className="table-tr">
                         <td className="table-td font-medium">{item.descripcion}</td>

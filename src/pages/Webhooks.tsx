@@ -27,9 +27,9 @@ const EVENTOS_DISPONIBLES = [
   { value: 'ords_enviado', label: 'Enviado a ORDS' },
 ];
 
-const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'error' | 'warning' | 'default'; icon: typeof CheckCircle }> = {
+const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'default'; icon: typeof CheckCircle }> = {
   SUCCESS: { label: 'Exitoso', variant: 'success', icon: CheckCircle },
-  FAILED: { label: 'Fallido', variant: 'error', icon: XCircle },
+  FAILED: { label: 'Fallido', variant: 'danger', icon: XCircle },
   RETRYING: { label: 'Reintento', variant: 'warning', icon: Clock },
   PENDING: { label: 'Pendiente', variant: 'default', icon: Clock },
 };
@@ -88,15 +88,24 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
         </div>
       </div>
       <div>
-        <label className="label">Eventos</label>
-        <div className="flex flex-wrap gap-2 mt-1">
-          {EVENTOS_DISPONIBLES.map((ev) => (
-            <button key={ev.value} type="button" onClick={() => toggle(ev.value)}
-              className={cn('px-3 py-1.5 rounded-full text-xs font-medium border transition-colors',
-                form.eventos.includes(ev.value) ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400')}>
-              {ev.label}
-            </button>
-          ))}
+        <label className="label mb-3">Eventos</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+          {EVENTOS_DISPONIBLES.map((ev) => {
+            const isChecked = form.eventos.includes(ev.value);
+            return (
+              <button
+                key={ev.value}
+                type="button"
+                onClick={() => toggle(ev.value)}
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30 shadow-[0_2px_10px_-4px_rgba(16,185,129,0.3)]' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'}`}
+              >
+                <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' : 'bg-white border-zinc-300'}`}>
+                  {isChecked && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                </div>
+                <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-zinc-700")}>{ev.label}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="grid grid-cols-3 gap-4">
@@ -112,7 +121,7 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
         </div>
         <div className="flex items-end pb-1">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="w-4 h-4 accent-zinc-900" checked={form.activo}
+            <input type="checkbox" className="checkbox" checked={form.activo}
               onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />
             <span className="text-sm text-zinc-700">Activo</span>
           </label>
@@ -248,7 +257,7 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
         <div className="space-y-3">
           {webhooks.map((wh) => (
             <div key={wh.id} className="card overflow-hidden">
-              <div className="px-5 py-4 flex items-center gap-4">
+              <div className="px-5 py-4 flex items-center gap-4 hover:bg-zinc-50/50 transition-colors">
                 <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', wh.activo ? 'bg-emerald-500' : 'bg-zinc-300')} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -258,12 +267,12 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
                   <p className="text-xs text-zinc-400 font-mono truncate mt-0.5">{wh.url}</p>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {wh.eventos.slice(0, 3).map((ev) => (
-                    <span key={ev} className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full">
+                  {wh.eventos.slice(0, 2).map((ev) => (
+                    <span key={ev} className="text-[10px] bg-zinc-100/80 border border-zinc-200 text-zinc-600 px-2 py-1 rounded-md font-medium tracking-wide">
                       {EVENTOS_DISPONIBLES.find((e) => e.value === ev)?.label ?? ev}
                     </span>
                   ))}
-                  {wh.eventos.length > 3 && <span className="text-[10px] text-zinc-400">+{wh.eventos.length - 3}</span>}
+                  {wh.eventos.length > 2 && <span className="text-[10px] bg-zinc-100/80 border border-zinc-200 text-zinc-500 font-bold px-2 py-1 rounded-md">+{wh.eventos.length - 2}</span>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button onClick={() => handleTest(wh.id)} disabled={testingId === wh.id} title="Enviar prueba"

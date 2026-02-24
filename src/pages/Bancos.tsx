@@ -157,7 +157,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                                 <th className="table-th w-20" />
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-100">
+                        <tbody className="divide-y divide-zinc-50">
                             {filtered.map((bank) => (
                                 <tr key={bank.id} className="table-tr">
                                     <td className="table-td">
@@ -239,7 +239,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                             <label className="flex items-center gap-2 cursor-pointer group">
                                 <input
                                     type="checkbox"
-                                    className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900"
+                                    className="checkbox"
                                     checked={form.activo}
                                     onChange={(e) => setForm({ ...form, activo: e.target.checked })}
                                 />

@@ -116,7 +116,7 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
           </div>
           <div className="flex items-end pb-1">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" className="w-4 h-4 accent-zinc-900" checked={form.activo} onChange={(e) => setField('activo', e.target.checked)} />
+              <input type="checkbox" className="checkbox" checked={form.activo} onChange={(e) => setField('activo', e.target.checked)} />
               <span className="text-sm text-zinc-700">Activa</span>
             </label>
           </div>

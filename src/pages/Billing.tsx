@@ -4,8 +4,9 @@ import { CreditCard, CheckCircle2, AlertCircle, TrendingUp, Zap } from 'lucide-r
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Modal } from '../components/ui/Modal';
-import { Badge } from '../components/ui/Badge';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useTenant } from '../contexts/TenantContext';
+import { useAuth } from '../contexts/AuthContext';
 import { BillingHistory } from './BillingHistory';
 import { api } from '../lib/api';
 import type { Plan, BillingUsage } from '../types';
@@ -39,50 +40,58 @@ function UsageBar({ value, max, label }: { value: number; max: number | null; la
 }
 
 function PlanCard({
-  plan, current, onSelect, selecting,
+  plan, current, onSelect, selecting, isSuperAdmin, onManualChange
 }: {
   plan: Plan;
   current: boolean;
   onSelect: (planId: string) => void;
   selecting: boolean;
+  isSuperAdmin?: boolean;
+  onManualChange?: (planId: string) => void;
 }) {
   const features = plan.features as Record<string, boolean | string | number>;
   return (
-    <div className={`card p-5 flex flex-col gap-4 ${current ? 'ring-2 ring-zinc-900' : ''}`}>
-      <div>
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="text-base font-bold text-zinc-900">{plan.nombre}</h3>
-          {current && <Badge variant="success" size="sm">Plan actual</Badge>}
+    <div className={`card p-6 flex flex-col gap-5 relative overflow-hidden transition-all duration-300 ${current ? 'ring-2 ring-emerald-500 shadow-md transform -translate-y-1' : 'hover:shadow-lg hover:-translate-y-0.5'}`}>
+      {current && (
+        <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg tracking-wider uppercase">
+          Plan Actual
         </div>
-        <p className="text-2xl font-bold text-zinc-900">{fmtGs(plan.precio_mensual_pyg)}</p>
-        <p className="text-xs text-zinc-400">/mes</p>
+      )}
+      <div className="mt-2">
+        <h3 className="text-lg font-bold text-zinc-900 tracking-tight mb-2">{plan.nombre}</h3>
+        <div className="flex items-end gap-1">
+          <p className="text-3xl font-extrabold text-zinc-900 tracking-tight">{fmtGs(plan.precio_mensual_pyg)}</p>
+          <p className="text-sm font-medium text-zinc-500 mb-1">/mes</p>
+        </div>
       </div>
 
       {plan.descripcion && (
-        <p className="text-xs text-zinc-500">{plan.descripcion}</p>
+        <p className="text-sm text-zinc-500 font-medium">{plan.descripcion}</p>
       )}
 
-      <div className="space-y-2 flex-1">
-        <div className="flex items-center gap-2 text-xs text-zinc-600">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-          <span>
+      <div className="divider" />
+
+      <div className="space-y-3 flex-1">
+        <div className="flex items-start gap-3 text-sm text-zinc-700">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+          <span className="font-medium">
             {plan.limite_comprobantes_mes == null
               ? 'Comprobantes ilimitados'
               : `Hasta ${plan.limite_comprobantes_mes.toLocaleString('es-PY')} comprobantes/mes`}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-xs text-zinc-600">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-          <span>Hasta {plan.limite_usuarios} usuario{plan.limite_usuarios !== 1 ? 's' : ''}</span>
+        <div className="flex items-start gap-3 text-sm text-zinc-700">
+          <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+          <span className="font-medium">Hasta {plan.limite_usuarios} usuario{plan.limite_usuarios !== 1 ? 's' : ''}</span>
         </div>
         {Object.entries(features).map(([key, val]) => (
-          <div key={key} className="flex items-center gap-2 text-xs text-zinc-600">
+          <div key={key} className="flex items-start gap-3 text-sm text-zinc-700">
             {val ? (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
             ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-zinc-300 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 text-zinc-300 flex-shrink-0 mt-0.5" />
             )}
-            <span className={val ? '' : 'text-zinc-400 line-through'}>
+            <span className={val ? 'font-medium' : 'text-zinc-400 line-through'}>
               {key.replace(/_/g, ' ')}
             </span>
           </div>
@@ -90,13 +99,24 @@ function PlanCard({
       </div>
 
       {!current && (
-        <button
-          onClick={() => onSelect(plan.id)}
-          disabled={selecting}
-          className="btn-sm btn-primary w-full"
-        >
-          {selecting ? <Spinner size="xs" /> : 'Cambiar a este plan'}
-        </button>
+        <div className="flex flex-col gap-3 w-full mt-auto pt-6">
+          <button
+            onClick={() => onSelect(plan.id)}
+            disabled={selecting}
+            className="btn-md btn-primary w-full shadow-md"
+          >
+            {selecting ? <Spinner size="xs" /> : 'Seleccionar plan'}
+          </button>
+          {isSuperAdmin && onManualChange && (
+            <button
+              onClick={() => onManualChange(plan.id)}
+              disabled={selecting}
+              className="text-[11px] text-zinc-400 hover:text-zinc-700 font-bold transition-colors text-center w-full uppercase tracking-wider"
+            >
+              Asignar (Super Admin)
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -120,6 +140,7 @@ function HistoryBar({ month, value, maxValue }: { month: string; value: number; 
 
 export function Billing({ toastSuccess, toastError }: BillingProps) {
   const { activeTenantId } = useTenant();
+  const { isSuperAdmin } = useAuth();
   const tenantId = activeTenantId ?? '';
 
   const [activeTab, setActiveTab] = useState<'plans' | 'history'>('plans');
@@ -129,6 +150,7 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
   const [selecting, setSelecting] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [confirmManualPlanId, setConfirmManualPlanId] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState<any>(null);
 
   const load = useCallback(async () => {
@@ -171,8 +193,27 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         const { process_id } = res.data;
         setCheckoutData({ method: 'vpos', process_id });
       }
-    } catch (err) {
-      toastError('Error al iniciar el pago');
+    } catch (err: any) {
+      toastError(err.message || 'Error al iniciar el pago');
+    } finally {
+      setSelecting(false);
+    }
+  };
+
+  const handleManualChangeClick = (planId: string) => {
+    setConfirmManualPlanId(planId);
+  };
+
+  const handleManualChangeConfirm = async () => {
+    if (!tenantId || !confirmManualPlanId) return;
+    setSelecting(true);
+    try {
+      await api.put(`/tenants/${tenantId}/billing/plan`, { plan_id: confirmManualPlanId });
+      toastSuccess('Plan asignado manualmente con éxito');
+      setConfirmManualPlanId(null);
+      void load();
+    } catch (err: any) {
+      toastError(err.message || 'Error al asignar el plan');
     } finally {
       setSelecting(false);
     }
@@ -185,6 +226,47 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
   const currentPlanId = usage?.plan?.id;
   const maxHistory = Math.max(...(usage?.historial ?? []).map((h) => h.comprobantes_procesados), 1);
 
+  const queryParams = new URLSearchParams(window.location.search);
+  const isSuccess = queryParams.get('success') === 'true';
+  const isCancel = queryParams.get('cancel') === 'true';
+  const paymentStatus = queryParams.get('status');
+
+  if (isSuccess || isCancel) {
+    return (
+      <div className="animate-fade-in flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        {isSuccess ? (
+          <>
+            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-zinc-900 mb-2">¡Pago Completado!</h2>
+            <p className="text-zinc-500 max-w-md mx-auto mb-8">
+              Tu suscripción se ha actualizado correctamente. {paymentStatus ? `Estado: ${paymentStatus}` : 'Los cambios ya están reflejados en tu cuenta.'}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="w-16 h-16 bg-zinc-100 text-zinc-600 rounded-full flex items-center justify-center mb-6">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h2 className="text-2xl font-bold text-zinc-900 mb-2">Pago Cancelado</h2>
+            <p className="text-zinc-500 max-w-md mx-auto mb-8">
+              El proceso de pago fue interrumpido. No se ha realizado ningún cobro.
+            </p>
+          </>
+        )}
+        <button
+          onClick={() => {
+            window.history.replaceState({}, '', '/#billing');
+            window.location.reload();
+          }}
+          className="btn-md btn-primary"
+        >
+          Volver a Planes
+        </button>
+      </div>
+    );
+  }
 
   if (!tenantId) {
     return (
@@ -223,26 +305,20 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         </div>
       )}
 
-      <div className="flex border-b border-zinc-100 mb-6 gap-6">
+      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
         <button
           onClick={() => setActiveTab('plans')}
-          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'plans' ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+          className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'plans' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
             }`}
         >
-          Planes y Uso
-          {activeTab === 'plans' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900" />
-          )}
+          Suscripciones y Uso
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === 'history' ? 'text-zinc-900' : 'text-zinc-400 hover:text-zinc-600'
+          className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'history' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
             }`}
         >
           Historial de Pagos
-          {activeTab === 'history' && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-zinc-900" />
-          )}
         </button>
       </div>
 
@@ -305,7 +381,9 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
                 plan={plan}
                 current={plan.id === currentPlanId}
                 onSelect={handleSelectPlan}
-                selecting={selecting}
+                selecting={selecting && confirmManualPlanId !== plan.id}
+                isSuperAdmin={isSuperAdmin}
+                onManualChange={handleManualChangeClick}
               />
             ))}
           </div>
@@ -345,13 +423,13 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
               <div className="min-h-[400px]">
                 <BancardIframe
                   processId={checkoutData.process_id}
-                  onSuccess={() => {
-                    setShowCheckout(false);
-                    toastSuccess('Pago procesado correctamente');
-                    void load();
-                  }}
-                  onError={() => {
-                    toastError('Error al procesar el pago');
+                  enviroment="Staging"
+                  options={{
+                    handler: () => {
+                      setShowCheckout(false);
+                      toastSuccess('Pago procesado. Si fue exitoso, el plan se activará en breve.');
+                      void load();
+                    }
                   }}
                 />
               </div>
@@ -368,6 +446,18 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
           </div>
         )}
       </Modal>
+
+      {confirmManualPlanId && (
+        <ConfirmDialog
+          open={!!confirmManualPlanId}
+          onClose={() => setConfirmManualPlanId(null)}
+          onConfirm={handleManualChangeConfirm}
+          title="Cambiar plan manualmente"
+          description="¿Estás seguro de que quieres asignar este plan manualmente sin cobrar? Esta acción se aplicará de inmediato."
+          confirmLabel="Sí, cambiar plan"
+          loading={selecting}
+        />
+      )}
     </div>
   );
 }
