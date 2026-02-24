@@ -23,6 +23,7 @@ interface AuthContextValue {
     favicon_url: string;
   };
   refreshBranding: () => Promise<void>;
+  billingStatus: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [loading, setLoading] = useState(true);
   const [branding, setBranding] = useState(DEFAULT_BRANDING);
+  const [billingStatus, setBillingStatus] = useState<'ACTIVE' | 'PAST_DUE' | 'CANCELED' | null>(null);
 
   const refreshBranding = useCallback(async () => {
     try {
@@ -89,8 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${t}` },
       });
       if (!res.ok) throw new Error('Token inválido');
-      const data = await res.json() as { data: Usuario };
+      const data = await res.json() as { data: Usuario & { billing_status?: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' } };
       setUser(data.data);
+      if (data.data.billing_status) setBillingStatus(data.data.billing_status);
     } catch {
       localStorage.removeItem(TOKEN_KEY);
       setToken(null);
@@ -128,11 +131,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const body = await res.json() as { error?: string };
       throw new Error(body.error ?? 'Error al iniciar sesión');
     }
-    const data = await res.json() as { data: { token: string; usuario: Usuario } };
+    const data = await res.json() as { data: { token: string; usuario: Usuario & { billing_status?: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' } } };
     const { token: newToken, usuario } = data.data;
     localStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
     setUser(usuario);
+    if (usuario.billing_status) setBillingStatus(usuario.billing_status);
   };
 
   const logout = async () => {
@@ -166,7 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user, token, loading, login, logout,
       hasPermission, isSuperAdmin, isAdminEmpresa,
       isUsuarioEmpresa, isReadonly, userTenantId,
-      branding, refreshBranding
+      branding, refreshBranding, billingStatus
     }}>
       {children}
     </AuthContext.Provider>

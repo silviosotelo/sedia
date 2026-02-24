@@ -24,6 +24,7 @@ import { Procesadoras } from './pages/Procesadoras';
 import { CuentasBancarias } from './pages/CuentasBancarias';
 import { Bancos } from './pages/Bancos';
 import { Login } from './pages/Login';
+import { PublicInvoice } from './pages/PublicInvoice';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
 import { useToast } from './hooks/useToast';
@@ -235,6 +236,12 @@ function AppInner() {
 }
 
 export default function App() {
+  const path = window.location.pathname;
+  if (path.startsWith('/public/invoice/')) {
+    const hash = path.split('/').pop() || '';
+    return <PublicInvoice invoiceHash={hash} />;
+  }
+
   return (
     <AuthProvider>
       <TenantProvider>

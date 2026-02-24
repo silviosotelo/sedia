@@ -6,7 +6,7 @@ import {
   insertMatches,
   findProcessorLotesByPeriod,
 } from '../db/repositories/bank.repository';
-import { ReconciliationMatch, Comprobante } from '../types';
+import { Comprobante } from '../types';
 import { logger } from '../config/logger';
 
 interface MatchCandidate {
@@ -153,19 +153,77 @@ export async function ejecutarConciliacion(runId: string): Promise<void> {
       monto: Number(tx.monto),
       descripcion: tx.descripcion,
       referencia: tx.referencia,
+      canal: tx.canal,
     }));
+
+    // --- AUTO-CLASIFICACIÓN Y ETIQUETADO ---
+    // Buscar reglas aplicables a 'bank_transaction'
+    const reglasBancarias = await query<any>(
+      `SELECT * FROM clasificacion_reglas 
+       WHERE tenant_id = $1 AND entidad_objetivo = 'bank_transaction' AND activo = true
+       ORDER BY prioridad DESC`,
+      [run.tenant_id]
+    );
+
+    const txsAEnlazar = [];
+    const txEtiquetadasIds = new Set<string>();
+
+    if (reglasBancarias.length > 0) {
+      for (const tx of bankTxs) {
+        let clasificada = false;
+        const targetDesc = (tx.descripcion || '').toLowerCase();
+        const targetRef = (tx.referencia || '').toLowerCase();
+
+        for (const regla of reglasBancarias) {
+          const valorRule = String(regla.valor).toLowerCase();
+          let matched = false;
+          let targetValue = '';
+
+          if (regla.campo === 'descripcion_bancaria') targetValue = targetDesc;
+          if (regla.campo === 'referencia_bancaria') targetValue = targetRef;
+
+          if (regla.operador === 'contains' && targetValue.includes(valorRule)) matched = true;
+          if (regla.operador === 'equals' && targetValue === valorRule) matched = true;
+          if (regla.operador === 'starts_with' && targetValue.startsWith(valorRule)) matched = true;
+
+          if (matched) {
+            try {
+              // Insertar etiqueta
+              await query(
+                `INSERT INTO bank_transaction_etiquetas(bank_transaction_id, tenant_id, etiqueta, color, regla_id)
+VALUES($1, $2, $3, $4, $5)
+                 ON CONFLICT DO NOTHING`,
+                [tx.id, run.tenant_id, regla.etiqueta, regla.color, regla.id]
+              );
+              clasificada = true;
+              break; // Aplica solo la regla de mayor prioridad (ya viene ordenado DESC)
+            } catch (err) {
+              logger.error('Error aplicando etiqueta a tx banco', { error: err instanceof Error ? err.message : 'Unknown error' });
+            }
+          }
+        }
+
+        // Si no es un gasto bancario genérico/automatizado, lo pasamos al pool de linkeo
+        // (idealmente las reglas podrían tener un flag 'is_final_expense' para obviar conciliacion contra libro)
+        txsAEnlazar.push(tx);
+        if (clasificada) txEtiquetadasIds.add(tx.id);
+      }
+    } else {
+      txsAEnlazar.push(...bankTxs);
+    }
+    // --- FIN AUTO-CLASIFICACIÓN ---
 
     const comprobantes = await query<Comprobante>(
       `SELECT * FROM comprobantes
        WHERE tenant_id = $1
          AND fecha_emision BETWEEN $2 AND $3
-         AND tipo_comprobante NOT IN ('NOTA_CREDITO', 'NOTA_DEBITO')`,
+         AND tipo_comprobante NOT IN('NOTA_CREDITO', 'NOTA_DEBITO')`,
       [run.tenant_id, run.periodo_desde, run.periodo_hasta]
     );
 
     const candidatesExacto = await matchExacto(
       run.tenant_id,
-      bankTxs,
+      txsAEnlazar,
       comprobantes,
       toleranciaMonto,
       toleranciaDias
@@ -174,7 +232,7 @@ export async function ejecutarConciliacion(runId: string): Promise<void> {
     const processorLotes = await findProcessorLotesByPeriod(run.tenant_id, run.periodo_desde, run.periodo_hasta);
     const candidatesLotes = await matchPorLoteProcessador(
       run.tenant_id,
-      bankTxs,
+      txsAEnlazar,
       processorLotes,
       toleranciaMonto,
       toleranciaDias
@@ -185,7 +243,7 @@ export async function ejecutarConciliacion(runId: string): Promise<void> {
     const matchedBankIds = new Set(allCandidates.map((c) => c.bankTxId));
     const matchedCompIds = new Set(candidatesExacto.map((c) => c.internalRefId));
 
-    const matches: Omit<ReconciliationMatch, 'id' | 'created_at'>[] = allCandidates.map((c) => ({
+    const matchesData = allCandidates.map((c) => ({
       run_id: runId,
       tenant_id: run.tenant_id,
       bank_transaction_id: c.bankTxId,
@@ -201,14 +259,47 @@ export async function ejecutarConciliacion(runId: string): Promise<void> {
       confirmado_at: null,
     }));
 
-    await insertMatches(matches);
+    const insertedMatches = await insertMatches(matchesData);
+
+    // Insert allocations for each match if it has an internal_ref_id
+    if (insertedMatches && insertedMatches.length > 0) {
+      for (const match of insertedMatches) {
+        if (match.internal_ref_type === 'comprobante' && match.internal_ref_id) {
+          // Buscamos la transacción bancaria para ver el monto total
+          const tx = bankTxs.find(t => t.id === match.bank_transaction_id);
+          if (tx) {
+            await query(
+              `INSERT INTO reconciliation_allocations(match_id, comprobante_id, monto_asignado)
+VALUES($1, $2, $3) ON CONFLICT DO NOTHING`,
+              [match.id, match.internal_ref_id, Math.abs(tx.monto)]
+            );
+          }
+        }
+      }
+    }
 
     const totalBankTxs = bankTxs.length;
+
+    // Anomaly Detection: Revisar diferencias altas inter-matches (> 5.000 Gs)
+    for (const match of matchesData) {
+      if (match.tipo_match === 'EXACTO' && match.diferencia_monto > 5000 && match.internal_ref_id) {
+        try {
+          await query(
+            `INSERT INTO anomaly_detections(tenant_id, comprobante_id, tipo, severidad, descripcion, detalles)
+VALUES($1, $2, $3, $4, $5, $6)
+              ON CONFLICT(comprobante_id, tipo) WHERE estado = 'ACTIVA' DO NOTHING`,
+            [run.tenant_id, match.internal_ref_id, 'MONTO_INUSUAL', 'ALTA', `Diferencia de monto de Gs ${match.diferencia_monto} en conciliación bancaria`, JSON.stringify({ match_id: match.bank_transaction_id })]
+          );
+        } catch (e) { }
+      }
+    }
+
     const summary = {
       total_banco: totalBankTxs,
       total_comprobantes: comprobantes.length,
+      clasificados_reglas: txEtiquetadasIds.size,
       conciliados: matchedBankIds.size,
-      no_conciliados_banco: totalBankTxs - matchedBankIds.size,
+      no_conciliados_banco: totalBankTxs - matchedBankIds.size - txEtiquetadasIds.size,
       no_conciliados_libro: comprobantes.filter((c) => !matchedCompIds.has(c.id)).length,
       monto_conciliado: Array.from(matchedBankIds).reduce((acc, bankId) => {
         const tx = bankTxs.find((t) => t.id === bankId);

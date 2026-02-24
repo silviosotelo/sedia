@@ -452,7 +452,7 @@ export type AuditAccion =
   | 'SYNC_MANUAL' | 'CONFIG_UPDATE' | 'USUARIO_CREADO' | 'USUARIO_MODIFICADO'
   | 'WEBHOOK_CREADO' | 'API_TOKEN_CREADO' | 'API_TOKEN_REVOCADO'
   | 'BANCO_EXTRACTO_IMPORTADO' | 'CONCILIACION_INICIADA' | 'MATCH_CONFIRMADO'
-  | 'PLAN_CAMBIADO' | 'WL_CONFIG_ACTUALIZADA';
+  | 'MATCH_MANUAL_CREADO' | 'PLAN_CAMBIADO' | 'WL_CONFIG_ACTUALIZADA';
 
 export interface AuditLogEntry {
   id: string;
@@ -511,7 +511,7 @@ export interface ForecastResult {
 
 // ─── Extended Job Types ───────────────────────────────────────────────────────
 
-export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA' | 'IMPORTAR_PROCESADOR' | 'SYNC_BANCO_PORTAL';
+export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA' | 'IMPORTAR_PROCESADOR' | 'SYNC_BANCO_PORTAL' | 'EMITIR_SIFEN' | 'CONSULTAR_SIFEN' | 'SEND_INVOICE_EMAIL';
 
 export interface BankConnection {
   id: string;

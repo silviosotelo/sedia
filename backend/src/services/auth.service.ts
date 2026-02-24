@@ -32,6 +32,7 @@ export interface UsuarioConRol extends UsuarioRow {
   permisos: string[];
   tenant_nombre?: string;
   plan_features: Record<string, any>;
+  billing_status?: 'ACTIVE' | 'PAST_DUE' | 'CANCELED';
 }
 
 export function hashPassword(password: string): string {
@@ -67,18 +68,20 @@ export async function findUsuarioById(id: string): Promise<UsuarioRow | null> {
 }
 
 export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null> {
-  const row = await queryOne<UsuarioRow & { rol_nombre: string; rol_descripcion: string; rol_nivel: number; rol_es_sistema: boolean; tenant_nombre: string }>(
+  const row = await queryOne<UsuarioRow & { rol_nombre: string; rol_descripcion: string; rol_nivel: number; rol_es_sistema: boolean; tenant_nombre: string; billing_status: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | null }>(
     `SELECT u.*,
             r.nombre as rol_nombre,
             r.descripcion as rol_descripcion,
             r.nivel as rol_nivel,
             r.es_sistema as rol_es_sistema,
             t.nombre_fantasia as tenant_nombre,
-            p.features as plan_features
+            p.features as plan_features,
+            bs.status as billing_status
      FROM usuarios u
      JOIN roles r ON r.id = u.rol_id
      LEFT JOIN tenants t ON t.id = u.tenant_id
      LEFT JOIN plans p ON p.id = t.plan_id
+     LEFT JOIN billing_subscriptions bs ON bs.tenant_id = u.tenant_id
      WHERE u.id = $1`,
     [id]
   );
@@ -103,6 +106,7 @@ export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null
     permisos: permisos.map((p) => `${p.recurso}:${p.accion}`),
     tenant_nombre: row.tenant_nombre,
     plan_features: (row as any).plan_features || {},
+    billing_status: row.billing_status ?? undefined,
   };
 }
 

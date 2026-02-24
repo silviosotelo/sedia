@@ -464,6 +464,11 @@ export const api = {
         method: 'PATCH', body: JSON.stringify(body),
       }).then((r) => r.data),
 
+    manualMatch: (tenantId: string, runId: string, body: { bank_transaction_id: string; allocations: { comprobante_id: string; monto_asignado: number }[]; notas?: string }): Promise<{ match_id: string }> =>
+      request<{ match_id: string }>(`/tenants/${tenantId}/reconciliation-runs/${runId}/matches/manual`, {
+        method: 'POST', body: JSON.stringify(body),
+      }),
+
     listProcessors: (tenantId: string): Promise<PaymentProcessor[]> =>
       request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/banks/processors`).then((r) => r.data ?? []),
 
@@ -600,4 +605,9 @@ export const api = {
   put: (url: string, body?: any) => request<any>(url, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: (url: string) => request<any>(url, { method: 'DELETE' }),
   patch: (url: string, body?: any) => request<any>(url, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+
+  public: {
+    getInvoice: (hash: string): Promise<Comprobante & { tenant_nombre: string; tenant_ruc: string }> =>
+      request<{ data: Comprobante & { tenant_nombre: string; tenant_ruc: string } }>(`/public/invoice/${hash}`).then(r => r.data),
+  },
 };

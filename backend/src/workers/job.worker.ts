@@ -2,6 +2,8 @@ import { claimNextPendingJobTransaction, markJobDone, markJobFailed } from '../d
 import { SyncService } from '../services/sync.service';
 import { procesarImportacion } from '../services/processorImport.service';
 import { ejecutarConciliacion } from '../services/reconciliation.service';
+import { handleEmitirSifen } from './sifen.worker';
+import { enviarFacturaEmail } from '../services/notification.service';
 import { logger } from '../config/logger';
 import { Job, SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload, ReconciliarCuentaJobPayload, ImportarProcesadorJobPayload } from '../types';
 
@@ -44,6 +46,16 @@ async function processJob(job: Job): Promise<void> {
     case 'IMPORTAR_PROCESADOR': {
       const payload = job.payload as unknown as ImportarProcesadorJobPayload;
       await procesarImportacion(job.tenant_id, payload);
+      break;
+    }
+    case 'EMITIR_SIFEN': {
+      await handleEmitirSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SEND_INVOICE_EMAIL': {
+      const payload = job.payload as any;
+      const success = await enviarFacturaEmail(payload);
+      if (!success) throw new Error('Falló el envío de correo de la factura');
       break;
     }
     default: {

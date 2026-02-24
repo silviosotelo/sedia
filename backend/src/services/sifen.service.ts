@@ -26,15 +26,28 @@ export const sifenService = {
     try {
       logger.info(`Iniciando procesamiento SIFEN para factura ${invoiceId}`);
 
-      // 1. Obtener Configuración (debería venir de system_settings o similar)
+      // 1. Obtener Configuración Dinámica del Tenant
+      const { queryOne } = require('../db/connection');
+      const tenantConfig = await queryOne(
+        `SELECT t.ruc, t.nombre_fantasia, tc.extra_config 
+         FROM tenants t 
+         JOIN tenant_config tc ON tc.tenant_id = t.id 
+         WHERE tc.tenant_id = $1`,
+        [data.tenantId]
+      );
+
+      if (!tenantConfig) {
+        throw new Error('Configuración de SIFEN no encontrada para este tenant');
+      }
+
       const config: SifenConfig = {
-        ruc: '80000000',
-        dv: '7',
-        razon_social: 'Empresa Test',
-        certificado_path: path.join(process.cwd(), 'certs', 'certificate.p12'),
-        passphrase: 'password',
-        ambiente: '2', // Staging
-        id_seg: '1'
+        ruc: tenantConfig.ruc.split('-')[0], // ej: 80000000
+        dv: tenantConfig.ruc.split('-')[1] || '0', // ej: 7
+        razon_social: tenantConfig.nombre_fantasia,
+        certificado_path: tenantConfig.extra_config?.sifen_cert_path || path.join(process.cwd(), 'certs', 'certificate.p12'),
+        passphrase: tenantConfig.extra_config?.sifen_passphrase || 'password', // Idealmente descifrar
+        ambiente: tenantConfig.extra_config?.sifen_ambiente || '2', // 2: Test
+        id_seg: tenantConfig.extra_config?.sifen_id_seg || '1'
       };
 
       // 2. Generar XML DE
