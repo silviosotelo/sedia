@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-extra';
 import UserPreferencesPlugin from 'puppeteer-extra-plugin-user-preferences';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser, Page } from 'puppeteer';
 
 puppeteer.use(UserPreferencesPlugin({
@@ -9,6 +10,8 @@ puppeteer.use(UserPreferencesPlugin({
     'credentials_enable_autosign': false,
   },
 }));
+puppeteer.use(StealthPlugin());
+
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { TenantConfig } from '../types';

@@ -15,7 +15,7 @@ services:
     networks:
       - set-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,7 +41,7 @@ services:
     networks:
       - set-network
     restart: unless-stopped
-    command: ["node", "dist/main.js"]
+    command: [ "node", "dist/main.js" ]
 
   worker:
     build:
@@ -63,7 +63,7 @@ services:
     networks:
       - set-network
     restart: unless-stopped
-    command: ["node", "dist/worker.js"]
+    command: [ "node", "dist/worker.js" ]
     deploy:
       resources:
         limits:
@@ -75,6 +75,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://saas.rohekawebservices.online/api}
+        VITE_MOCK_MODE: ${VITE_MOCK_MODE:-false}
     container_name: set-comprobantes-frontend
     expose:
       - "80"
@@ -128,7 +131,7 @@ services:
         condition: service_healthy
     networks:
       - set-network
-    command: ["node", "-e", "require('ts-node').register(); require('./src/db/migrate.ts');"]
+    command: [ "node", "-e", "require('ts-node').register(); require('./src/db/migrate.ts');" ]
     profiles:
       - migrate
 
@@ -136,6 +139,7 @@ volumes:
   postgres_data:
   certbot_www:
   certbot_conf:
+
 
 networks:
   set-network:

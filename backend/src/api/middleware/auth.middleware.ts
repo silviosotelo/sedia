@@ -52,6 +52,7 @@ export function assertTenantAccess(request: FastifyRequest, reply: FastifyReply,
   }
   if (u.rol.nombre === 'super_admin') return true;
   if (u.tenant_id !== tenantId) {
+    console.log(`assertTenantAccess failed: u.tenant_id = ${u.tenant_id}, tenantId = ${tenantId}`);
     reply.status(403).send({ error: 'Acceso denegado: este recurso no pertenece a tu empresa' });
     return false;
   }

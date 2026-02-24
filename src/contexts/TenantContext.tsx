@@ -59,12 +59,27 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         }
     }, [activeTenantIdState, isSuperAdmin]);
 
-    // Handle default selection if not selected and list loaded
+    // Ensure normal users get their tenant assigned once auth finishes
     useEffect(() => {
-        if (!activeTenantIdState && tenants.length > 0) {
-            setActiveTenantIdState(tenants[0].id);
+        if (!isSuperAdmin && userTenantId && activeTenantIdState !== userTenantId) {
+            setActiveTenantIdState(userTenantId);
         }
-    }, [tenants, activeTenantIdState]);
+    }, [isSuperAdmin, userTenantId, activeTenantIdState]);
+
+    // Handle default selection if not selected and list loaded, or if cached ID is invalid
+    useEffect(() => {
+        if (tenants.length > 0) {
+            if (!activeTenantIdState) {
+                setActiveTenantIdState(tenants[0].id);
+            } else {
+                const exists = tenants.some(t => t.id === activeTenantIdState);
+                if (!exists) {
+                    const userTenantExists = tenants.some(t => t.id === userTenantId);
+                    setActiveTenantIdState(userTenantExists && userTenantId ? userTenantId : tenants[0].id);
+                }
+            }
+        }
+    }, [tenants, activeTenantIdState, userTenantId]);
 
     const activeTenant = useMemo(() => {
         if (!activeTenantIdState) return null;

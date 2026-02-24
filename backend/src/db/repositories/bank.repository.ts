@@ -408,22 +408,25 @@ export async function findRunById(runId: string): Promise<ReconciliationRun | nu
 
 // ─── Reconciliation Matches ───────────────────────────────────────────────────
 
-export async function insertMatches(matches: Omit<ReconciliationMatch, 'id' | 'created_at'>[]): Promise<void> {
+export async function insertMatches(matches: Omit<ReconciliationMatch, 'id' | 'created_at'>[]): Promise<ReconciliationMatch[]> {
+  const inserted: ReconciliationMatch[] = [];
   for (const m of matches) {
-    await query(
+    const res = await query<ReconciliationMatch>(
       `INSERT INTO reconciliation_matches
          (run_id, tenant_id, bank_transaction_id, processor_transaction_id,
           internal_ref_type, internal_ref_id, tipo_match,
           diferencia_monto, diferencia_dias, estado, notas)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT DO NOTHING RETURNING *`,
       [
         m.run_id, m.tenant_id, m.bank_transaction_id ?? null, m.processor_transaction_id ?? null,
         m.internal_ref_type ?? null, m.internal_ref_id ?? null, m.tipo_match ?? null,
         m.diferencia_monto, m.diferencia_dias, m.estado, m.notas ?? null,
       ]
     );
+    if (res[0]) inserted.push(res[0]);
   }
+  return inserted;
 }
 
 export async function findMatchesByRun(
@@ -480,7 +483,6 @@ export async function upsertProcessorConnection(
   let credsEncrypted: Record<string, string> = {};
   if (data.credenciales_plain) {
     for (const [k, v] of Object.entries(data.credenciales_plain)) {
-      // Only encrypt true strings, fall back or encrypt properly
       credsEncrypted[k] = encrypt(v);
     }
   }

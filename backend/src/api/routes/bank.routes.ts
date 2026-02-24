@@ -24,6 +24,7 @@ import { createJob } from '../../db/repositories/job.repository';
 import { storageService } from '../../services/storage.service';
 import { logAudit } from '../../services/audit.service';
 import { checkFeature } from '../../services/billing.service';
+import { query } from '../../db/connection';
 
 export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -289,6 +290,53 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.send({ success: true });
+  });
+
+  app.post<{
+    Params: { id: string; rid: string };
+    Body: { bank_transaction_id: string; allocations: { comprobante_id: string; monto_asignado: number }[], notas?: string };
+  }>('/tenants/:id/reconciliation-runs/:rid/matches/manual', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+    const { bank_transaction_id, allocations, notas } = req.body;
+
+    if (!bank_transaction_id || !allocations || allocations.length === 0) {
+      return reply.status(400).send({ error: 'Faltan datos para el match manual (bank_transaction_id o allocations)' });
+    }
+
+    // Calcula la diferencia de monto. Asumimos diferencia_monto 0 o parcial según lo que envíe el cliente.
+    // Para simplificar, la UI puede pasar la validación y el backend solo guarda.
+    const total_asignado = allocations.reduce((acc, a) => acc + a.monto_asignado, 0);
+
+    const rows = await query<any>(
+      `INSERT INTO reconciliation_matches
+         (run_id, tenant_id, bank_transaction_id, tipo_match, diferencia_monto, diferencia_dias, estado, confirmado_por, confirmado_at, notas)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+       RETURNING id`,
+      [req.params.rid, req.params.id, bank_transaction_id, 'MANUAL', 0, 0, 'CONFIRMADO', req.currentUser?.id, notas ?? null]
+    );
+
+    const matchId = rows[0]?.id;
+    if (!matchId) return reply.status(500).send({ error: 'No se pudo crear el match manual' });
+
+    for (const alloc of allocations) {
+      await query(
+        `INSERT INTO reconciliation_allocations (match_id, comprobante_id, monto_asignado)
+            VALUES ($1, $2, $3)`,
+        [matchId, alloc.comprobante_id, alloc.monto_asignado]
+      );
+    }
+
+    logAudit({
+      tenant_id: req.params.id,
+      usuario_id: req.currentUser?.id,
+      accion: 'MATCH_MANUAL_CREADO',
+      entidad_tipo: 'reconciliation_match',
+      entidad_id: matchId,
+      ip_address: req.ip,
+      detalles: { bank_transaction_id, total_asignado, count: allocations.length },
+    });
+
+    return reply.status(201).send({ success: true, match_id: matchId });
   });
 
   // ─── Payment Processors ─────────────────────────────────────────────────────

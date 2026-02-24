@@ -27,8 +27,24 @@ async function getTenantPlan(tenantId: string): Promise<TenantPlanInfo> {
 }
 
 export async function checkFeature(tenantId: string, feature: string): Promise<boolean> {
+  // Check if any active addon has this feature
+  const addonWithFeature = await queryOne<{ id: string }>(
+    `SELECT ta.id 
+     FROM tenant_addons ta
+     JOIN addons a ON a.id = ta.addon_id
+     WHERE ta.tenant_id = $1 
+       AND ta.status = 'ACTIVE' 
+       AND (ta.activo_hasta IS NULL OR ta.activo_hasta > NOW())
+       AND a.features->>$2 = 'true'`,
+    [tenantId, feature]
+  );
+
+  if (addonWithFeature) return true;
+
+  // Fallback to base plan
   const { plan } = await getTenantPlan(tenantId);
   if (!plan) return true; // Sin plan asignado → acceso libre (setup inicial)
+
   const features = plan.features as Record<string, unknown>;
   return features[feature] === true;
 }

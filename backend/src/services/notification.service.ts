@@ -18,6 +18,15 @@ interface NotifContext {
   metadata?: Record<string, unknown>;
 }
 
+export interface FacturaEmailContext {
+  tenantId: string;
+  comprobanteId: string;
+  hash: string;
+  emailCliente: string;
+  nombreCliente: string;
+  urlBase: string; // The URL of the public invoice, e.g. https://app.sedia.com
+}
+
 interface SmtpConfig {
   host: string;
   port: number;
@@ -57,24 +66,24 @@ function getSmtpConfig(extra: ExtraConfig): SmtpConfig | null {
 
 function isEventoHabilitado(evento: EventoNotificacion, extra: ExtraConfig): boolean {
   switch (evento) {
-    case 'SYNC_OK':   return extra.notif_sync_ok ?? false;
+    case 'SYNC_OK': return extra.notif_sync_ok ?? false;
     case 'SYNC_FAIL': return extra.notif_sync_fail ?? true;
-    case 'XML_FAIL':  return extra.notif_xml_fail ?? true;
+    case 'XML_FAIL': return extra.notif_xml_fail ?? true;
     case 'JOB_STUCK': return extra.notif_job_stuck ?? true;
     case 'ORDS_FAIL': return extra.notif_sync_fail ?? true;
-    case 'TEST':      return true;
-    default:          return false;
+    case 'TEST': return true;
+    default: return false;
   }
 }
 
 function buildSubject(evento: EventoNotificacion, tenantNombre: string): string {
   const subjects: Record<EventoNotificacion, string> = {
-    SYNC_OK:   `[${tenantNombre}] Sincronizacion completada exitosamente`,
+    SYNC_OK: `[${tenantNombre}] Sincronizacion completada exitosamente`,
     SYNC_FAIL: `[${tenantNombre}] Error en sincronizacion de comprobantes`,
-    XML_FAIL:  `[${tenantNombre}] Error al descargar XMLs de eKuatia`,
+    XML_FAIL: `[${tenantNombre}] Error al descargar XMLs de eKuatia`,
     JOB_STUCK: `[${tenantNombre}] Job bloqueado detectado`,
     ORDS_FAIL: `[${tenantNombre}] Error al enviar comprobantes a ORDS`,
-    TEST:      `[${tenantNombre}] Prueba de configuracion SMTP`,
+    TEST: `[${tenantNombre}] Prueba de configuracion SMTP`,
   };
   return subjects[evento];
 }
@@ -87,12 +96,12 @@ function buildHtml(
   const now = new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion' });
 
   const colorMap: Record<EventoNotificacion, { bg: string; border: string; icon: string; title: string }> = {
-    SYNC_OK:   { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'Sincronizacion Exitosa' },
+    SYNC_OK: { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'Sincronizacion Exitosa' },
     SYNC_FAIL: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Error en Sincronizacion' },
-    XML_FAIL:  { bg: '#fff7ed', border: '#ea580c', icon: '&#9888;',  title: 'Error en Descarga de XML' },
-    JOB_STUCK: { bg: '#fefce8', border: '#ca8a04', icon: '&#9679;',  title: 'Job Bloqueado' },
+    XML_FAIL: { bg: '#fff7ed', border: '#ea580c', icon: '&#9888;', title: 'Error en Descarga de XML' },
+    JOB_STUCK: { bg: '#fefce8', border: '#ca8a04', icon: '&#9679;', title: 'Job Bloqueado' },
     ORDS_FAIL: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Error al Enviar a ORDS' },
-    TEST:      { bg: '#eff6ff', border: '#2563eb', icon: '&#9993;',  title: 'Prueba de Configuracion' },
+    TEST: { bg: '#eff6ff', border: '#2563eb', icon: '&#9993;', title: 'Prueba de Configuracion' },
   };
 
   const c = colorMap[evento];
@@ -382,4 +391,81 @@ export async function getNotificationLog(
     ),
   ]);
   return { data: rows, total: Number(countRow?.count ?? 0) };
+}
+
+export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<boolean> {
+  try {
+    const [tenant, config] = await Promise.all([
+      findTenantById(ctx.tenantId),
+      findTenantConfig(ctx.tenantId),
+    ]);
+
+    if (!tenant || !tenant.activo) return false;
+    if (!config) return false;
+
+    const extra = (config.extra_config ?? {}) as ExtraConfig;
+    const smtp = getSmtpConfig(extra);
+    if (!smtp) {
+      logger.warn('SMTP no configurado para tenant. No se puede enviar factura.', { tenantId: ctx.tenantId });
+      return false;
+    }
+
+    const asunto = `Factura Electrónica - ${tenant.nombre_fantasia}`;
+    const publicUrl = `${ctx.urlBase}/public/invoice/${ctx.hash}`;
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body style="margin:0;padding:20px;font-family:sans-serif;color:#333;">
+  <div style="max-width:600px;margin:0 auto;border:1px solid #ddd;border-radius:8px;padding:20px;">
+    <h2 style="color:#2563eb;">Factura Electrónica</h2>
+    <p>Hola <strong>${ctx.nombreCliente}</strong>,</p>
+    <p>Le informamos que se ha generado un nuevo comprobante electrónico de <strong>${tenant.nombre_fantasia}</strong> a su nombre.</p>
+    <p>Puede visualizar y descargar su factura en formato PDF (KUDE) o XML ingresando al siguiente enlace de forma segura:</p>
+    <div style="text-align:center;margin:30px 0;">
+      <a href="${publicUrl}" style="background-color:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;">Ver Comprobante</a>
+    </div>
+    <p style="font-size:12px;color:#777;border-top:1px solid #eee;padding-top:10px;margin-top:20px;">
+      Este comprobante fue emitido a través de SEDIA - Sistema de Facturación Electrónica.<br>
+      Por favor no responda a este correo.
+    </p>
+  </div>
+</body>
+</html>`;
+
+    const isSecure = smtp.secure === true || smtp.port === 465;
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: isSecure,
+      auth: {
+        user: smtp.user,
+        pass: smtp.password,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"${smtp.fromName}" <${smtp.from}>`,
+      to: ctx.emailCliente,
+      subject: asunto,
+      html,
+    });
+
+    await logNotification({
+      tenantId: ctx.tenantId,
+      evento: 'TEST' as any, // TODO: Use a real EventoNotificacion if needed
+      destinatario: ctx.emailCliente,
+      asunto,
+      estado: 'SENT',
+      metadata: { comprobanteId: ctx.comprobanteId, hash: ctx.hash },
+      sentAt: new Date(),
+    });
+
+    return true;
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error('Error enviando factura por email', { error: msg, ctx });
+    return false;
+  }
 }

@@ -25,6 +25,7 @@ import { systemRoutes } from './routes/system.routes';
 import { roleRoutes } from './routes/role.routes';
 import { webhookBillingRoutes } from './routes/webhook-billing.routes';
 import { sifenRoutes } from './routes/sifen.routes';
+import { publicRoutes } from './routes/public.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -89,6 +90,7 @@ export async function buildServer() {
   await app.register(roleRoutes, { prefix: '/api' });
   await app.register(webhookBillingRoutes, { prefix: '/api' });
   await app.register(sifenRoutes, { prefix: '/api' });
+  await app.register(publicRoutes); // No lleva prefijo /api porque es público
 
   logger.info('Servidor Fastify configurado');
   return app;

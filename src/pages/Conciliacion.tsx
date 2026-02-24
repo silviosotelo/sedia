@@ -6,7 +6,7 @@ import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { EmptyState } from '../components/ui/EmptyState';
-import type { BankAccount, ReconciliationRun, ReconciliationMatch } from '../types';
+import type { BankAccount, ReconciliationRun, ReconciliationMatch, Comprobante } from '../types';
 
 function fmtGs(n: number) {
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(n);
@@ -97,6 +97,129 @@ function RunModal({
   );
 }
 
+// ─── ManualMatchModal ────────────────────────────────────────────────────────
+
+function ManualMatchModal({
+  tenantId, runId, matchDoc, onClose, onSuccess, toastError,
+}: {
+  tenantId: string;
+  runId: string;
+  matchDoc: ReconciliationMatch;
+  onClose: () => void;
+  onSuccess: () => void;
+  toastError: (msg: string) => void;
+}) {
+  const [comprobantes, setComprobantes] = useState<Comprobante[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [allocations, setAllocations] = useState<{ comprobante_id: string; monto: number }[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      try {
+        const res = await api.comprobantes.list(tenantId, { limit: 50 });
+        setComprobantes(res.data);
+      } catch { }
+      finally { setLoading(false); }
+    })();
+  }, [tenantId]);
+
+  const toggleInvoice = (c: Comprobante) => {
+    if (allocations.find((a) => a.comprobante_id === c.id)) {
+      setAllocations(allocations.filter((a) => a.comprobante_id !== c.id));
+    } else {
+      setAllocations([...allocations, { comprobante_id: c.id, monto: Number(c.total_operacion) || 0 }]);
+    }
+  };
+
+  const updateAmount = (id: string, montoStr: string) => {
+    const val = parseFloat(montoStr) || 0;
+    setAllocations(allocations.map((a) => a.comprobante_id === id ? { ...a, monto: val } : a));
+  };
+
+  const handleSave = async () => {
+    if (allocations.length === 0) return;
+    setSaving(true);
+    try {
+      if (!matchDoc.bank_transaction_id) throw new Error('Match selected does not have a bank transaction id');
+      await api.bank.manualMatch(tenantId, runId, {
+        bank_transaction_id: matchDoc.bank_transaction_id,
+        allocations: allocations.map((a) => ({ comprobante_id: a.comprobante_id, monto_asignado: a.monto })),
+        notas: 'Conciliación manual (Pagos Parciales/Múltiples)',
+      });
+      onSuccess();
+      onClose();
+    } catch (err) {
+      toastError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalAsignado = allocations.reduce((acc, a) => acc + a.monto, 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-6 animate-slide-up max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between shrink-0">
+          <div>
+            <h3 className="text-xl font-semibold text-zinc-900">Conciliación Manual</h3>
+            <p className="text-sm text-zinc-500 mt-1">
+              Transacción bancaria de {fmtGs(Math.abs(matchDoc.diferencia_monto ?? 0))}. Seleccioná los comprobantes a saldar.
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-zinc-100 rounded-full transition-colors">
+            <XCircle className="w-5 h-5 text-zinc-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-3 min-h-[300px] border rounded-lg p-2">
+          {loading ? <Spinner /> : comprobantes.length === 0 ? <p className="text-sm text-zinc-500 text-center py-4">No hay comprobantes pendientes</p> : (
+            comprobantes.map((c) => {
+              const checked = allocations.find((a) => a.comprobante_id === c.id);
+              return (
+                <div key={c.id} className={`flex items-center gap-4 p-3 border rounded-xl transition-colors ${checked ? 'border-primary ring-1 ring-primary bg-primary/5' : 'hover:bg-zinc-50'}`}>
+                  <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="w-4 h-4 text-primary rounded" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{c.numero_comprobante || 'S/N'}</p>
+                    <p className="text-xs text-zinc-500">{fmtDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
+                  </div>
+                  {checked && (
+                    <div className="w-32">
+                      <label className="text-[10px] text-zinc-500 font-semibold mb-1 block uppercase">Monto Asignado</label>
+                      <input
+                        type="number"
+                        className="input py-1 text-sm h-8"
+                        value={checked.monto}
+                        onChange={(e) => updateAmount(c.id, e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="shrink-0 flex items-center justify-between pt-4 border-t border-zinc-100">
+          <p className="text-sm text-zinc-600">Total asignado: <strong className="text-zinc-900">{fmtGs(totalAsignado)}</strong></p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
+            <button
+              onClick={() => void handleSave()}
+              disabled={allocations.length === 0 || saving}
+              className="btn-md btn-primary"
+            >
+              {saving ? <Spinner size="sm" /> : <CheckCircle2 className="w-4 h-4 mr-1" />} Confirmar Match
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Conciliacion ─────────────────────────────────────────────────────────────
 
 export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: string) => void; toastError: (m: string) => void }) {
@@ -109,6 +232,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
   const [selectedRun, setSelectedRun] = useState<ReconciliationRun | null>(null);
   const [matches, setMatches] = useState<ReconciliationMatch[]>([]);
   const [showNewRun, setShowNewRun] = useState(false);
+  const [manualMatchDoc, setManualMatchDoc] = useState<ReconciliationMatch | null>(null);
   const [matchTab, setMatchTab] = useState<'conciliados' | 'sin_banco' | 'sin_comprobante'>('conciliados');
 
   const loadAll = useCallback(async () => {
@@ -302,6 +426,17 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                                     </button>
                                   </div>
                                 )}
+                                {m.estado === 'PROPUESTO' && matchTab === 'sin_comprobante' && (
+                                  <div className="flex gap-3">
+                                    <button
+                                      onClick={() => setManualMatchDoc(m)}
+                                      className="btn-sm btn-primary shadow-sm text-xs"
+                                      title="Conciliar manualmente"
+                                    >
+                                      Manual
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -326,6 +461,20 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
             toastSuccess('Conciliación encolada correctamente');
             void loadAll();
           }}
+        />
+      )}
+
+      {manualMatchDoc && tenantId && selectedRun && (
+        <ManualMatchModal
+          tenantId={tenantId}
+          runId={selectedRun.id}
+          matchDoc={manualMatchDoc}
+          onClose={() => setManualMatchDoc(null)}
+          onSuccess={() => {
+            toastSuccess('Match manual creado exitosamente');
+            void loadMatches(selectedRun.id);
+          }}
+          toastError={toastError}
         />
       )}
     </div>

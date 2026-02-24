@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-extra';
 import UserPreferencesPlugin from 'puppeteer-extra-plugin-user-preferences';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { Browser } from 'puppeteer';
 
 puppeteer.use(UserPreferencesPlugin({
@@ -9,6 +10,8 @@ puppeteer.use(UserPreferencesPlugin({
     'credentials_enable_autosign': false,
   },
 }));
+puppeteer.use(StealthPlugin());
+
 import { DOMParser } from '@xmldom/xmldom';
 import { logger } from '../config/logger';
 import { resolverCaptcha } from './captcha.service';
