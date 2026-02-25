@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import * as JSZip from 'jszip';
 import ExcelJS from 'exceljs';
-import iconv from 'iconv-lite';
+
 import { storageService } from './storage.service';
 import {
   findStatementByHash,
@@ -11,7 +11,10 @@ import {
 import { BankTransaction } from '../types';
 import { logger } from '../config/logger';
 
-type RawTransaction = Omit<BankTransaction, 'id' | 'tenant_id' | 'bank_account_id' | 'created_at'>;
+import { CsvParserEngine } from './csvParser.engine';
+import { CsvSchema } from './csv-schemas/types';
+
+export type RawTransaction = Omit<BankTransaction, 'id' | 'tenant_id' | 'bank_account_id' | 'created_at'>;
 
 export function normalizarMonto(valor: string): number {
   if (!valor) return 0;
@@ -55,86 +58,38 @@ export function normalizarMonto(valor: string): number {
   return isNaN(num) ? 0 : num;
 }
 
-function detectarSeparador(lines: string[]): string {
-  const sample = lines.slice(0, 5).join('\n');
-  const semicolons = (sample.match(/;/g) ?? []).length;
-  const commas = (sample.match(/,/g) ?? []).length;
-  const tabs = (sample.match(/\t/g) ?? []).length;
-  if (tabs > semicolons && tabs > commas) return '\t';
-  if (semicolons > commas) return ';';
-  return ',';
-}
+// We still need a generic fallback schema when a bank isn't mapped explicitly but gives a standard CSV
+const GENERIC_CSV_SCHEMA: CsvSchema = {
+  id: 'generic_csv',
+  type: 'BANK',
+  columns: [
+    { targetField: 'fecha', exactMatchHeaders: ['fecha', 'date', 'fecha_operacion', 'fecha operacion', 'f.operacion'], format: 'DATE_DDMMYYYY' },
+    { targetField: 'descripcion', exactMatchHeaders: ['descripcion', 'descripción', 'concepto', 'detalle', 'description'] },
+    { targetField: 'monto', exactMatchHeaders: ['monto', 'importe', 'amount', 'valor', 'credito', 'debito', 'crédito', 'débito'], format: 'MONTO' },
+    { targetField: 'saldo', exactMatchHeaders: ['saldo', 'balance'], format: 'MONTO' },
+    { targetField: 'referencia', exactMatchHeaders: ['referencia', 'nro', 'numero', 'ref', 'autorizacion'] },
+  ]
+};
 
-function parseCSV(buffer: Buffer): RawTransaction[] {
-  // Detectar encoding
-  let content: string;
-  try {
-    content = buffer.toString('utf-8');
-    if (content.includes('\uFFFD')) throw new Error('not utf8');
-  } catch {
-    content = iconv.decode(buffer, 'latin1');
-  }
+function parseCSV(buffer: Buffer, schema: CsvSchema = GENERIC_CSV_SCHEMA): RawTransaction[] {
+  const rawRows = CsvParserEngine.parse(buffer, schema);
 
-  const lines = content.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return [];
-
-  const sep = detectarSeparador(lines);
-  const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/"/g, ''));
-
-  // Mapear headers a campos
-  const fieldMap: Record<string, string[]> = {
-    fecha: ['fecha', 'date', 'fecha_operacion', 'fecha operacion', 'f.operacion'],
-    descripcion: ['descripcion', 'descripción', 'concepto', 'detalle', 'description'],
-    monto: ['monto', 'importe', 'amount', 'valor', 'credito', 'debito', 'crédito', 'débito'],
-    saldo: ['saldo', 'balance'],
-    referencia: ['referencia', 'nro', 'numero', 'ref', 'autorizacion'],
-  };
-
-  const idx: Record<string, number> = {};
-  for (const [field, aliases] of Object.entries(fieldMap)) {
-    for (const alias of aliases) {
-      const i = headers.findIndex((h) => h.includes(alias));
-      if (i >= 0) { idx[field] = i; break; }
-    }
-  }
-
-  const txs: RawTransaction[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(sep).map((c) => c.trim().replace(/^"|"$/g, ''));
-    if (cols.every((c) => !c)) continue;
-
-    const fecha = cols[idx.fecha ?? 0] ?? '';
-    if (!fecha) continue;
-
-    // Parse fecha: DD/MM/YYYY o YYYY-MM-DD
-    let fechaISO = fecha;
-    const ddmm = /^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/.exec(fecha);
-    if (ddmm) {
-      const [, d, m, y] = ddmm;
-      const fullYear = y.length === 2 ? `20${y}` : y;
-      fechaISO = `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-    }
-
-    const monto = normalizarMonto(cols[idx.monto ?? -1] ?? '0');
-    const saldo = idx.saldo !== undefined ? normalizarMonto(cols[idx.saldo] ?? '0') : null;
-
-    txs.push({
+  return rawRows.map(row => {
+    const monto = (row.monto as number) || 0;
+    return {
       statement_id: null,
-      fecha_operacion: fechaISO,
+      fecha_operacion: row.fecha as string,
       fecha_valor: null,
-      descripcion: cols[idx.descripcion ?? -1] ?? null,
-      referencia: cols[idx.referencia ?? -1] ?? null,
+      descripcion: (row.descripcion as string) || null,
+      referencia: (row.referencia as string) || null,
       monto,
-      saldo,
+      saldo: (row.saldo as number | undefined) ?? null,
       tipo_movimiento: monto < 0 ? 'DEBITO' : 'CREDITO',
       canal: null,
       id_externo: null,
-      raw_payload: { original: cols },
-    });
-  }
-
-  return txs;
+      raw_payload: row._raw ? { original: row._raw } : {},
+    }
+  });
 }
 
 async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
@@ -166,7 +121,7 @@ async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
       logger.warn('No se encontró xl/workbook.xml en el ZIP');
     }
 
-    await workbook.xlsx.load(buffer as any);
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
   } catch (err) {
     logger.error('Error detallado cargando archivo Excel', {
       error: (err as Error).message,
@@ -226,7 +181,7 @@ async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
       fechaISO = fechaVal.toISOString().slice(0, 10);
     } else {
       const str = String(fechaVal);
-      const ddmm = /^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/.exec(str);
+      const ddmm = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/.exec(str);
       if (ddmm) {
         const [, d, m, y] = ddmm;
         const fullYear = y.length === 2 ? `20${y}` : y;
@@ -263,38 +218,46 @@ async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
 
 function parseItauTXT(buffer: Buffer): RawTransaction[] {
   const lines = buffer.toString('utf-8').split(/\r?\n/);
-  const txs: RawTransaction[] = [];
 
-  for (const line of lines) {
-    if (line.length < 60) continue;
-    // Layout simplificado Itaú Paraguay (columnas fijas)
+  // We convert fixed-width layout to TSV explicitly then route through generic parser
+  const mappedLines = lines.filter(l => l.length >= 60).map(line => {
     const fecha = line.slice(0, 10).trim();
     const descripcion = line.slice(10, 46).trim();
     const montoStr = line.slice(46, 62).trim();
     const saldoStr = line.slice(62, 78).trim();
+    return `${fecha}\t${descripcion}\t${montoStr}\t${saldoStr}`;
+  });
 
-    if (!fecha || !/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) continue;
+  const TSV_CONTENT = ['fecha\tdescripcion\tmonto\tsaldo', ...mappedLines].join('\n');
 
-    const [d, m, y] = fecha.split('/');
-    const fechaISO = `${y}-${m}-${d}`;
-    const monto = normalizarMonto(montoStr);
-    const saldo = saldoStr ? normalizarMonto(saldoStr) : null;
+  const rawRows = CsvParserEngine.parse(Buffer.from(TSV_CONTENT, 'utf8'), {
+    id: 'itau_txt_mapped',
+    type: 'BANK',
+    delimiter: '\t',
+    columns: [
+      { targetField: 'fecha', exactMatchHeaders: ['fecha'], format: 'DATE_DDMMYYYY' },
+      { targetField: 'descripcion', exactMatchHeaders: ['descripcion'] },
+      { targetField: 'monto', exactMatchHeaders: ['monto'], format: 'MONTO' },
+      { targetField: 'saldo', exactMatchHeaders: ['saldo'], format: 'MONTO' }
+    ]
+  });
 
-    txs.push({
+  return rawRows.map(row => {
+    const monto = (row.monto as number) || 0;
+    return {
       statement_id: null,
-      fecha_operacion: fechaISO,
+      fecha_operacion: row.fecha as string,
       fecha_valor: null,
-      descripcion,
+      descripcion: (row.descripcion as string) || null,
       referencia: null,
       monto,
-      saldo,
+      saldo: (row.saldo as number | undefined) ?? null,
       tipo_movimiento: monto < 0 ? 'DEBITO' : 'CREDITO',
       canal: 'ITAU_TXT',
       id_externo: null,
-      raw_payload: { raw: line },
-    });
-  }
-  return txs;
+      raw_payload: row._raw ? { raw: row._raw } : {},
+    }
+  });
 }
 
 function parseGenericoTXT(buffer: Buffer): RawTransaction[] {
