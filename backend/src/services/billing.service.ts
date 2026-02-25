@@ -110,7 +110,48 @@ export async function getUsageActual(tenantId: string): Promise<{
 }
 
 export async function findAllPlans(): Promise<Plan[]> {
-  return query<Plan>(`SELECT * FROM plans WHERE activo = true ORDER BY precio_mensual_pyg`);
+  return query<Plan>(`SELECT * FROM plans ORDER BY precio_mensual_pyg`);
+}
+
+export async function createPlan(data: Partial<Plan>): Promise<Plan> {
+  return queryOne<Plan>(
+    `INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, limite_comprobantes_mes, features, activo)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [
+      data.nombre,
+      data.descripcion,
+      data.precio_mensual_pyg,
+      data.limite_comprobantes_mes,
+      data.features ? JSON.stringify(data.features) : '{}',
+      data.activo ?? true
+    ]
+  ) as Promise<Plan>;
+}
+
+export async function updatePlan(id: string, data: Partial<Plan>): Promise<Plan> {
+  return queryOne<Plan>(
+    `UPDATE plans 
+     SET nombre = COALESCE($2, nombre),
+         descripcion = COALESCE($3, descripcion),
+         precio_mensual_pyg = COALESCE($4, precio_mensual_pyg),
+         limite_comprobantes_mes = COALESCE($5, limite_comprobantes_mes),
+         features = COALESCE($6, features),
+         activo = COALESCE($7, activo)
+     WHERE id = $1 RETURNING *`,
+    [
+      id,
+      data.nombre,
+      data.descripcion,
+      data.precio_mensual_pyg,
+      data.limite_comprobantes_mes,
+      data.features ? JSON.stringify(data.features) : null,
+      data.activo
+    ]
+  ) as Promise<Plan>;
+}
+
+export async function deletePlan(id: string): Promise<void> {
+  await query(`DELETE FROM plans WHERE id = $1`, [id]);
 }
 
 export async function changePlan(tenantId: string, planId: string): Promise<void> {
