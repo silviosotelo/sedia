@@ -129,8 +129,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
-      const body = await res.json() as { error?: string };
-      throw new Error(body.error ?? 'Error al iniciar sesión');
+      const body = await res.json().catch(() => ({}));
+      let msg = 'Error al iniciar sesión';
+      if (body.error && typeof body.error === 'object' && body.error.message) {
+        msg = body.error.message;
+      } else if (body.error && typeof body.error === 'string') {
+        msg = body.error;
+      } else if (body.message) {
+        msg = body.message;
+      }
+      throw new Error(msg);
     }
     const data = await res.json() as { data: { token: string; usuario: Usuario & { billing_status?: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' } } };
     const { token: newToken, usuario } = data.data;
