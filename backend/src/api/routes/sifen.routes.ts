@@ -3,6 +3,7 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 // import { checkFeature } from '../middleware/plan.middleware';
 import { sifenConfigService } from '../../services/sifenConfig.service';
 import { query, queryOne } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     app.addHook('preHandler', requireAuth);
@@ -12,7 +13,7 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     app.get<{ Params: { id: string } }>('/tenants/:id/sifen/config', async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         const config = await sifenConfigService.getConfig(req.params.id);
-        return reply.send({ data: config || {} });
+        return reply.send({ success: true, data: config || {} });
     });
 
     app.put<{ Params: { id: string } }>('/tenants/:id/sifen/config', async (req, reply) => {
@@ -22,7 +23,7 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         const userId = (req as any).user?.id || null;
         const bodyContent = req.body as any;
         const updated = await sifenConfigService.upsertConfig(req.params.id, userId, bodyContent, ipAddress, userAgent);
-        return reply.send({ data: updated });
+        return reply.send({ success: true, data: updated });
     });
 
     // --- DOCUMENTOS ELECTRONICOS (DE) ---
@@ -61,14 +62,14 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [de_id, req.params.id, fakeCdc, bodyContent.tipo_documento || '1', new Date(), bodyContent.moneda || 'PYG', 'DRAFT']
         );
-        return reply.send({ data: { id: de_id } });
+        return reply.send({ success: true, data: { id: de_id } });
     });
 
     app.get<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId', async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         const de = await queryOne(`SELECT * FROM sifen_de WHERE tenant_id = $1 AND id = $2`, [req.params.id, req.params.deId]);
-        if (!de) return reply.status(404).send({ error: 'DE no encontrado' });
-        return reply.send({ data: de });
+        if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
+        return reply.send({ success: true, data: de });
     });
 
     app.post<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/sign', async (req, reply) => {
@@ -105,13 +106,13 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
              WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
             [req.params.id, limit, offset]
         );
-        return reply.send({ data: lotes });
+        return reply.send({ success: true, data: lotes });
     });
 
     app.get<{ Params: { id: string; loteId: string } }>('/tenants/:id/sifen/lotes/:loteId', async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         const lote = await queryOne(`SELECT * FROM sifen_lote WHERE tenant_id = $1 AND id = $2`, [req.params.id, req.params.loteId]);
-        if (!lote) return reply.status(404).send({ error: 'Lote no encontrado' });
+        if (!lote) throw new ApiError(404, 'NOT_FOUND', 'Lote no encontrado');
 
         const items = await query(`SELECT * FROM sifen_lote_items WHERE tenant_id = $1 AND lote_id = $2 ORDER BY orden`, [req.params.id, req.params.loteId]);
         return reply.send({ data: { ...lote, items } });

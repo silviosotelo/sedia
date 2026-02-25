@@ -3,6 +3,7 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { dispatchWebhookEvent } from '../../services/webhook.service';
+import { ApiError } from '../../utils/errors';
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -18,7 +19,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
          FROM tenant_webhooks WHERE tenant_id = $1 ORDER BY created_at DESC`,
         [req.params.tenantId]
       );
-      return reply.send({ data: rows });
+      return reply.send({ success: true, data: rows });
     }
   );
 
@@ -33,7 +34,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, url, secret, eventos, activo = true, intentos_max = 3, timeout_ms = 10000 } = req.body;
       if (!nombre || !url || !eventos?.length) {
-        return reply.status(400).send({ error: 'nombre, url y eventos son requeridos' });
+        throw new ApiError(400, 'BAD_REQUEST', 'nombre, url y eventos son requeridos');
       }
       const row = await queryOne(
         `INSERT INTO tenant_webhooks (tenant_id, nombre, url, secret, eventos, activo, intentos_max, timeout_ms)
@@ -59,7 +60,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
         `SELECT id FROM tenant_webhooks WHERE id=$1 AND tenant_id=$2`,
         [req.params.id, req.params.tenantId]
       );
-      if (!existing) return reply.status(404).send({ error: 'Webhook no encontrado' });
+      if (!existing) throw new ApiError(404, 'NOT_FOUND', 'Webhook no encontrado');
 
       const fields: string[] = [];
       const values: unknown[] = [];
@@ -73,14 +74,14 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
       if (intentos_max !== undefined) { fields.push(`intentos_max=$${idx++}`); values.push(intentos_max); }
       if (timeout_ms !== undefined) { fields.push(`timeout_ms=$${idx++}`); values.push(timeout_ms); }
 
-      if (!fields.length) return reply.status(400).send({ error: 'Nada que actualizar' });
+      if (!fields.length) throw new ApiError(400, 'API_ERROR', 'Nada que actualizar');
 
       values.push(req.params.id);
       const row = await queryOne(
         `UPDATE tenant_webhooks SET ${fields.join(',')} WHERE id=$${idx} RETURNING id, nombre, url, eventos, activo, updated_at`,
         values
       );
-      return reply.send({ data: row });
+      return reply.send({ success: true, data: row });
     }
   );
 
@@ -104,12 +105,12 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
         `SELECT id FROM tenant_webhooks WHERE id=$1 AND tenant_id=$2`,
         [req.params.id, req.params.tenantId]
       );
-      if (!wh) return reply.status(404).send({ error: 'Webhook no encontrado' });
+      if (!wh) throw new ApiError(404, 'NOT_FOUND', 'Webhook no encontrado');
       await dispatchWebhookEvent(req.params.tenantId, 'test', {
         message: 'Prueba de webhook desde SET Comprobantes',
         webhook_id: req.params.id,
       });
-      return reply.send({ message: 'Webhook de prueba enviado' });
+      return reply.send({ success: true, message: 'Webhook de prueba enviado' });
     }
   );
 

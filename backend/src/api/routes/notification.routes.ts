@@ -1,3 +1,4 @@
+import { ApiError } from '../../utils/errors';
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import {
@@ -37,9 +38,9 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await enviarNotificacionTest(req.params.tenantId);
       if (!result.ok) {
-        return reply.status(400).send({ error: result.error });
+        throw new ApiError(400, 'API_ERROR', result.error || 'Error al enviar notificación');
       }
-      return reply.send({ message: 'Email de prueba enviado correctamente' });
+      return reply.send({ success: true, message: 'Email de prueba enviado correctamente' });
     }
   );
 }

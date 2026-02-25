@@ -11,6 +11,7 @@ import {
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { query, queryOne } from '../../db/connection';
 import { findAllPlans, billingManager } from '../../services/billing.service';
+import { ApiError } from '../../utils/errors';
 
 const createTenantSchema = z.object({
   nombre_fantasia: z.string().min(1).max(255),
@@ -63,10 +64,10 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     const u = req.currentUser!;
     if (u.rol.nombre === 'super_admin') {
       const tenants = await findAllTenants();
-      return reply.send({ data: tenants, total: tenants.length });
+      return reply.send({ success: true, data: tenants, meta: { total: tenants.length } });
     }
     if (!u.tenant_id) {
-      return reply.status(403).send({ error: 'Sin empresa asignada' });
+      throw new ApiError(403, 'API_ERROR', 'Sin empresa asignada');
     }
     const tenant = await findTenantById(u.tenant_id);
     const data = tenant ? [tenant] : [];
@@ -78,7 +79,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
     const tenant = await findTenantWithConfig(req.params.id);
     if (!tenant) {
-      return reply.status(404).send({ error: 'Tenant no encontrado' });
+      throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
     }
     const { config: cfg, ...tenantData } = tenant;
     const safeConfig = cfg ? {
@@ -92,12 +93,12 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/tenants', async (req, reply) => {
     if (req.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo el super administrador puede crear empresas' });
+      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede crear empresas');
     }
 
     const parsed = createTenantSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'Datos inválidos', details: parsed.error.errors });
+      throw new ApiError(400, 'BAD_REQUEST', 'Datos inválidos', parsed.error.errors );
     }
 
     const { config: configInput, ...tenantInput } = parsed.data;
@@ -116,9 +117,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
     if (configInput) {
       if (!configInput.ruc_login || !configInput.usuario_marangatu || !configInput.clave_marangatu) {
-        return reply.status(400).send({
-          error: 'Al crear un tenant, config requiere ruc_login, usuario_marangatu y clave_marangatu',
-        });
+        throw new ApiError(400, 'API_ERROR', 'Al crear un tenant, config requiere ruc_login, usuario_marangatu y clave_marangatu',);
       }
       await upsertTenantConfig(tenant.id, {
         ruc_login: configInput.ruc_login,
@@ -147,12 +146,12 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
 
     const existing = await findTenantById(req.params.id);
     if (!existing) {
-      return reply.status(404).send({ error: 'Tenant no encontrado' });
+      throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
     }
 
     const parsed = updateTenantSchema.safeParse(req.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: 'Datos inválidos', details: parsed.error.errors });
+      throw new ApiError(400, 'BAD_REQUEST', 'Datos inválidos', parsed.error.errors );
     }
 
     const { config: configInput, ...tenantInput } = parsed.data;
@@ -181,7 +180,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.send({ data: tenant });
+    return reply.send({ success: true, data: tenant });
   });
 
   // ─── Scheduler status ──────────────────────────────────────────────────────
@@ -248,7 +247,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
 
     const sc = req.body.scheduler_config;
-    if (!sc) return reply.status(400).send({ error: 'scheduler_config es requerido' });
+    if (!sc) throw new ApiError(400, 'BAD_REQUEST', 'scheduler_config es requerido');
 
     const sets: string[] = ['updated_at = NOW()'];
     const params: unknown[] = [req.params.id];

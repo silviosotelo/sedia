@@ -5,6 +5,7 @@ import { query, queryOne } from '../../db/connection';
 import { storageService } from '../../services/storage.service';
 import { systemService } from '../../services/system.service';
 import { logAudit } from '../../services/audit.service';
+import { ApiError } from '../../utils/errors';
 
 // Simple in-memory cache for domain lookups
 const domainCache = new Map<string, { data: unknown; cachedAt: number }>();
@@ -20,7 +21,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
 
     const cached = domainCache.get(domain);
     if (cached && Date.now() - cached.cachedAt < DOMAIN_CACHE_TTL_MS) {
-      return reply.send({ data: cached.data });
+      return reply.send({ success: true, data: cached.data });
     }
 
     const row = await queryOne<{
@@ -41,7 +42,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
     );
 
     if (!row?.wl_activo) {
-      return reply.status(404).send({ error: 'No hay white-label configurado para este dominio' });
+      throw new ApiError(404, 'API_ERROR', 'No hay white-label configurado para este dominio');
     }
 
     const data = {
@@ -69,7 +70,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
 
         const fileData = await req.file();
-        if (!fileData) return reply.status(400).send({ error: 'No se encontró archivo' });
+        if (!fileData) throw new ApiError(400, 'API_ERROR', 'No se encontró archivo');
 
         const buffer = await fileData.toBuffer();
         const ext = fileData.filename.split('.').pop()?.toLowerCase() ?? 'png';
@@ -98,7 +99,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
         // Invalidate cache
         domainCache.clear();
 
-        return reply.send({ data: { logo_url: logoUrl } });
+        return reply.send({ success: true, data: { logo_url: logoUrl } });
       }
     );
 

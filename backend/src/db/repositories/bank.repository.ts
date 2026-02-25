@@ -24,19 +24,20 @@ export async function createBank(data: {
   codigo: string;
   pais?: string;
   activo?: boolean;
+  csv_mapping?: Record<string, unknown> | null;
 }): Promise<Bank> {
   const rows = await query<Bank>(
-    `INSERT INTO banks (nombre, codigo, pais, activo)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO banks (nombre, codigo, pais, activo, csv_mapping)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [data.nombre, data.codigo, data.pais ?? 'PRY', data.activo ?? true]
+    [data.nombre, data.codigo, data.pais ?? 'PRY', data.activo ?? true, data.csv_mapping ? JSON.stringify(data.csv_mapping) : null]
   );
   return rows[0];
 }
 
 export async function updateBank(
   id: string,
-  data: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean }>
+  data: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean; csv_mapping: Record<string, unknown> | null }>
 ): Promise<Bank | null> {
   const sets: string[] = [];
   const params: unknown[] = [id];
@@ -46,6 +47,7 @@ export async function updateBank(
   if (data.codigo !== undefined) { sets.push(`codigo = $${i++}`); params.push(data.codigo); }
   if (data.pais !== undefined) { sets.push(`pais = $${i++}`); params.push(data.pais); }
   if (data.activo !== undefined) { sets.push(`activo = $${i++}`); params.push(data.activo); }
+  if (data.csv_mapping !== undefined) { sets.push(`csv_mapping = $${i++}`); params.push(data.csv_mapping ? JSON.stringify(data.csv_mapping) : null); }
 
   if (sets.length === 0) return null;
 
@@ -65,7 +67,7 @@ export async function deleteBank(id: string): Promise<boolean> {
 
 export async function findAccountsByTenant(tenantId: string): Promise<BankAccount[]> {
   return query<BankAccount>(
-    `SELECT ba.*, b.nombre as bank_nombre, b.codigo as bank_codigo
+    `SELECT ba.*, b.nombre as bank_nombre, b.codigo as bank_codigo, b.csv_mapping as bank_csv_mapping
      FROM bank_accounts ba
      JOIN banks b ON b.id = ba.bank_id
      WHERE ba.tenant_id = $1
@@ -321,12 +323,36 @@ export async function createProcessor(data: {
   tenantId: string;
   nombre: string;
   tipo?: string;
+  csv_mapping?: Record<string, unknown> | null;
 }): Promise<PaymentProcessor> {
   const rows = await query<PaymentProcessor>(
-    `INSERT INTO payment_processors (tenant_id, nombre, tipo) VALUES ($1, $2, $3) RETURNING *`,
-    [data.tenantId, data.nombre, data.tipo ?? null]
+    `INSERT INTO payment_processors (tenant_id, nombre, tipo, csv_mapping) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [data.tenantId, data.nombre, data.tipo ?? null, data.csv_mapping ? JSON.stringify(data.csv_mapping) : null]
   );
   return rows[0];
+}
+
+export async function updateProcessor(
+  tenantId: string,
+  processorId: string,
+  data: Partial<{ nombre: string; tipo: string; activo: boolean; csv_mapping: Record<string, unknown> | null }>
+): Promise<PaymentProcessor | null> {
+  const sets: string[] = [];
+  const params: unknown[] = [tenantId, processorId];
+  let i = 3;
+
+  if (data.nombre !== undefined) { sets.push(`nombre = $${i++}`); params.push(data.nombre); }
+  if (data.tipo !== undefined) { sets.push(`tipo = $${i++}`); params.push(data.tipo); }
+  if (data.activo !== undefined) { sets.push(`activo = $${i++}`); params.push(data.activo); }
+  if (data.csv_mapping !== undefined) { sets.push(`csv_mapping = $${i++}`); params.push(data.csv_mapping ? JSON.stringify(data.csv_mapping) : null); }
+
+  if (sets.length === 0) return null;
+
+  const rows = await query<PaymentProcessor>(
+    `UPDATE payment_processors SET ${sets.join(', ')} WHERE tenant_id = $1 AND id = $2 RETURNING *`,
+    params
+  );
+  return rows[0] ?? null;
 }
 
 export async function upsertProcessorTransactions(

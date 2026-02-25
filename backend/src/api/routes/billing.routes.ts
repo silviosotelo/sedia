@@ -4,6 +4,7 @@ import { findAllPlans, getUsageActual, billingManager } from '../../services/bil
 import { bancardService } from '../../services/bancard.service';
 import { sifenService } from '../../services/sifen.service';
 import { queryOne } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function billingRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -12,13 +13,13 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   app.get('/plans', async (_req, reply) => {
     const { findAllPlans } = require('../../services/billing.service');
     const plans = await findAllPlans();
-    return reply.send({ data: plans });
+    return reply.send({ success: true, data: plans });
   });
 
   // Crear plan (Solo Super Admin)
   app.post<{ Body: Partial<any> }>('/plans', async (req, reply) => {
     if (req.currentUser?.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo Super Admin puede crear planes' });
+      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede crear planes');
     }
     const { createPlan } = require('../../services/billing.service');
     const newPlan = await createPlan(req.body);
@@ -28,17 +29,17 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Editar plan (Solo Super Admin)
   app.put<{ Params: { id: string }; Body: Partial<any> }>('/plans/:id', async (req, reply) => {
     if (req.currentUser?.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo Super Admin puede editar planes' });
+      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede editar planes');
     }
     const { updatePlan } = require('../../services/billing.service');
     const plan = await updatePlan(req.params.id, req.body);
-    return reply.send({ data: plan });
+    return reply.send({ success: true, data: plan });
   });
 
   // Eliminar plan (Solo Super Admin)
   app.delete<{ Params: { id: string } }>('/plans/:id', async (req, reply) => {
     if (req.currentUser?.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo Super Admin puede eliminar planes' });
+      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede eliminar planes');
     }
     const { deletePlan } = require('../../services/billing.service');
     await deletePlan(req.params.id);
@@ -49,14 +50,14 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/tenants/:id/billing/usage', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const usage = await getUsageActual(req.params.id);
-    return reply.send({ data: usage });
+    return reply.send({ success: true, data: usage });
   });
 
   // Obtener historial de facturas/pagos
   app.get<{ Params: { id: string } }>('/tenants/:id/billing/history', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const history = await billingManager.getInvoiceHistory(req.params.id);
-    return reply.send({ data: history });
+    return reply.send({ success: true, data: history });
   });
 
   // Cambiar plan (Solo Super Admin - Manual)
@@ -65,10 +66,10 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
     Body: { plan_id: string };
   }>('/tenants/:id/billing/plan', async (req, reply) => {
     if (req.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo el super administrador puede cambiar planes manualmente' });
+      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede cambiar planes manualmente');
     }
     const { plan_id } = req.body;
-    if (!plan_id) return reply.status(400).send({ error: 'plan_id es requerido' });
+    if (!plan_id) throw new ApiError(400, 'BAD_REQUEST', 'plan_id es requerido');
 
     const { changePlan } = require('../../services/billing.service');
     await changePlan(req.params.id, plan_id);
@@ -96,7 +97,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
 
     const plans = await findAllPlans();
     const plan = plans.find(p => p.id === plan_id);
-    if (!plan) return reply.status(404).send({ error: 'Plan no encontrado' });
+    if (!plan) throw new ApiError(404, 'NOT_FOUND', 'Plan no encontrado');
 
     // Generar shop_process_id numérico (Bancard espera Integer 15)
     const now = Date.now(); // 13 dígitos
@@ -120,7 +121,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         amount: plan.precio_mensual_pyg,
         description: `Suscripción SEDIA - ${plan.nombre}`
       });
-      return reply.send({ data: result });
+      return reply.send({ success: true, data: result });
     } else {
       const result = await bancardService.createSingleBuy({
         shop_process_id,
@@ -136,7 +137,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Webhook de Bancard (Confirmación de pago)
   app.post('/billing/webhook/bancard', async (req, reply) => {
     const { operation } = req.body as any;
-    if (!operation) return reply.status(400).send({ error: 'Payload inválido' });
+    if (!operation) throw new ApiError(400, 'BAD_REQUEST', 'Payload inválido');
 
     const { shop_process_id, response, amount, currency, token } = operation;
     const config = await bancardService.getConfig();

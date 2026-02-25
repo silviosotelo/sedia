@@ -7,6 +7,7 @@ import {
 } from '../../db/repositories/bank.repository';
 import { createJob } from '../../db/repositories/job.repository';
 import { checkFeature } from '../../services/billing.service';
+import { ApiError } from '../../utils/errors';
 
 export async function processorRoutes(app: FastifyInstance): Promise<void> {
     app.addHook('preHandler', requireAuth);
@@ -31,7 +32,7 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
             })
         );
 
-        return reply.send({ data: enriched });
+        return reply.send({ success: true, data: enriched });
     });
 
     app.put<{
@@ -41,10 +42,10 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
 
         const hasFeature = await checkFeature(req.params.id, 'conciliacion');
-        if (!hasFeature) return reply.status(402).send({ error: 'Plan actual no incluye automatización bancaria/procesadoras' });
+        if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye automatización bancaria/procesadoras');
 
         const connection = await upsertProcessorConnection(req.params.id, req.params.pid, req.body);
-        return reply.send({ data: connection });
+        return reply.send({ success: true, data: connection });
     });
 
     app.post<{
@@ -54,7 +55,7 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
 
         const hasFeature = await checkFeature(req.params.id, 'conciliacion');
-        if (!hasFeature) return reply.status(402).send({ error: 'Plan actual no incluye automatización' });
+        if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye automatización');
 
         const { mes, anio } = req.body;
 
@@ -102,6 +103,6 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
             jobs = jobs.filter(j => (j.payload as any)?.processor_id === req.query.processor_id);
         }
 
-        return reply.send({ data: jobs, total: jobs.length });
+        return reply.send({ success: true, data: jobs, meta: { total: jobs.length } });
     });
 }

@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { roleService } from '../../services/role.service';
 import { listRoles } from '../../services/auth.service';
+import { ApiError } from '../../utils/errors';
 
 export async function roleRoutes(app: FastifyInstance): Promise<void> {
     app.addHook('preHandler', requireAuth);
@@ -10,13 +11,13 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     app.get<{ Params: { tenantId: string } }>('/tenants/:tenantId/roles', async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
         const roles = await listRoles(req.params.tenantId);
-        return { data: roles };
+        return { success: true, data: roles };
     });
 
     // Listar todos los permisos disponibles
     app.get('/permisos', async () => {
         const permisos = await roleService.listPermisos();
-        return { data: permisos };
+        return { success: true, data: permisos };
     });
 
     // Crear rol personalizado
@@ -26,7 +27,7 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     }>('/tenants/:tenantId/roles', async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
         if (req.currentUser?.rol.nombre !== 'admin_empresa' && req.currentUser?.rol.nombre !== 'super_admin') {
-            return reply.status(403).send({ error: 'Solo administradores pueden crear roles' });
+            throw new ApiError(403, 'API_ERROR', 'Solo administradores pueden crear roles');
         }
 
         const id = await roleService.createRole(
@@ -58,18 +59,18 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     // RUTAS GLOBALES (Solo Super Admin)
 
     // Listar roles globales
-    app.get('/roles', async (req, reply) => {
+    app.get('/roles', async (req, _reply) => {
         if (req.currentUser?.rol.nombre !== 'super_admin') {
-            return reply.status(403).send({ error: 'Solo el super_admin puede ver los roles globales' });
+            throw new ApiError(403, 'FORBIDDEN', 'Solo el super_admin puede ver los roles globales');
         }
         const roles = await listRoles(undefined);
-        return { data: roles };
+        return { success: true, data: roles };
     });
 
     // Crear rol global
-    app.post<{ Body: { nombre: string; descripcion: string; nivel: number; permisosIds: string[] } }>('/roles', async (req, reply) => {
+    app.post<{ Body: { nombre: string; descripcion: string; nivel: number; permisosIds: string[] } }>('/roles', async (req, _reply) => {
         if (req.currentUser?.rol.nombre !== 'super_admin') {
-            return reply.status(403).send({ error: 'Solo el super_admin puede crear roles globales' });
+            throw new ApiError(403, 'FORBIDDEN', 'Solo el super_admin puede crear roles globales');
         }
         const id = await roleService.createRole(
             null,
@@ -82,18 +83,18 @@ export async function roleRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // Editar rol global
-    app.put<{ Params: { roleId: string }; Body: { nombre?: string; descripcion?: string; permisosIds?: string[] } }>('/roles/:roleId', async (req, reply) => {
+    app.put<{ Params: { roleId: string }; Body: { nombre?: string; descripcion?: string; permisosIds?: string[] } }>('/roles/:roleId', async (req, _reply) => {
         if (req.currentUser?.rol.nombre !== 'super_admin') {
-            return reply.status(403).send({ error: 'Solo el super_admin puede editar roles globales' });
+            throw new ApiError(403, 'FORBIDDEN', 'Solo el super_admin puede editar roles globales');
         }
         await roleService.updateRole(req.params.roleId, null, req.body);
         return { success: true };
     });
 
     // Eliminar rol global
-    app.delete<{ Params: { roleId: string } }>('/roles/:roleId', async (req, reply) => {
+    app.delete<{ Params: { roleId: string } }>('/roles/:roleId', async (req, _reply) => {
         if (req.currentUser?.rol.nombre !== 'super_admin') {
-            return reply.status(403).send({ error: 'Solo el super_admin puede eliminar roles' });
+            throw new ApiError(403, 'FORBIDDEN', 'Solo el super_admin puede eliminar roles');
         }
         await roleService.deleteRole(req.params.roleId, null);
         return { success: true };

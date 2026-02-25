@@ -2,7 +2,7 @@ import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../config/logger';
 
 export function errorHandler(
-  error: FastifyError,
+  error: FastifyError | any,
   request: FastifyRequest,
   reply: FastifyReply
 ): void {
@@ -15,23 +15,33 @@ export function errorHandler(
 
   if (error.validation) {
     void reply.status(400).send({
-      error: 'Validation Error',
-      message: 'Datos de entrada inválidos',
-      details: error.validation,
+      success: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Datos de entrada inválidos',
+        details: error.validation,
+      },
     });
     return;
   }
 
   if (error.statusCode) {
     void reply.status(error.statusCode).send({
-      error: error.name,
-      message: error.message,
+      success: false,
+      error: {
+        code: error.code || 'API_ERROR',
+        message: error.message || error.name,
+        details: error.details,
+      },
     });
     return;
   }
 
   void reply.status(500).send({
-    error: 'Internal Server Error',
-    message: 'Error interno del servidor',
+    success: false,
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'Error interno del servidor',
+    },
   });
 }

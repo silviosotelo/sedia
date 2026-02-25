@@ -54,24 +54,24 @@ const ALL_NAV_ITEMS: NavItem[] = [
 ];
 
 const AUTOMATION_NAV_ITEMS: NavItem[] = [
-  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'clasificacion' },
   { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'alertas' },
   { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'anomalias' },
   { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'webhooks' },
-  { id: 'sifen', label: 'Facturación Electrónica', icon: <FileText className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'sifen', label: 'Facturación Electrónica', icon: <FileText className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'sifen' },
   { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'api_tokens' },
-  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'notificaciones' },
 ];
 
 const RECONCILIATION_NAV_ITEMS: NavItem[] = [
-  { id: 'cuentas-bancarias', label: 'Cuentas Bancarias', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'cuentas-bancarias', label: 'Cuentas Bancarias', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
   { id: 'conciliacion', label: 'Procesos Conciliación', icon: <Briefcase className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
-  { id: 'procesadoras', label: 'Procesadoras de Pago', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'procesadoras', label: 'Procesadoras de Pago', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
-  { id: 'roles', label: 'Roles y Permisos', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
+  { id: 'roles', label: 'Roles y Permisos', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'roles_custom' },
   { id: 'bancos', label: 'Gestión Bancos', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin'] },
   { id: 'billing', label: 'Suscripción y Pagos', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'auditoria' },
@@ -89,7 +89,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false, onClose }: SidebarProps) {
-  const { user, logout, isSuperAdmin, branding } = useAuth();
+  const { user, logout, branding, hasFeature } = useAuth();
   const rolNombre = user?.rol.nombre as RolNombre | undefined;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -111,11 +111,9 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
       if (item.allowedRoles && rolNombre) {
         if (!item.allowedRoles.includes(rolNombre)) return false;
       }
-      // Check features
-      if (item.requiredFeature && !isSuperAdmin) {
-        if (!user?.plan_features || user.plan_features[item.requiredFeature] !== true) {
-          return false;
-        }
+      // Check features directly using auth context
+      if (item.requiredFeature) {
+        if (!hasFeature(item.requiredFeature)) return false;
       }
       return true;
     });

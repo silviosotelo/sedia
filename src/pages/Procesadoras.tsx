@@ -13,6 +13,96 @@ interface ProcesadorasProps {
     toastError: (msg: string) => void;
 }
 
+const COMMON_PROCESSOR_FIELDS = [
+    { value: 'fecha', label: 'Fecha de Operación' },
+    { value: 'comercio', label: 'Comercio / Merchant ID' },
+    { value: 'nroLote', label: 'Nro de Lote' },
+    { value: 'autorizacion', label: 'Autorización / Ticket' },
+    { value: 'tarjeta', label: 'Tarjeta / Medio (Pan)' },
+    { value: 'montoTotal', label: 'Monto Total/Bruto' },
+    { value: 'comision', label: 'Monto de Comisión' },
+    { value: 'montoNeto', label: 'Monto Neto (A depositar)' },
+    { value: 'estado', label: 'Estado' },
+    { value: 'idExterno', label: 'ID Transacción Externo' }
+];
+
+function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) => void }) {
+    const columns = (value?.columns || []) as any[];
+
+    const addColumn = () => {
+        onChange({ ...value, type: 'PROCESSOR', columns: [...columns, { targetField: '', exactMatchHeaders: [] }] });
+    };
+
+    const updateColumn = (index: number, field: string, val: any) => {
+        const newCols = [...columns];
+        if (field === 'exactMatchHeaders') {
+            newCols[index].exactMatchHeaders = val.split(',').map((s: string) => s.trim()).filter(Boolean);
+        } else {
+            newCols[index][field] = val;
+        }
+        onChange({ ...value, type: 'PROCESSOR', columns: newCols });
+    };
+
+    const removeColumn = (index: number) => {
+        onChange({ ...value, type: 'PROCESSOR', columns: columns.filter((_, i) => i !== index) });
+    };
+
+    return (
+        <div className="space-y-3 mt-4 border-t border-zinc-200 pt-4">
+            <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-zinc-800">Mapeo Avanzado de CSV</h4>
+                <button type="button" onClick={addColumn} className="btn-sm btn-ghost gap-1 text-primary">
+                    <Plus className="w-3.5 h-3.5" /> Agregar Columna
+                </button>
+            </div>
+            <p className="text-xs text-zinc-500">Configurá cómo leer las columnas de los extractos de esta procesadora.</p>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                {columns.map((col, idx) => (
+                    <div key={idx} className="flex gap-2 items-start bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                        <select
+                            className="input py-1.5 h-auto text-xs flex-1"
+                            value={col.targetField}
+                            onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
+                        >
+                            <option value="">Destino SEDIA...</option>
+                            {COMMON_PROCESSOR_FIELDS.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                        <input
+                            className="input py-1.5 h-auto text-xs flex-[1.5]"
+                            placeholder="Ej: importe neto, total"
+                            value={(col.exactMatchHeaders || []).join(', ')}
+                            onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
+                            title="Nombres de columnas del CSV (separados por coma)"
+                        />
+                        <select
+                            className="input py-1.5 h-auto text-xs w-28"
+                            value={col.format || ''}
+                            onChange={(e) => updateColumn(idx, 'format', e.target.value)}
+                            title="Formato Especial"
+                        >
+                            <option value="">Normal</option>
+                            <option value="MONTO">Monto</option>
+                            <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
+                            <option value="DATE_TIME_DDMMYYYY">DD/MM/YYYY HH:MM:SS</option>
+                        </select>
+                        <button type="button" onClick={() => removeColumn(idx)} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                ))}
+                {columns.length === 0 && (
+                    <div className="text-center py-4 text-xs text-zinc-400">
+                        Usará mapeo automático predeterminado si no se configuran columnas.
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
     const { activeTenantId } = useTenant();
     const [processors, setProcessors] = useState<any[]>([]);
@@ -22,7 +112,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
     const [selectedProcessor, setSelectedProcessor] = useState<any | null>(null);
     const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // List views states
     const [activeTab, setActiveTab] = useState<'procesadoras' | 'historial' | 'datos'>('procesadoras');
@@ -40,7 +130,9 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         mes: new Date().getMonth() + 1,
         anio: new Date().getFullYear(),
     });
-    const [createForm, setCreateForm] = useState({ nombre: '', tipo: 'OTROS' });
+    const [processorForm, setProcessorForm] = useState<{
+        nombre: string; tipo: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null;
+    }>({ nombre: '', tipo: 'OTROS', activo: true, csv_mapping: null });
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
@@ -137,21 +229,36 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         }
     };
 
-    const handleCreateSubmit = async (e: React.FormEvent) => {
+    const handleOpenCreateAndEdit = (p?: any) => {
+        setSelectedProcessor(p || null);
+        if (p) {
+            setProcessorForm({ nombre: p.nombre, tipo: p.tipo, activo: p.activo, csv_mapping: p.csv_mapping });
+        } else {
+            setProcessorForm({ nombre: '', tipo: 'OTROS', activo: true, csv_mapping: null });
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleProcessorSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!activeTenantId || !createForm.nombre) return;
+        if (!activeTenantId || !processorForm.nombre) return;
 
         setSaving(true);
         try {
-            await api.procesadoras.create(activeTenantId, createForm);
-            toastSuccess('Procesadora creada exitosamente');
-            setIsCreateModalOpen(false);
-            setCreateForm({ nombre: '', tipo: 'OTROS' });
+            if (selectedProcessor) {
+                await api.procesadoras.update(activeTenantId, selectedProcessor.id, processorForm);
+                toastSuccess('Procesadora actualizada exitosamente');
+            } else {
+                await api.procesadoras.create(activeTenantId, processorForm);
+                toastSuccess('Procesadora creada exitosamente');
+            }
+            setIsModalOpen(false);
+            setProcessorForm({ nombre: '', tipo: 'OTROS', activo: true, csv_mapping: null });
             // reload
             const pts = await api.procesadoras.list(activeTenantId);
             setProcessors(pts);
         } catch (err: any) {
-            toastError(err.message || 'Error al crear procesadora');
+            toastError(err.message || 'Error al guardar procesadora');
         } finally {
             setSaving(false);
         }
@@ -164,7 +271,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                 subtitle="Gestione las integraciones con procesadoras como Bancard, Pagopar y Dinelco"
                 actions={
                     <button
-                        onClick={() => setIsCreateModalOpen(true)}
+                        onClick={() => handleOpenCreateAndEdit()}
                         className="btn-md btn-primary gap-1.5"
                     >
                         <Plus className="w-4 h-4" /> Nueva Procesadora
@@ -242,11 +349,18 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
                                             <div className="px-5 py-4 bg-zinc-50 flex gap-2">
                                                 <button
+                                                    onClick={() => handleOpenCreateAndEdit(p)}
+                                                    className="flex flex-col items-center justify-center py-2 px-3 bg-white border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+                                                    title="Editar Procesadora"
+                                                >
+                                                    <Settings className="w-4 h-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => handleOpenConfig(p)}
                                                     className="flex-1 flex items-center justify-center py-2 px-3 bg-white border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
                                                 >
-                                                    <Settings className="w-4 h-4 mr-2" />
-                                                    Configurar
+                                                    <Key className="w-4 h-4 mr-2" />
+                                                    Configurar Auth
                                                 </button>
                                                 <button
                                                     onClick={() => handleOpenImport(p)}
@@ -502,16 +616,16 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                             </div>
                         </form>
                     </Modal>
-                    {/* Modal de Creación */}
-                    <Modal open={isCreateModalOpen} onClose={() => !saving && setIsCreateModalOpen(false)} title="Nueva Procesadora">
-                        <form onSubmit={handleCreateSubmit} className="space-y-4">
+                    {/* Modal de Creación / Edición */}
+                    <Modal open={isModalOpen} onClose={() => !saving && setIsModalOpen(false)} title={selectedProcessor ? 'Editar Procesadora' : 'Nueva Procesadora'}>
+                        <form onSubmit={handleProcessorSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-zinc-700 mb-1">Nombre</label>
                                 <input
                                     type="text"
                                     required
-                                    value={createForm.nombre}
-                                    onChange={e => setCreateForm({ ...createForm, nombre: e.target.value })}
+                                    value={processorForm.nombre}
+                                    onChange={e => setProcessorForm({ ...processorForm, nombre: e.target.value })}
                                     className="input"
                                     placeholder="Ej. Bancard, Pagopar..."
                                 />
@@ -519,8 +633,8 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                             <div>
                                 <label className="block text-sm font-medium text-zinc-700 mb-1">Tipo</label>
                                 <select
-                                    value={createForm.tipo}
-                                    onChange={e => setCreateForm({ ...createForm, tipo: e.target.value })}
+                                    value={processorForm.tipo}
+                                    onChange={e => setProcessorForm({ ...processorForm, tipo: e.target.value })}
                                     className="input"
                                 >
                                     <option value="VPOS">VPOS / POS</option>
@@ -529,10 +643,16 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                     <option value="OTROS">Otros</option>
                                 </select>
                             </div>
+
+                            <CsvMappingEditor
+                                value={processorForm.csv_mapping}
+                                onChange={(v) => setProcessorForm({ ...processorForm, csv_mapping: (v && v.columns && Object.keys(v.columns).length > 0) ? v : null })}
+                            />
+
                             <div className="pt-4 flex justify-end gap-2 border-t border-zinc-100">
-                                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="btn-md btn-secondary">Cancelar</button>
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-md btn-secondary">Cancelar</button>
                                 <button type="submit" disabled={saving} className="btn-md btn-primary">
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Procesadora'}
+                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (selectedProcessor ? 'Guardar Cambios' : 'Crear Procesadora')}
                                 </button>
                             </div>
                         </form>

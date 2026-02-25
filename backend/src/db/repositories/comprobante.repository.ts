@@ -259,3 +259,40 @@ export async function markEnviosOrdsPendingAfterSync(
     [tenantId, ...comprobanteIds]
   );
 }
+
+export async function updateComprobanteFields(
+  tenantId: string,
+  comprobanteId: string,
+  fields: {
+    nro_ot?: string | null;
+    sincronizar?: boolean;
+    sincronizar_actualizado_por?: string;
+  }
+): Promise<Comprobante | null> {
+  const sets: string[] = [];
+  const params: unknown[] = [comprobanteId];
+  let i = 2;
+
+  if (fields.nro_ot !== undefined) {
+    sets.push(`nro_ot = $${i++}`);
+    params.push(fields.nro_ot);
+  }
+
+  if (fields.sincronizar !== undefined) {
+    sets.push(`sincronizar = $${i++}`);
+    params.push(fields.sincronizar);
+    sets.push(`sincronizar_actualizado_at = NOW()`);
+    if (fields.sincronizar_actualizado_por) {
+      sets.push(`sincronizar_actualizado_por = $${i++}`);
+      params.push(fields.sincronizar_actualizado_por);
+    }
+  }
+
+  if (sets.length === 0) return null;
+
+  const rows = await query<Comprobante>(
+    `UPDATE comprobantes SET ${sets.join(', ')} WHERE id = $1 AND tenant_id = $${i} RETURNING *`,
+    [...params, tenantId]
+  );
+  return rows[0] ?? null;
+}

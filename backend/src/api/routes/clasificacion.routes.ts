@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { query, queryOne } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -14,7 +15,7 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
          FROM clasificacion_reglas WHERE tenant_id=$1 ORDER BY prioridad ASC, created_at ASC`,
         [req.params.tenantId]
       );
-      return reply.send({ data: rows });
+      return reply.send({ success: true, data: rows });
     }
   );
 
@@ -27,7 +28,7 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, descripcion, campo, operador, valor, etiqueta, color = '#6b7280', prioridad = 0, activo = true } = req.body;
       if (!nombre || !campo || !operador || !valor || !etiqueta) {
-        return reply.status(400).send({ error: 'nombre, campo, operador, valor y etiqueta son requeridos' });
+        throw new ApiError(400, 'BAD_REQUEST', 'nombre, campo, operador, valor y etiqueta son requeridos');
       }
       const row = await queryOne(
         `INSERT INTO clasificacion_reglas (tenant_id, nombre, descripcion, campo, operador, valor, etiqueta, color, prioridad, activo)
@@ -57,15 +58,15 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
           values.push(req.body[key]);
         }
       }
-      if (!fields.length) return reply.status(400).send({ error: 'Nada que actualizar' });
+      if (!fields.length) throw new ApiError(400, 'API_ERROR', 'Nada que actualizar');
       values.push(req.params.id, req.params.tenantId);
       const row = await queryOne(
         `UPDATE clasificacion_reglas SET ${fields.join(',')} WHERE id=$${idx} AND tenant_id=$${idx + 1}
          RETURNING id, nombre, descripcion, campo, operador, valor, etiqueta, color, prioridad, activo`,
         values
       );
-      if (!row) return reply.status(404).send({ error: 'Regla no encontrada' });
-      return reply.send({ data: row });
+      if (!row) throw new ApiError(404, 'API_ERROR', 'Regla no encontrada');
+      return reply.send({ success: true, data: row });
     }
   );
 

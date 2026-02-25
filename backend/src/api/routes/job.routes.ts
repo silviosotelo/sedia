@@ -5,6 +5,7 @@ import { findTenantById } from '../../db/repositories/tenant.repository';
 import { SyncService } from '../../services/sync.service';
 import { enqueueXmlDownloads } from '../../services/ekuatia.service';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { ApiError } from '../../utils/errors';
 
 const syncJobSchema = z.object({
   mes: z.number().int().min(1).max(12).optional(),
@@ -32,20 +33,20 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('jobs:ejecutar_sync') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para ejecutar sincronización' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ejecutar sincronización');
       }
 
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
       if (!tenant.activo) {
-        return reply.status(409).send({ error: 'Tenant inactivo' });
+        throw new ApiError(409, 'API_ERROR', 'Tenant inactivo');
       }
 
       const parsed = syncJobSchema.safeParse(req.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Datos inválidos', details: parsed.error.errors });
+        throw new ApiError(400, 'BAD_REQUEST', 'Datos inválidos', parsed.error.errors );
       }
 
       try {
@@ -60,7 +61,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const error = err as Error;
         if (error.message.includes('activo')) {
-          return reply.status(409).send({ error: error.message });
+          throw new ApiError(409, 'API_ERROR', error.message);
         }
         throw err;
       }
@@ -72,27 +73,25 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('jobs:ejecutar_xml') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para ejecutar descarga XML' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ejecutar descarga XML');
       }
 
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
       if (!tenant.activo) {
-        return reply.status(409).send({ error: 'Tenant inactivo' });
+        throw new ApiError(409, 'API_ERROR', 'Tenant inactivo');
       }
 
       const parsed = descargarXmlSchema.safeParse(req.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Datos inválidos', details: parsed.error.errors });
+        throw new ApiError(400, 'BAD_REQUEST', 'Datos inválidos', parsed.error.errors );
       }
 
       const active = await countActiveJobsForTenant(req.params.id, 'DESCARGAR_XML');
       if (active > 0) {
-        return reply.status(409).send({
-          error: 'Ya existe un job de descarga XML activo para este tenant. Esperá a que termine.',
-        });
+        throw new ApiError(409, 'API_ERROR', 'Ya existe un job de descarga XML activo para este tenant. Esperá a que termine.',);
       }
 
       const batchSize = parsed.data.batch_size ?? 20;
@@ -124,20 +123,20 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('jobs:ejecutar_sync') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para ejecutar sincronizacion de facturas virtuales' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ejecutar sincronizacion de facturas virtuales');
       }
 
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
       if (!tenant.activo) {
-        return reply.status(409).send({ error: 'Tenant inactivo' });
+        throw new ApiError(409, 'API_ERROR', 'Tenant inactivo');
       }
 
       const parsed = syncFacturasVirtualesSchema.safeParse(req.body);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Datos invalidos', details: parsed.error.errors });
+        throw new ApiError(400, 'API_ERROR', 'Datos invalidos', parsed.error.errors );
       }
 
       try {
@@ -152,7 +151,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const error = err as Error;
         if (error.message.includes('activo')) {
-          return reply.status(409).send({ error: error.message });
+          throw new ApiError(409, 'API_ERROR', error.message);
         }
         throw err;
       }
@@ -172,7 +171,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
     const { tipo_job, estado, limit, offset } = req.query;
 
     if (!u.permisos.includes('jobs:ver') && u.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Sin permiso para ver jobs' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver jobs');
     }
 
     let tenantFilter: string | undefined;
@@ -180,7 +179,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       tenantFilter = req.query.tenant_id;
     } else {
       if (!u.tenant_id) {
-        return reply.status(403).send({ error: 'Sin empresa asignada' });
+        throw new ApiError(403, 'API_ERROR', 'Sin empresa asignada');
       }
       tenantFilter = u.tenant_id;
     }
@@ -192,25 +191,25 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       limit: limit ? parseInt(limit, 10) : 50,
       offset: offset ? parseInt(offset, 10) : 0,
     });
-    return reply.send({ data: jobs, total: jobs.length });
+    return reply.send({ success: true, data: jobs, meta: { total: jobs.length } });
   });
 
   app.get<{ Params: { id: string } }>('/jobs/:id', async (req, reply) => {
     const u = req.currentUser!;
 
     if (!u.permisos.includes('jobs:ver') && u.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Sin permiso para ver jobs' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver jobs');
     }
 
     const job = await findJobById(req.params.id);
     if (!job) {
-      return reply.status(404).send({ error: 'Job no encontrado' });
+      throw new ApiError(404, 'NOT_FOUND', 'Job no encontrado');
     }
 
     if (u.rol.nombre !== 'super_admin' && job.tenant_id !== u.tenant_id) {
-      return reply.status(403).send({ error: 'Acceso denegado: este job no pertenece a tu empresa' });
+      throw new ApiError(403, 'API_ERROR', 'Acceso denegado: este job no pertenece a tu empresa');
     }
 
-    return reply.send({ data: job });
+    return reply.send({ success: true, data: job });
   });
 }

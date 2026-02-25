@@ -17,14 +17,25 @@ import {
   createRun,
   findProcessorsByTenant,
   createProcessor,
+  updateProcessor,
   upsertProcessorTransactions,
 } from '../../db/repositories/bank.repository';
+import {
+  findAllCsvSchemaTemplates,
+  findCsvSchemaTemplatesByType,
+  createCsvSchemaTemplate,
+  updateCsvSchemaTemplate,
+  deleteCsvSchemaTemplate,
+} from '../../db/repositories/csv-schema.repository';
 import { processUploadedFile } from '../../services/bankImport.service';
 import { createJob } from '../../db/repositories/job.repository';
 import { storageService } from '../../services/storage.service';
+import { normalizeProcessorCSV } from '../../services/processors/processor.normalizer';
+import { CsvSchema } from '../../services/csv-schemas/types';
 import { logAudit } from '../../services/audit.service';
 import { checkFeature } from '../../services/billing.service';
 import { query } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -35,29 +46,29 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   // ─── Banks catalog ──────────────────────────────────────────────────────────
   app.get('/banks', async (_req, reply) => {
     const banks = await findBanks();
-    return reply.send({ data: banks });
+    return reply.send({ success: true, data: banks });
   });
 
-  app.post<{ Body: { nombre: string; codigo: string; pais?: string; activo?: boolean } }>(
+  app.post<{ Body: { nombre: string; codigo: string; pais?: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null } }>(
     '/banks',
     async (req, reply) => {
       if (req.currentUser?.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Solo Super Admin puede crear bancos' });
+        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede crear bancos');
       }
       const bank = await createBank(req.body);
       return reply.status(201).send({ data: bank });
     }
   );
 
-  app.put<{ Params: { id: string }; Body: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean }> }>(
+  app.put<{ Params: { id: string }; Body: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean; csv_mapping: Record<string, unknown> | null }> }>(
     '/banks/:id',
     async (req, reply) => {
       if (req.currentUser?.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Solo Super Admin puede editar bancos' });
+        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede editar bancos');
       }
       const bank = await updateBank(req.params.id, req.body);
-      if (!bank) return reply.status(404).send({ error: 'Banco no encontrado' });
-      return reply.send({ data: bank });
+      if (!bank) throw new ApiError(404, 'NOT_FOUND', 'Banco no encontrado');
+      return reply.send({ success: true, data: bank });
     }
   );
 
@@ -65,7 +76,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     '/banks/:id',
     async (req, reply) => {
       if (req.currentUser?.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Solo Super Admin puede eliminar bancos' });
+        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede eliminar bancos');
       }
       await deleteBank(req.params.id);
       return reply.status(204).send();
@@ -76,14 +87,14 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const banks = await findBanks();
     // Only return active banks for tenants
-    return reply.send({ data: banks.filter(b => b.activo) });
+    return reply.send({ success: true, data: banks.filter(b => b.activo) });
   });
 
   // ─── Bank Accounts ──────────────────────────────────────────────────────────
   app.get<{ Params: { id: string } }>('/tenants/:id/banks/accounts', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const accounts = await findAccountsByTenant(req.params.id);
-    return reply.send({ data: accounts });
+    return reply.send({ success: true, data: accounts });
   });
 
   app.post<{
@@ -92,7 +103,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   }>('/tenants/:id/banks/accounts', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const { bank_id, alias, numero_cuenta, moneda, tipo } = req.body;
-    if (!bank_id || !alias) return reply.status(400).send({ error: 'bank_id y alias son requeridos' });
+    if (!bank_id || !alias) throw new ApiError(400, 'BAD_REQUEST', 'bank_id y alias son requeridos');
 
     const account = await createAccount({ tenantId: req.params.id, bankId: bank_id, alias, numeroCuenta: numero_cuenta, moneda, tipo });
     return reply.status(201).send({ data: account });
@@ -104,8 +115,8 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   }>('/tenants/:id/banks/accounts/:aid', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const updated = await updateAccount(req.params.aid, req.params.id, req.body);
-    if (!updated) return reply.status(404).send({ error: 'Cuenta no encontrada' });
-    return reply.send({ data: updated });
+    if (!updated) throw new ApiError(404, 'API_ERROR', 'Cuenta no encontrada');
+    return reply.send({ success: true, data: updated });
   });
 
   // ─── Statements Upload ──────────────────────────────────────────────────────
@@ -116,10 +127,10 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
 
       // Check plan feature
       const hasFeature = await checkFeature(req.params.id, 'conciliacion');
-      if (!hasFeature) return reply.status(402).send({ error: 'Plan actual no incluye conciliación bancaria' });
+      if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye conciliación bancaria');
 
       const data = await (req as FastifyRequest & { file: () => Promise<{ filename: string; toBuffer: () => Promise<Buffer> }> }).file();
-      if (!data) return reply.status(400).send({ error: 'No se encontró archivo' });
+      if (!data) throw new ApiError(400, 'API_ERROR', 'No se encontró archivo');
 
       const buffer = await data.toBuffer();
       const filename = data.filename;
@@ -128,6 +139,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       const accounts = await findAccountsByTenant(req.params.id);
       const account = accounts.find((a) => a.id === req.params.aid);
       const bankCode = (account as unknown as { bank_codigo?: string })?.bank_codigo ?? '';
+      const bankMapping = (account as unknown as { bank_csv_mapping?: Record<string, unknown> | null })?.bank_csv_mapping;
 
       try {
         const result = await processUploadedFile({
@@ -136,6 +148,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
           bankCode,
           tenantId: req.params.id,
           accountId: req.params.aid,
+          schema: bankMapping,
         });
 
         logAudit({
@@ -157,7 +170,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const error = err as Error & { statusCode?: number };
-        return reply.status(error.statusCode ?? 400).send({ error: error.message });
+        return reply.status(error.statusCode ?? 400).send({ error: { code: 'API_ERROR', message: error.message } });
       }
     }
   );
@@ -180,7 +193,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         })
       );
 
-      return reply.send({ data: enriched });
+      return reply.send({ success: true, data: enriched });
     }
   );
 
@@ -206,11 +219,11 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
 
     const hasFeature = await checkFeature(req.params.id, 'conciliacion');
-    if (!hasFeature) return reply.status(402).send({ error: 'Plan actual no incluye conciliación bancaria' });
+    if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye conciliación bancaria');
 
     const { bank_account_id, periodo_desde, periodo_hasta, parametros } = req.body;
     if (!bank_account_id || !periodo_desde || !periodo_hasta) {
-      return reply.status(400).send({ error: 'bank_account_id, periodo_desde y periodo_hasta son requeridos' });
+      throw new ApiError(400, 'BAD_REQUEST', 'bank_account_id, periodo_desde y periodo_hasta son requeridos');
     }
 
     const run = await createRun({
@@ -245,7 +258,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/tenants/:id/reconciliation-runs', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const runs = await findRunsByTenant(req.params.id);
-    return reply.send({ data: runs });
+    return reply.send({ success: true, data: runs });
   });
 
   app.get<{ Params: { id: string; rid: string } }>(
@@ -253,8 +266,8 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       const run = await findRunById(req.params.rid);
-      if (!run || run.tenant_id !== req.params.id) return reply.status(404).send({ error: 'Run no encontrado' });
-      return reply.send({ data: run });
+      if (!run || run.tenant_id !== req.params.id) throw new ApiError(404, 'NOT_FOUND', 'Run no encontrado');
+      return reply.send({ success: true, data: run });
     }
   );
 
@@ -300,7 +313,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     const { bank_transaction_id, allocations, notas } = req.body;
 
     if (!bank_transaction_id || !allocations || allocations.length === 0) {
-      return reply.status(400).send({ error: 'Faltan datos para el match manual (bank_transaction_id o allocations)' });
+      throw new ApiError(400, 'API_ERROR', 'Faltan datos para el match manual (bank_transaction_id o allocations)');
     }
 
     // Calcula la diferencia de monto. Asumimos diferencia_monto 0 o parcial según lo que envíe el cliente.
@@ -316,7 +329,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     );
 
     const matchId = rows[0]?.id;
-    if (!matchId) return reply.status(500).send({ error: 'No se pudo crear el match manual' });
+    if (!matchId) throw new ApiError(500, 'API_ERROR', 'No se pudo crear el match manual');
 
     for (const alloc of allocations) {
       await query(
@@ -343,16 +356,31 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/tenants/:id/banks/processors', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const processors = await findProcessorsByTenant(req.params.id);
-    return reply.send({ data: processors });
+    return reply.send({ success: true, data: processors });
   });
 
   app.post<{
     Params: { id: string };
-    Body: { nombre: string; tipo?: string };
+    Body: { nombre: string; tipo?: string; csv_mapping?: Record<string, unknown> | null };
   }>('/tenants/:id/banks/processors', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
-    const processor = await createProcessor({ tenantId: req.params.id, nombre: req.body.nombre, tipo: req.body.tipo });
+    const processor = await createProcessor({
+      tenantId: req.params.id,
+      nombre: req.body.nombre,
+      tipo: req.body.tipo,
+      csv_mapping: req.body.csv_mapping
+    });
     return reply.status(201).send({ data: processor });
+  });
+
+  app.put<{
+    Params: { id: string, pid: string };
+    Body: Partial<{ nombre: string; tipo: string; activo: boolean; csv_mapping: Record<string, unknown> | null }>;
+  }>('/tenants/:id/banks/processors/:pid', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+    const processor = await updateProcessor(req.params.id, req.params.pid, req.body);
+    if (!processor) throw new ApiError(404, 'API_ERROR', 'Procesadora no encontrada');
+    return reply.send({ success: true, data: processor });
   });
 
   app.post<{ Params: { id: string; pid: string } }>(
@@ -361,44 +389,17 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
 
       const data = await (req as FastifyRequest & { file: () => Promise<{ filename: string; toBuffer: () => Promise<Buffer> }> }).file();
-      if (!data) return reply.status(400).send({ error: 'No se encontró archivo' });
+      if (!data) throw new ApiError(400, 'API_ERROR', 'No se encontró archivo');
 
       const buffer = await data.toBuffer();
       const filename = data.filename;
 
-      // Parse CSV simple para procesadoras
-      const content = buffer.toString('utf-8');
-      const lines = content.split(/\r?\n/).filter((l) => l.trim());
-      if (lines.length < 2) return reply.status(400).send({ error: 'Archivo vacío' });
+      // Retrieve processor to get its dynamic schema
+      const processors = await findProcessorsByTenant(req.params.id);
+      const processor = processors.find((p) => p.id === req.params.pid);
+      const schema = processor && (processor as any).csv_mapping ? ((processor as any).csv_mapping as CsvSchema) : undefined;
 
-      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
-      const txs = lines.slice(1).map((line) => {
-        const cols = line.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
-        const get = (aliases: string[]) => {
-          const i = aliases.map((a) => headers.indexOf(a)).find((i) => i >= 0) ?? -1;
-          return i >= 0 ? cols[i] : '';
-        };
-        const monto_bruto = parseFloat(get(['monto_bruto', 'bruto', 'importe_bruto'])) || 0;
-        const comision = parseFloat(get(['comision', 'comisión'])) || 0;
-        const monto_neto = parseFloat(get(['monto_neto', 'neto'])) || monto_bruto - comision;
-
-        return {
-          statement_id: null,
-          merchant_id: get(['merchant_id', 'merchant']),
-          terminal_id: get(['terminal_id', 'terminal']),
-          lote: get(['lote']),
-          fecha: get(['fecha', 'date']),
-          autorizacion: get(['autorizacion', 'autorizacion', 'auth']),
-          monto_bruto,
-          comision,
-          monto_neto,
-          medio_pago: get(['medio_pago', 'medio', 'tipo_pago']),
-          estado_liquidacion: 'PENDIENTE',
-          id_externo: null,
-          raw_payload: {},
-          statement_r2_key: null as string | null,
-        };
-      }).filter((t) => t.fecha);
+      const txs = normalizeProcessorCSV(buffer, schema).filter((t) => t.fecha);
 
       // Upload CSV to R2
       let r2Key: string | null = null;
@@ -409,7 +410,58 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const inserted = await upsertProcessorTransactions(req.params.id, req.params.pid, txs);
-      return reply.send({ data: { filas_importadas: inserted } });
+      return reply.send({ success: true, data: { filas_importadas: inserted } });
+    }
+  );
+
+  // ─── CSV Schema Templates ──────────────────────────────────────────────────
+
+  /** Lista todos los templates de schemas CSV disponibles */
+  app.get<{ Querystring: { type?: string } }>(
+    '/csv-schema-templates',
+    async (req, reply) => {
+      const type = req.query.type as 'BANK' | 'PROCESSOR' | undefined;
+      const templates = type
+        ? await findCsvSchemaTemplatesByType(type)
+        : await findAllCsvSchemaTemplates();
+      return reply.send({ success: true, data: templates });
+    }
+  );
+
+  /** Crea un nuevo template de schema (super_admin o admin) */
+  app.post<{ Body: { nombre: string; descripcion?: string; type: 'BANK' | 'PROCESSOR'; schema: Record<string, unknown> } }>(
+    '/csv-schema-templates',
+    async (req, reply) => {
+      if (!['super_admin', 'admin'].includes(req.currentUser?.rol.nombre ?? '')) {
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para crear templates');
+      }
+      const template = await createCsvSchemaTemplate({ ...req.body, es_sistema: false });
+      return reply.status(201).send({ data: template });
+    }
+  );
+
+  /** Actualiza un template (super_admin únicamente para los del sistema) */
+  app.put<{ Params: { id: string }; Body: { nombre?: string; schema?: Record<string, unknown>; activo?: boolean } }>(
+    '/csv-schema-templates/:id',
+    async (req, reply) => {
+      if (!['super_admin', 'admin'].includes(req.currentUser?.rol.nombre ?? '')) {
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para editar templates');
+      }
+      const updated = await updateCsvSchemaTemplate(req.params.id, req.body);
+      if (!updated) throw new ApiError(404, 'NOT_FOUND', 'Template no encontrado');
+      return reply.send({ success: true, data: updated });
+    }
+  );
+
+  /** Desactiva un template (solo los no-sistema) */
+  app.delete<{ Params: { id: string } }>(
+    '/csv-schema-templates/:id',
+    async (req, reply) => {
+      if (!['super_admin', 'admin'].includes(req.currentUser?.rol.nombre ?? '')) {
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para eliminar templates');
+      }
+      await deleteCsvSchemaTemplate(req.params.id);
+      return reply.status(204).send();
     }
   );
 }

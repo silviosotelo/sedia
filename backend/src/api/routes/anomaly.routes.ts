@@ -52,7 +52,7 @@ export async function anomalyRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>('/tenants/:id/anomalies/summary', async (req, reply) => {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
     const summary = await getAnomalySummary(req.params.id);
-    return reply.send({ data: summary });
+    return reply.send({ success: true, data: summary });
   });
 
   app.patch<{

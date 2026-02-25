@@ -275,6 +275,7 @@ export async function processUploadedFile(params: {
   bankCode: string;
   tenantId: string;
   accountId: string;
+  schema?: Record<string, unknown> | null;
 }): Promise<{ statementId: string; filas: number; preview: RawTransaction[] }> {
   const hash = createHash('sha256').update(params.buffer).digest('hex');
 
@@ -297,7 +298,7 @@ export async function processUploadedFile(params: {
   if (ext === 'xlsx' || ext === 'xls') {
     txs = await parseExcel(params.buffer);
   } else if (ext === 'csv') {
-    txs = parseCSV(params.buffer);
+    txs = parseCSV(params.buffer, params.schema ? (params.schema as unknown as CsvSchema) : GENERIC_CSV_SCHEMA);
   } else if (ext === 'txt') {
     // Detectar si es formato Itaú
     const sample = params.buffer.toString('utf-8', 0, 200);
@@ -307,7 +308,7 @@ export async function processUploadedFile(params: {
       txs = parseGenericoTXT(params.buffer);
     }
   } else {
-    txs = parseCSV(params.buffer);
+    txs = parseCSV(params.buffer, params.schema ? (params.schema as unknown as CsvSchema) : GENERIC_CSV_SCHEMA);
   }
 
   if (txs.length === 0) {

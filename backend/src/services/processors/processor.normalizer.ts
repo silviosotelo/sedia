@@ -4,8 +4,8 @@ import { BANCARD_VPOS_1 } from '../csv-schemas/schemas';
 
 export type RawProcessorTransaction = Omit<ProcessorTransaction, 'id' | 'tenant_id' | 'processor_id' | 'created_at'>;
 
-export function normalizeBancardCSV(buffer: Buffer): RawProcessorTransaction[] {
-    const rawRows = CsvParserEngine.parse(buffer, BANCARD_VPOS_1);
+export function normalizeProcessorCSV(buffer: Buffer, schema: import('../csv-schemas/types').CsvSchema = BANCARD_VPOS_1): RawProcessorTransaction[] {
+    const rawRows = CsvParserEngine.parse(buffer, schema);
     const txs: RawProcessorTransaction[] = [];
 
     for (const row of rawRows) {

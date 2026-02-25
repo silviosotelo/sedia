@@ -2,13 +2,14 @@ import { FastifyInstance } from 'fastify';
 import {
   findComprobantesByTenant,
   findComprobanteById,
+  updateComprobanteFields,
 } from '../../db/repositories/comprobante.repository';
 import { findTenantById } from '../../db/repositories/tenant.repository';
-import { query } from '../../db/connection';
 import { Comprobante, TipoComprobante } from '../../types';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { exportarComprobantesXLSX, exportarComprobantesPDF, logExportacion } from '../../services/export.service';
 import { storageService } from '../../services/storage.service';
+import { ApiError } from '../../utils/errors';
 
 function comprobanteToTxtLines(c: Comprobante): string {
   const lines: string[] = [
@@ -127,12 +128,12 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(req, reply, req.params.id)) return;
 
     if (!req.currentUser!.permisos.includes('comprobantes:ver') && req.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Sin permiso para ver comprobantes' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver comprobantes');
     }
 
     const tenant = await findTenantById(req.params.id);
     if (!tenant) {
-      return reply.status(404).send({ error: 'Tenant no encontrado' });
+      throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
     }
 
     const {
@@ -184,11 +185,11 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('comprobantes:ver') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para ver comprobantes' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver comprobantes');
       }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
 
       const comprobante = await findComprobanteById(
@@ -196,10 +197,10 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         req.params.comprobanteId
       );
       if (!comprobante) {
-        return reply.status(404).send({ error: 'Comprobante no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Comprobante no encontrado');
       }
 
-      return reply.send({ data: comprobante });
+      return reply.send({ success: true, data: comprobante });
     }
   );
 
@@ -211,11 +212,11 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('comprobantes:exportar') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para exportar comprobantes' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para exportar comprobantes');
       }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
 
       const comprobante = await findComprobanteById(
@@ -223,7 +224,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         req.params.comprobanteId
       );
       if (!comprobante) {
-        return reply.status(404).send({ error: 'Comprobante no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Comprobante no encontrado');
       }
 
       const formato = (req.query.formato ?? 'json').toLowerCase();
@@ -231,7 +232,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
 
       if (formato === 'xml') {
         if (!comprobante.xml_contenido) {
-          return reply.status(404).send({ error: 'XML no disponible para este comprobante' });
+          throw new ApiError(404, 'API_ERROR', 'XML no disponible para este comprobante');
         }
         return reply
           .header('Content-Type', 'application/xml; charset=utf-8')
@@ -284,11 +285,11 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('comprobantes:exportar') && req.currentUser!.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para exportar comprobantes' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para exportar comprobantes');
       }
       const tenant = await findTenantById(req.params.id);
       if (!tenant) {
-        return reply.status(404).send({ error: 'Tenant no encontrado' });
+        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
 
       const {
@@ -418,47 +419,25 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       const u = req.currentUser!;
 
       if (nro_ot !== undefined && !u.permisos.includes('comprobantes:editar_ot') && u.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para editar número de OT' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para editar número de OT');
       }
       if (sincronizar !== undefined && !u.permisos.includes('comprobantes:editar_sincronizar') && u.rol.nombre !== 'super_admin') {
-        return reply.status(403).send({ error: 'Sin permiso para cambiar flag de sincronización' });
+        throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para cambiar flag de sincronización');
       }
 
       const tenant = await findTenantById(req.params.id);
-      if (!tenant) return reply.status(404).send({ error: 'Tenant no encontrado' });
+      if (!tenant) throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
 
       const comprobante = await findComprobanteById(req.params.id, req.params.comprobanteId);
-      if (!comprobante) return reply.status(404).send({ error: 'Comprobante no encontrado' });
+      if (!comprobante) throw new ApiError(404, 'NOT_FOUND', 'Comprobante no encontrado');
 
-      const sets: string[] = [];
-      const params: unknown[] = [req.params.comprobanteId];
-      let i = 2;
+      const updatedComprobante = await updateComprobanteFields(req.params.id, req.params.comprobanteId, {
+        nro_ot,
+        sincronizar,
+        sincronizar_actualizado_por: sincronizar !== undefined && usuario ? usuario : undefined
+      });
 
-      if (nro_ot !== undefined) {
-        sets.push(`nro_ot = $${i++}`);
-        params.push(nro_ot);
-      }
-
-      if (sincronizar !== undefined) {
-        sets.push(`sincronizar = $${i++}`);
-        params.push(sincronizar);
-        sets.push(`sincronizar_actualizado_at = NOW()`);
-        if (usuario) {
-          sets.push(`sincronizar_actualizado_por = $${i++}`);
-          params.push(usuario);
-        }
-      }
-
-      if (sets.length === 0) {
-        return reply.send({ data: comprobante });
-      }
-
-      const rows = await query<Comprobante>(
-        `UPDATE comprobantes SET ${sets.join(', ')} WHERE id = $1 AND tenant_id = $${i} RETURNING *`,
-        [...params, req.params.id]
-      );
-
-      return reply.send({ data: rows[0] ?? comprobante });
+      return reply.send({ success: true, data: updatedComprobante ?? comprobante });
     }
   );
 }

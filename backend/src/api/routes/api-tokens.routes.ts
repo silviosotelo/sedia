@@ -3,6 +3,7 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import crypto from 'crypto';
+import { ApiError } from '../../utils/errors';
 
 function generateToken(): { raw: string; hash: string; prefix: string } {
   const raw = 'set_' + crypto.randomBytes(32).toString('base64url');
@@ -24,7 +25,7 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
          FROM tenant_api_tokens WHERE tenant_id=$1 ORDER BY created_at DESC`,
         [req.params.tenantId]
       );
-      return reply.send({ data: rows });
+      return reply.send({ success: true, data: rows });
     }
   );
 
@@ -37,7 +38,7 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, permisos = ['comprobantes:read'], expira_at } = req.body;
-      if (!nombre) return reply.status(400).send({ error: 'nombre es requerido' });
+      if (!nombre) throw new ApiError(400, 'BAD_REQUEST', 'nombre es requerido');
 
       const { raw, hash, prefix } = generateToken();
 
@@ -63,7 +64,7 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
       let idx = 1;
       if (activo !== undefined) { fields.push(`activo=$${idx++}`); values.push(activo); }
       if (nombre !== undefined) { fields.push(`nombre=$${idx++}`); values.push(nombre); }
-      if (!fields.length) return reply.status(400).send({ error: 'Nada que actualizar' });
+      if (!fields.length) throw new ApiError(400, 'API_ERROR', 'Nada que actualizar');
 
       values.push(req.params.id, req.params.tenantId);
       const row = await queryOne(
@@ -71,8 +72,8 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
          RETURNING id, nombre, token_prefix, permisos, activo, expira_at`,
         values
       );
-      if (!row) return reply.status(404).send({ error: 'Token no encontrado' });
-      return reply.send({ data: row });
+      if (!row) throw new ApiError(404, 'NOT_FOUND', 'Token no encontrado');
+      return reply.send({ success: true, data: row });
     }
   );
 

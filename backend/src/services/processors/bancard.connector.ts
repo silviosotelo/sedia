@@ -9,7 +9,7 @@ import { config } from '../../config/env';
 import { logger } from '../../config/logger';
 import { ProcessorConnection } from '../../types';
 
-import { normalizeBancardCSV, RawProcessorTransaction } from './processor.normalizer';
+import { normalizeProcessorCSV, RawProcessorTransaction } from './processor.normalizer';
 
 const SELECTORS = {
     login: {
@@ -193,7 +193,7 @@ export class BancardConnector {
         }
 
         const buffer = fs.readFileSync(downloadedFilePath);
-        const transacciones = normalizeBancardCSV(buffer);
+        const transacciones = normalizeProcessorCSV(buffer);
 
         fs.rmSync(downloadPath, { recursive: true, force: true });
         logger.info('Extracción Bancard exitosa', { count: transacciones.length, tenant_id: tenantId });

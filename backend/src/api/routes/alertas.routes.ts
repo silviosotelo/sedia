@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function alertasRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -20,7 +21,7 @@ export async function alertasRoutes(app: FastifyInstance): Promise<void> {
          WHERE a.tenant_id=$1 ORDER BY a.created_at DESC`,
         [req.params.tenantId]
       );
-      return reply.send({ data: rows });
+      return reply.send({ success: true, data: rows });
     }
   );
 
@@ -34,7 +35,7 @@ export async function alertasRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, tipo, config, canal = 'email', webhook_id, activo = true, cooldown_minutos = 60 } = req.body;
-      if (!nombre || !tipo || !config) return reply.status(400).send({ error: 'nombre, tipo y config son requeridos' });
+      if (!nombre || !tipo || !config) throw new ApiError(400, 'BAD_REQUEST', 'nombre, tipo y config son requeridos');
 
       const row = await queryOne(
         `INSERT INTO tenant_alertas (tenant_id, nombre, tipo, config, canal, webhook_id, activo, cooldown_minutos)
@@ -67,15 +68,15 @@ export async function alertasRoutes(app: FastifyInstance): Promise<void> {
       if (req.body.activo !== undefined) { fields.push(`activo=$${idx++}`); values.push(req.body.activo); }
       if (req.body.cooldown_minutos !== undefined) { fields.push(`cooldown_minutos=$${idx++}`); values.push(req.body.cooldown_minutos); }
 
-      if (!fields.length) return reply.status(400).send({ error: 'Nada que actualizar' });
+      if (!fields.length) throw new ApiError(400, 'API_ERROR', 'Nada que actualizar');
       values.push(req.params.id, req.params.tenantId);
       const row = await queryOne(
         `UPDATE tenant_alertas SET ${fields.join(',')} WHERE id=$${idx} AND tenant_id=$${idx + 1}
          RETURNING id, nombre, tipo, config, canal, activo, cooldown_minutos`,
         values
       );
-      if (!row) return reply.status(404).send({ error: 'Alerta no encontrada' });
-      return reply.send({ data: row });
+      if (!row) throw new ApiError(404, 'API_ERROR', 'Alerta no encontrada');
+      return reply.send({ success: true, data: row });
     }
   );
 

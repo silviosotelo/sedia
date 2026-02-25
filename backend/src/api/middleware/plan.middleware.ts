@@ -1,12 +1,13 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { UsuarioConRol } from '../../services/auth.service';
+import { ApiError } from '../../utils/errors';
 
 export function checkFeature(featureName: string) {
     return async (request: FastifyRequest, reply: FastifyReply) => {
         const user = (request as any).currentUser as UsuarioConRol;
 
         if (!user) {
-            return reply.status(401).send({ error: 'No autenticado' });
+            throw new ApiError(401, 'UNAUTHORIZED', 'No autenticado');
         }
 
         // Super admin ignores plan restrictions

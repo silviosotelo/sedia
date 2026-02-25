@@ -3,6 +3,7 @@ import { query, queryOne } from '../../db/connection';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { generarProyeccion } from '../../services/forecast.service';
+import { ApiError } from '../../utils/errors';
 
 export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.addHook('preHandler', requireAuth);
@@ -10,7 +11,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
 
   fastify.get('/metrics/overview', async (request, reply) => {
     if (request.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo el super administrador puede ver métricas globales' });
+      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede ver métricas globales');
     }
 
     const [
@@ -127,7 +128,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(request, reply, id)) return;
 
     if (!request.currentUser!.permisos.includes('metricas:ver') && request.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Sin permiso para ver métricas' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver métricas');
     }
 
     const { dias = '30' } = request.query as { dias?: string };
@@ -219,7 +220,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(request, reply, id)) return;
 
     if (!request.currentUser!.permisos.includes('metricas:ver') && request.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Sin permiso para ver métricas' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver métricas');
     }
 
     const now = new Date();
@@ -372,12 +373,12 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     if (!assertTenantAccess(request, reply, id)) return;
 
     if (!['super_admin', 'admin_empresa'].includes(request.currentUser!.rol.nombre)) {
-      return reply.status(403).send({ error: 'Sin permiso' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso');
     }
 
     const meses = Math.min(12, Math.max(1, parseInt(request.query.meses ?? '3')));
     const result = await generarProyeccion(id, meses);
-    return reply.send({ data: result });
+    return reply.send({ success: true, data: result });
   });
 
   // ─── Alertas activas count (nuevo) ───────────────────────────────────────────
@@ -393,13 +394,13 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
         [id]
       );
 
-      return reply.send({ data: { count: parseInt(row?.count ?? '0') } });
+      return reply.send({ success: true, data: { count: parseInt(row?.count ?? '0') } });
     }
   );
 
   fastify.get('/metrics/saas', async (request, reply) => {
     if (request.currentUser!.rol.nombre !== 'super_admin') {
-      return reply.status(403).send({ error: 'Solo el super administrador puede ver métricas SaaS' });
+      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede ver métricas SaaS');
     }
 
     const [

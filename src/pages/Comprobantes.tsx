@@ -78,7 +78,7 @@ function SifenBadge({ estado }: { estado: string | null }) {
 const TIPO_OPTIONS: TipoComprobante[] = ['FACTURA', 'NOTA_CREDITO', 'NOTA_DEBITO', 'AUTOFACTURA', 'OTRO'];
 
 export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: ComprobantesProps) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, hasFeature } = useAuth();
   const { activeTenantId } = useTenant();
   const canEditOt = hasPermission('comprobantes', 'editar_ot');
   const canEditSync = hasPermission('comprobantes', 'editar_sincronizar');
@@ -242,26 +242,72 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
               </button>
               {showExport && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
-                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json', {
-                    tipo_comprobante: tipoFilter as TipoComprobante,
-                    xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
-                    fecha_desde: fechaDesde,
-                    fecha_hasta: fechaHasta,
-                    ruc_vendedor: search.match(/^\d/) ? search : undefined,
-                    modo: modoFilter || undefined,
-                  })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                    <FileJson className="w-3.5 h-3.5 text-zinc-400" />Exportar JSON
-                  </a>
-                  <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt', {
-                    tipo_comprobante: tipoFilter as TipoComprobante,
-                    xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
-                    fecha_desde: fechaDesde,
-                    fecha_hasta: fechaHasta,
-                    ruc_vendedor: search.match(/^\d/) ? search : undefined,
-                    modo: modoFilter || undefined,
-                  })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                    <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Exportar TXT
-                  </a>
+
+                  {hasFeature('exportacion_json') && (
+                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json', {
+                      tipo_comprobante: tipoFilter as TipoComprobante,
+                      xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      fecha_desde: fechaDesde,
+                      fecha_hasta: fechaHasta,
+                      ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                      modo: modoFilter || undefined,
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <FileJson className="w-3.5 h-3.5 text-zinc-400" />Exportar JSON
+                    </a>
+                  )}
+
+                  {hasFeature('exportacion_txt') && (
+                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt', {
+                      tipo_comprobante: tipoFilter as TipoComprobante,
+                      xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      fecha_desde: fechaDesde,
+                      fecha_hasta: fechaHasta,
+                      ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                      modo: modoFilter || undefined,
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Hechauka TXT
+                    </a>
+                  )}
+
+                  {hasFeature('exportacion_xlsx') && (
+                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'xlsx', {
+                      tipo_comprobante: tipoFilter as TipoComprobante,
+                      xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      fecha_desde: fechaDesde,
+                      fecha_hasta: fechaHasta,
+                      ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                      modo: modoFilter || undefined,
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />Excel XLSX
+                    </a>
+                  )}
+
+                  {hasFeature('exportacion_pdf') && (
+                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'pdf', {
+                      tipo_comprobante: tipoFilter as TipoComprobante,
+                      xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      fecha_desde: fechaDesde,
+                      fecha_hasta: fechaHasta,
+                      ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                      modo: modoFilter || undefined,
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <FileText className="w-3.5 h-3.5 text-zinc-400" />Imprimir PDF
+                    </a>
+                  )}
+
+                  {hasFeature('exportacion_csv') && (
+                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'csv', {
+                      tipo_comprobante: tipoFilter as TipoComprobante,
+                      xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
+                      fecha_desde: fechaDesde,
+                      fecha_hasta: fechaHasta,
+                      ruc_vendedor: search.match(/^\d/) ? search : undefined,
+                      modo: modoFilter || undefined,
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Exportar CSV
+                    </a>
+                  )}
+
                 </div>
               )}
             </div>

@@ -10,6 +10,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   hasPermission: (recurso: string, accion: string) => boolean;
+  hasFeature: (feature: string) => boolean;
   isSuperAdmin: boolean;
   isAdminEmpresa: boolean;
   isUsuarioEmpresa: boolean;
@@ -159,6 +160,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.permisos.includes(`${recurso}:${accion}`);
   };
 
+  const hasFeature = (feature: string) => {
+    if (!user) return false;
+    if (user.rol.nombre === 'super_admin') return true;
+    return user.plan_features?.[feature] === true;
+  };
+
   const isSuperAdmin = user?.rol.nombre === 'super_admin';
   const isAdminEmpresa = user?.rol.nombre === 'admin_empresa' || isSuperAdmin;
   const isUsuarioEmpresa = user?.rol.nombre === 'usuario_empresa';
@@ -168,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user, token, loading, login, logout,
-      hasPermission, isSuperAdmin, isAdminEmpresa,
+      hasPermission, hasFeature, isSuperAdmin, isAdminEmpresa,
       isUsuarioEmpresa, isReadonly, userTenantId,
       branding, refreshBranding, billingStatus
     }}>

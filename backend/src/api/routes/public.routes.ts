@@ -11,7 +11,7 @@ export async function publicRoutes(app: FastifyInstance): Promise<void> {
             const { hash } = req.params;
 
             if (!hash || hash.length < 10) {
-                return reply.code(400).send({ error: 'Hash inválido' });
+                return reply.code(400).send({ error: { code: 'BAD_REQUEST', message: 'Hash inválido' } });
             }
 
             const rows = await query<Comprobante & { tenant_nombre: string, tenant_ruc: string }>(
@@ -24,7 +24,7 @@ export async function publicRoutes(app: FastifyInstance): Promise<void> {
             const data = rows[0];
 
             if (!data) {
-                return reply.code(404).send({ error: 'Comprobante no encontrado' });
+                return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Comprobante no encontrado' } });
             }
 
             // En un escenario real, si data.xml_url apunta a un bucket privado, 
@@ -50,7 +50,7 @@ export async function publicRoutes(app: FastifyInstance): Promise<void> {
             });
         } catch (error: any) {
             logger.error('Error en public invoice route', { error: error.message || 'Unknown error' });
-            return reply.code(500).send({ error: 'Error interno del servidor' });
+            return reply.code(500).send({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'Error interno del servidor' } });
         }
     });
 }

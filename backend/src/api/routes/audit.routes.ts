@@ -3,6 +3,7 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { AuditLogEntry } from '../../types';
+import { ApiError } from '../../utils/errors';
 
 export async function auditRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -23,7 +24,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
 
     const u = req.currentUser!;
     if (!['super_admin', 'admin_empresa'].includes(u.rol.nombre)) {
-      return reply.status(403).send({ error: 'Sin permiso para ver el log de auditoría' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver el log de auditoría');
     }
 
     const { usuario_id, accion, fecha_desde, fecha_hasta, page = '1', limit = '50' } = req.query;
@@ -69,7 +70,7 @@ export async function auditRoutes(app: FastifyInstance): Promise<void> {
 
     const u = req.currentUser!;
     if (!['super_admin', 'admin_empresa'].includes(u.rol.nombre)) {
-      return reply.status(403).send({ error: 'Sin permiso' });
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso');
     }
 
     const data = await query<AuditLogEntry>(

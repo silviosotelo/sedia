@@ -46,17 +46,19 @@ function authHeaders(): Record<string, string> {
 
 async function handleApiError(res: Response): Promise<never> {
   let msg = `HTTP ${res.status}`;
+  let code = 'API_ERROR';
   try {
     const text = await res.text();
     if (text) {
       try {
         const body = JSON.parse(text);
-        if (body.message && body.error && typeof body.error === 'string') {
-          msg = body.message;
+        // New enterprise format: { success: false, error: { code, message } }
+        if (body.error && typeof body.error === 'object' && body.error.message) {
+          msg = body.error.message;
+          code = body.error.code || code;
+          // Legacy flat: { error: 'string' }
         } else if (body.error && typeof body.error === 'string') {
           msg = body.error;
-        } else if (body.error && body.error.message) {
-          msg = body.error.message;
         } else if (body.message) {
           msg = body.message;
         }
@@ -65,7 +67,9 @@ async function handleApiError(res: Response): Promise<never> {
       }
     }
   } catch (_) { }
-  throw new Error(msg);
+  const err = new Error(msg) as Error & { code: string };
+  err.code = code;
+  throw err;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -199,11 +203,14 @@ export const api = {
       return request<{ data: Comprobante }>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`).then((r) => r.data);
     },
     downloadUrl: (tenantId: string, comprobanteId: string, formato: 'json' | 'txt' | 'xml'): string => {
-      return `${BASE_URL}/tenants/${tenantId}/comprobantes/${comprobanteId}/descargar?formato=${formato}`;
+      const token = localStorage.getItem('saas_token');
+      const q = new URLSearchParams({ formato });
+      if (token) q.set('token', token);
+      return `${BASE_URL}/tenants/${tenantId}/comprobantes/${comprobanteId}/descargar?${q.toString()}`;
     },
     exportUrl: (
       tenantId: string,
-      formato: 'json' | 'txt',
+      formato: 'json' | 'txt' | 'xlsx' | 'pdf' | 'csv',
       params?: {
         fecha_desde?: string;
         fecha_hasta?: string;
@@ -213,7 +220,9 @@ export const api = {
         modo?: 'ventas' | 'compras';
       }
     ): string => {
+      const token = localStorage.getItem('saas_token');
       const q = new URLSearchParams({ formato });
+      if (token) q.set('token', token);
       if (params?.fecha_desde) q.set('fecha_desde', params.fecha_desde);
       if (params?.fecha_hasta) q.set('fecha_hasta', params.fecha_hasta);
       if (params?.tipo_comprobante) q.set('tipo_comprobante', params.tipo_comprobante);
@@ -508,9 +517,14 @@ export const api = {
     list: (tenantId: string): Promise<any[]> =>
       request<{ data: any[] }>(`/tenants/${tenantId}/processors`).then((r) => r.data ?? []),
 
-    create: (tenantId: string, body: { nombre: string; tipo?: string }): Promise<any> =>
+    create: (tenantId: string, body: { nombre: string; tipo?: string; csv_mapping?: Record<string, unknown> | null }): Promise<any> =>
       request<{ data: any }>(`/tenants/${tenantId}/banks/processors`, {
         method: 'POST', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
+    update: (tenantId: string, processorId: string, body: { nombre?: string; tipo?: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/banks/processors/${processorId}`, {
+        method: 'PUT', body: JSON.stringify(body),
       }).then((r) => r.data),
 
     updateConnection: (tenantId: string, processorId: string, body: { tipo_conexion?: string; url_base?: string; activo?: boolean; credenciales_plain?: Record<string, string> }): Promise<any> =>
@@ -626,6 +640,19 @@ export const api = {
       request<{ data: Record<string, unknown> }>(`/tenants/${tenantId}/branding`, {
         method: 'PUT', body: JSON.stringify(body),
       }).then((r) => r.data),
+  },
+
+  csvSchemaTemplates: {
+    list: (type?: 'BANK' | 'PROCESSOR'): Promise<any[]> => {
+      const q = type ? `?type=${type}` : '';
+      return request<{ data: any[] }>(`/csv-schema-templates${q}`).then((r) => r.data ?? []);
+    },
+    create: (body: { nombre: string; descripcion?: string; type: 'BANK' | 'PROCESSOR'; schema: Record<string, unknown> }): Promise<any> =>
+      request<{ data: any }>('/csv-schema-templates', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+    update: (id: string, body: { nombre?: string; schema?: Record<string, unknown>; activo?: boolean }): Promise<any> =>
+      request<{ data: any }>(`/csv-schema-templates/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+    delete: (id: string): Promise<void> =>
+      request<void>(`/csv-schema-templates/${id}`, { method: 'DELETE' }),
   },
 
   // Métodos genéricos para facilitar migraciones y nuevas rutas

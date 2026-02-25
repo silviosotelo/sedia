@@ -14,6 +14,92 @@ interface BancosProps {
     toastError: (msg: string) => void;
 }
 
+const COMMON_TARGET_FIELDS = [
+    { value: 'fecha', label: 'Fecha de Operación' },
+    { value: 'descripcion', label: 'Descripción / Concepto' },
+    { value: 'monto', label: 'Monto Único (Positivo o Negativo)' },
+    { value: 'credito', label: 'Monto de Crédito (Ingresos)' },
+    { value: 'debito', label: 'Monto de Débito (Egresos)' },
+    { value: 'saldo', label: 'Saldo Contable' },
+    { value: 'referencia', label: 'ID Ref. / Comprobante' },
+];
+
+function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) => void }) {
+    const columns = (value?.columns || []) as any[];
+
+    const addColumn = () => {
+        onChange({ ...value, type: 'BANK', columns: [...columns, { targetField: '', exactMatchHeaders: [] }] });
+    };
+
+    const updateColumn = (index: number, field: string, val: any) => {
+        const newCols = [...columns];
+        if (field === 'exactMatchHeaders') {
+            newCols[index].exactMatchHeaders = val.split(',').map((s: string) => s.trim()).filter(Boolean);
+        } else {
+            newCols[index][field] = val;
+        }
+        onChange({ ...value, type: 'BANK', columns: newCols });
+    };
+
+    const removeColumn = (index: number) => {
+        onChange({ ...value, type: 'BANK', columns: columns.filter((_, i) => i !== index) });
+    };
+
+    return (
+        <div className="space-y-3 mt-4 border-t border-zinc-200 pt-4">
+            <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium text-zinc-800">Mapeo Avanzado de CSV</h4>
+                <button type="button" onClick={addColumn} className="btn-sm btn-ghost gap-1 text-primary">
+                    <Plus className="w-3.5 h-3.5" /> Agregar Columna
+                </button>
+            </div>
+            <p className="text-xs text-zinc-500">Configurá cómo leer las columnas del extracto bancario de este banco.</p>
+
+            <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                {columns.map((col, idx) => (
+                    <div key={idx} className="flex gap-2 items-start bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                        <select
+                            className="input py-1.5 h-auto text-xs flex-1"
+                            value={col.targetField}
+                            onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
+                        >
+                            <option value="">Destino SEDIA...</option>
+                            {COMMON_TARGET_FIELDS.map(f => (
+                                <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                        </select>
+                        <input
+                            className="input py-1.5 h-auto text-xs flex-[1.5]"
+                            placeholder="Ej: importe, monto neto"
+                            value={(col.exactMatchHeaders || []).join(', ')}
+                            onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
+                            title="Nombres de columnas del CSV (separados por coma)"
+                        />
+                        <select
+                            className="input py-1.5 h-auto text-xs w-28"
+                            value={col.format || ''}
+                            onChange={(e) => updateColumn(idx, 'format', e.target.value)}
+                            title="Formato Especial"
+                        >
+                            <option value="">Normal</option>
+                            <option value="MONTO">Monto</option>
+                            <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
+                        </select>
+                        <button type="button" onClick={() => removeColumn(idx)} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                ))}
+                {columns.length === 0 && (
+                    <div className="text-center py-4 text-xs text-zinc-400">
+                        Usará mapeo automático predeterminado si no se configuran columnas.
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export function Bancos({ toastSuccess, toastError }: BancosProps) {
     const [banks, setBanks] = useState<Bank[]>([]);
     const [loading, setLoading] = useState(true);
@@ -24,11 +110,18 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
     const [saving, setSaving] = useState(false);
 
     // Form state
-    const [form, setForm] = useState({
+    const [form, setForm] = useState<{
+        nombre: string;
+        codigo: string;
+        pais: string;
+        activo: boolean;
+        csv_mapping?: Record<string, unknown> | null;
+    }>({
         nombre: '',
         codigo: '',
         pais: 'PRY',
         activo: true,
+        csv_mapping: null,
     });
 
     const loadBanks = useCallback(async () => {
@@ -49,7 +142,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
 
     const handleOpenCreate = () => {
         setSelectedBank(null);
-        setForm({ nombre: '', codigo: '', pais: 'PRY', activo: true });
+        setForm({ nombre: '', codigo: '', pais: 'PRY', activo: true, csv_mapping: null });
         setShowModal(true);
     };
 
@@ -60,6 +153,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
             codigo: bank.codigo,
             pais: bank.pais || 'PRY',
             activo: bank.activo,
+            csv_mapping: bank.csv_mapping as any,
         });
         setShowModal(true);
     };
@@ -247,6 +341,11 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                             </label>
                         </div>
                     </div>
+
+                    <CsvMappingEditor
+                        value={form.csv_mapping}
+                        onChange={(v) => setForm({ ...form, csv_mapping: Object.keys(v.columns).length > 0 ? v : null })}
+                    />
                     <div className="flex justify-end gap-3 pt-4">
                         <button onClick={() => setShowModal(false)} className="btn-md btn-ghost">Cancelar</button>
                         <button onClick={handleSave} disabled={saving} className="btn-md btn-primary gap-2">

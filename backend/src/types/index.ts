@@ -299,6 +299,7 @@ export interface Bank {
   codigo: string;
   pais: string;
   activo: boolean;
+  csv_mapping?: Record<string, unknown> | null;
 }
 
 export interface BankAccount {
@@ -359,6 +360,7 @@ export interface PaymentProcessor {
   nombre: string;
   tipo: string | null;
   activo: boolean;
+  csv_mapping?: Record<string, unknown> | null;
   created_at: Date;
 }
 
