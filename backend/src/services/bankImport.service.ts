@@ -135,14 +135,18 @@ async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
   const sheet = workbook.worksheets[0];
   if (!sheet) return [];
 
-  // Detectar fila de encabezados buscando keywords
+  // Detectar fila de encabezados buscando keywords sólo en las primeras 15 filas
+  // (evitar que filas de datos con palabras como "monto" en la descripción sean detectadas como header)
   const keywords = ['fecha', 'importe', 'monto', 'saldo', 'descripcion', 'descripción'];
   let headerRow = 1;
 
   sheet.eachRow((row, rowNum) => {
+    if (rowNum > 15) return; // sólo buscar en primeras 15 filas
     const values = row.values as (string | number | Date | null | undefined)[];
     const rowStr = values.join(' ').toLowerCase();
-    if (keywords.some((k) => rowStr.includes(k))) {
+    const matches = keywords.filter((k) => rowStr.includes(k)).length;
+    if (matches >= 2 && rowNum > headerRow) {
+      // Elegir la primer fila que tenga al menos 2 keywords (es más confiable que la última)
       headerRow = rowNum;
     }
   });
@@ -218,7 +222,7 @@ async function parseExcel(buffer: Buffer): Promise<RawTransaction[]> {
 }
 
 function parseItauTXT(buffer: Buffer): RawTransaction[] {
-  const lines = buffer.toString('utf-8').split(/\r?\n/);
+  const lines = buffer.toString('utf-8').split(/\r\n|\r|\n/);
 
   // We convert fixed-width layout to TSV explicitly then route through generic parser
   const mappedLines = lines.filter(l => l.length >= 60).map(line => {
@@ -263,7 +267,7 @@ function parseItauTXT(buffer: Buffer): RawTransaction[] {
 
 function parseGenericoTXT(buffer: Buffer): RawTransaction[] {
   const content = buffer.toString('utf-8');
-  const lines = content.split(/\r?\n/).filter((l) => l.trim());
+  const lines = content.split(/\r\n|\r|\n/).filter((l) => l.trim());
   if (lines.length < 2) return [];
 
   const sep = lines[0].includes('|') ? '|' : '\t';

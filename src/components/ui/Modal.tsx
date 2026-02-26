@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -40,8 +41,8 @@ export function Modal({
     xl: 'max-w-5xl',
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6">
       <div
         className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
         onClick={onClose}
@@ -75,6 +76,7 @@ export function Modal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

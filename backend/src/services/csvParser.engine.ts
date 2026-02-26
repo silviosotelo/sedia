@@ -56,7 +56,13 @@ export class CsvParserEngine {
             content = iconv.decode(buffer, 'latin1');
         }
 
-        const lines = content.split(/\r?\n/).filter((l) => l.trim());
+        // Eliminar BOM UTF-8 o UTF-16 si está presente
+        if (content.charCodeAt(0) === 0xFEFF) {
+            content = content.slice(1);
+        }
+
+        // Soportar los tres tipos de line endings: \r\n (Windows), \r (Mac clásico), \n (Unix)
+        const lines = content.split(/\r\n|\r|\n/).filter((l) => l.trim());
         if (lines.length < 2) return [];
 
         const sep = schema.delimiter || detectDelimiter(lines);
