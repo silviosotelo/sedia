@@ -1,3 +1,4 @@
+import { Card, Metric, Text, Grid } from '@tremor/react';
 import {
   CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
   Edit2, Trash2, Check, Cloud, Bell, Shield, Eye, EyeOff,
@@ -582,28 +583,28 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
       {/* ── Tab: Overview ──────────────────────────────────────────────── */}
       {tab === 'overview' && overview && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="stat-card">
-              <p className="text-2xl font-bold text-zinc-900">{overview.tenants.total}</p>
-              <p className="text-xs text-zinc-500">Empresas totales</p>
-              <p className="text-xs text-zinc-400">{overview.tenants.activos} activas</p>
-            </div>
-            <div className="stat-card">
-              <p className="text-2xl font-bold text-zinc-900">{overview.comprobantes.total.toLocaleString('es-PY')}</p>
-              <p className="text-xs text-zinc-500">Comprobantes</p>
-              <p className="text-xs text-zinc-400">{overview.comprobantes.sin_sincronizar} pendientes</p>
-            </div>
-            <div className="stat-card">
-              <p className="text-2xl font-bold text-zinc-900">{overview.jobs.total}</p>
-              <p className="text-xs text-zinc-500">Jobs procesados</p>
-              <p className="text-xs text-zinc-400">{overview.jobs.fallidos} fallidos</p>
-            </div>
-            <div className="stat-card">
-              <p className="text-2xl font-bold text-zinc-900">{overview.xml.con_xml.toLocaleString('es-PY')}</p>
-              <p className="text-xs text-zinc-500">XMLs descargados</p>
-              <p className="text-xs text-zinc-400">{overview.xml.sin_xml} pendientes</p>
-            </div>
-          </div>
+          <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
+            <Card decoration="top" decorationColor="zinc">
+              <Text>Empresas totales</Text>
+              <Metric>{overview.tenants.total}</Metric>
+              <Text className="mt-1">{overview.tenants.activos} activas</Text>
+            </Card>
+            <Card decoration="top" decorationColor="sky">
+              <Text>Comprobantes</Text>
+              <Metric>{overview.comprobantes.total.toLocaleString('es-PY')}</Metric>
+              <Text className="mt-1">{overview.comprobantes.sin_sincronizar} pendientes</Text>
+            </Card>
+            <Card decoration="top" decorationColor="amber">
+              <Text>Jobs procesados</Text>
+              <Metric>{overview.jobs.total}</Metric>
+              <Text className="mt-1">{overview.jobs.fallidos} fallidos</Text>
+            </Card>
+            <Card decoration="top" decorationColor="emerald">
+              <Text>XMLs descargados</Text>
+              <Metric>{overview.xml.con_xml.toLocaleString('es-PY')}</Metric>
+              <Text className="mt-1">{overview.xml.sin_xml} pendientes</Text>
+            </Card>
+          </Grid>
 
           {saasMetrics && (
             <>

@@ -8,6 +8,7 @@ import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/utils';
 import type { AnomalyDetection } from '../types';
+import { Card, Metric, Text, Grid } from '@tremor/react';
 
 interface AnomaliasSummary {
   total_activas: number;
@@ -106,18 +107,18 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
       />
 
       {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="stat-card">
-            <p className="text-2xl font-bold text-zinc-900">{summary.total_activas}</p>
-            <p className="text-xs text-zinc-500">Anomalías activas</p>
-          </div>
+        <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
+          <Card>
+            <Text>Anomalías activas</Text>
+            <Metric>{summary.total_activas}</Metric>
+          </Card>
           {summary.por_tipo.map((t) => (
-            <div key={t.tipo} className="stat-card">
-              <p className="text-2xl font-bold text-zinc-900">{t.cantidad}</p>
-              <p className="text-xs text-zinc-500">{TIPO_LABELS[t.tipo] ?? t.tipo}</p>
-            </div>
+            <Card key={t.tipo}>
+              <Text>{TIPO_LABELS[t.tipo] ?? t.tipo}</Text>
+              <Metric>{t.cantidad}</Metric>
+            </Card>
           ))}
-        </div>
+        </Grid>
       )}
 
       <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">

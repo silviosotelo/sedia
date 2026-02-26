@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BancardIframe } from 'react-bancard-checkout-js';
 import { CreditCard, CheckCircle2, AlertCircle, TrendingUp, Zap } from 'lucide-react';
+import { Card, Metric, Text, ProgressBar, Callout, Grid, BarChart } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Modal } from '../components/ui/Modal';
@@ -22,19 +23,15 @@ function fmtGs(n: number) {
 }
 
 function UsageBar({ value, max, label }: { value: number; max: number | null; label: string }) {
-  const pct = max ? Math.min((value / max) * 100, 100) : 0;
-  const color = pct > 90 ? 'bg-rose-500' : pct > 70 ? 'bg-amber-400' : 'bg-emerald-500';
+  const pct = max ? Math.min(Math.round((value / max) * 100), 100) : 0;
+  const color: 'rose' | 'amber' | 'emerald' = pct > 90 ? 'rose' : pct > 70 ? 'amber' : 'emerald';
   return (
     <div>
-      <div className="flex justify-between text-xs text-zinc-500 mb-1">
-        <span>{label}</span>
+      <div className="flex justify-between text-xs text-zinc-500 mb-2">
+        <span className="font-medium">{label}</span>
         <span>{value.toLocaleString('es-PY')}{max ? ` / ${max.toLocaleString('es-PY')}` : ' (ilimitado)'}</span>
       </div>
-      {max && (
-        <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
-        </div>
-      )}
+      {max && <ProgressBar value={pct} color={color} />}
     </div>
   );
 }
@@ -292,17 +289,11 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
       />
 
       {trialDaysLeft !== null && trialDaysLeft <= 14 && (
-        <div className={`mb-6 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${trialDaysLeft <= 3
-          ? 'bg-rose-50 border-rose-200 text-rose-700'
-          : 'bg-amber-50 border-amber-200 text-amber-700'
-          }`}>
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>
-            {trialDaysLeft === 0
-              ? 'Tu período de prueba ha expirado'
-              : `Tu período de prueba vence en ${trialDaysLeft} día${trialDaysLeft !== 1 ? 's' : ''}`}
-          </span>
-        </div>
+        <Callout
+          className="mb-6"
+          title={trialDaysLeft === 0 ? 'Tu período de prueba ha expirado' : `Tu período de prueba vence en ${trialDaysLeft} día${trialDaysLeft !== 1 ? 's' : ''}`}
+          color={trialDaysLeft <= 3 ? 'rose' : 'amber'}
+        />
       )}
 
       <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
@@ -325,53 +316,51 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
       {activeTab === 'plans' ? (
         <>
           {usage?.uso && (
-            <div className="card p-5 mb-6 space-y-4">
-              <div className="flex items-center gap-2 mb-2">
+            <Card className="mb-6">
+              <div className="flex items-center gap-2 mb-4">
                 <TrendingUp className="w-4 h-4 text-zinc-400" />
-                <h3 className="text-sm font-semibold text-zinc-700">Uso del mes actual</h3>
+                <span className="section-title">Uso del mes actual</span>
               </div>
               <UsageBar
                 value={usage.uso.comprobantes_procesados}
                 max={usage.plan?.limite_comprobantes_mes ?? null}
                 label="Comprobantes procesados"
               />
-              <div className="grid grid-cols-3 gap-4 pt-2 border-t border-zinc-100">
+              <Grid numItemsSm={3} className="gap-4 pt-4 mt-4 border-t border-zinc-100">
                 <div>
-                  <p className="text-lg font-bold text-zinc-900">{usage.uso.xmls_descargados.toLocaleString('es-PY')}</p>
-                  <p className="text-xs text-zinc-500">XMLs descargados</p>
+                  <Metric className="text-xl">{usage.uso.xmls_descargados.toLocaleString('es-PY')}</Metric>
+                  <Text>XMLs descargados</Text>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-zinc-900">{usage.uso.exportaciones.toLocaleString('es-PY')}</p>
-                  <p className="text-xs text-zinc-500">Exportaciones</p>
+                  <Metric className="text-xl">{usage.uso.exportaciones.toLocaleString('es-PY')}</Metric>
+                  <Text>Exportaciones</Text>
                 </div>
                 <div>
-                  <p className="text-lg font-bold text-zinc-900">{usage.uso.webhooks_enviados.toLocaleString('es-PY')}</p>
-                  <p className="text-xs text-zinc-500">Webhooks enviados</p>
+                  <Metric className="text-xl">{usage.uso.webhooks_enviados.toLocaleString('es-PY')}</Metric>
+                  <Text>Webhooks enviados</Text>
                 </div>
-              </div>
-            </div>
+              </Grid>
+            </Card>
           )}
 
           {(usage?.historial ?? []).length > 0 && (
-            <div className="card p-5 mb-6">
+            <Card className="mb-6">
               <div className="flex items-center gap-2 mb-4">
                 <CreditCard className="w-4 h-4 text-zinc-400" />
-                <h3 className="text-sm font-semibold text-zinc-700">Historial de uso (6 meses)</h3>
+                <span className="section-title">Historial de uso (6 meses)</span>
               </div>
-              <div className="flex gap-2 items-end">
-                {usage!.historial.slice(-6).map((h) => {
-                  const label = new Date(h.anio, h.mes - 1).toLocaleDateString('es-PY', { month: 'short' });
-                  return (
-                    <HistoryBar
-                      key={`${h.anio}-${h.mes}`}
-                      month={label}
-                      value={h.comprobantes_procesados}
-                      maxValue={maxHistory}
-                    />
-                  );
-                })}
-              </div>
-            </div>
+              <BarChart
+                data={usage!.historial.slice(-6).map((h) => ({
+                  mes: new Date(h.anio, h.mes - 1).toLocaleDateString('es-PY', { month: 'short' }),
+                  Comprobantes: h.comprobantes_procesados,
+                }))}
+                index="mes"
+                categories={['Comprobantes']}
+                colors={['zinc']}
+                showLegend={false}
+                showAnimation
+              />
+            </Card>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
