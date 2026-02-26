@@ -1,8 +1,8 @@
+import { PageLoader } from '../components/ui/Spinner';
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Select, SelectItem, Badge, TextInput } from '@tremor/react';
 import { Header } from '../components/layout/Header';
-import { PageLoader } from '../components/ui/Spinner';
-import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Pagination } from '../components/ui/Pagination';
 import { NoTenantState } from '../components/ui/NoTenantState';
@@ -15,18 +15,18 @@ interface AuditoriaProps {
   toastError: (msg: string) => void;
 }
 
-const ACCION_COLORS: Record<string, 'success' | 'info' | 'warning' | 'danger' | 'neutral'> = {
-  LOGIN: 'success',
-  LOGOUT: 'neutral',
-  EXPORT_DATA: 'info',
-  USUARIO_CREADO: 'info',
-  WEBHOOK_CREADO: 'info',
-  API_TOKEN_CREADO: 'warning',
-  API_TOKEN_REVOCADO: 'danger',
-  PLAN_CAMBIADO: 'warning',
-  BANCO_EXTRACTO_IMPORTADO: 'info',
-  CONCILIACION_INICIADA: 'info',
-  MATCH_CONFIRMADO: 'success',
+const ACCION_COLORS: Record<string, 'emerald' | 'blue' | 'amber' | 'rose' | 'zinc'> = {
+  LOGIN: 'emerald',
+  LOGOUT: 'zinc',
+  EXPORT_DATA: 'blue',
+  USUARIO_CREADO: 'blue',
+  WEBHOOK_CREADO: 'blue',
+  API_TOKEN_CREADO: 'amber',
+  API_TOKEN_REVOCADO: 'rose',
+  PLAN_CAMBIADO: 'amber',
+  BANCO_EXTRACTO_IMPORTADO: 'blue',
+  CONCILIACION_INICIADA: 'blue',
+  MATCH_CONFIRMADO: 'emerald',
 };
 
 function AuditRow({ entry }: { entry: AuditLogEntry }) {
@@ -35,35 +35,43 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
 
   return (
     <>
-      <tr
-        className="table-tr cursor-pointer"
+      <TableRow
+        className="cursor-pointer hover:bg-tremor-background-subtle transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
-        <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
-          {formatDateTime(entry.created_at)}
-        </td>
-        <td className="table-td text-sm text-zinc-800">
-          {entry.usuario_nombre ?? entry.usuario_id?.slice(0, 8) ?? '—'}
-        </td>
-        <td className="table-td">
-          <Badge variant={color} size="sm">{entry.accion}</Badge>
-        </td>
-        <td className="table-td text-xs text-zinc-500">
-          {entry.entidad_tipo ? `${entry.entidad_tipo}:${entry.entidad_id?.slice(0, 8) ?? ''}` : '—'}
-        </td>
-        <td className="table-td text-xs text-zinc-400">{entry.ip_address ?? '—'}</td>
-        <td className="table-td text-zinc-400">
-          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-        </td>
-      </tr>
+        <TableCell>
+          <Text className="text-xs whitespace-nowrap">
+            {formatDateTime(entry.created_at)}
+          </Text>
+        </TableCell>
+        <TableCell>
+          <Text className="text-sm text-tremor-content-strong">
+            {entry.usuario_nombre ?? entry.usuario_id?.slice(0, 8) ?? '—'}
+          </Text>
+        </TableCell>
+        <TableCell>
+          <Badge color={color} size="sm">{entry.accion}</Badge>
+        </TableCell>
+        <TableCell>
+          <Text className="text-xs">
+            {entry.entidad_tipo ? `${entry.entidad_tipo}:${entry.entidad_id?.slice(0, 8) ?? ''}` : '—'}
+          </Text>
+        </TableCell>
+        <TableCell>
+          <Text className="text-xs">{entry.ip_address ?? '—'}</Text>
+        </TableCell>
+        <TableCell>
+          {expanded ? <ChevronDown className="w-4 h-4 text-tremor-content-subtle" /> : <ChevronRight className="w-4 h-4 text-tremor-content-subtle" />}
+        </TableCell>
+      </TableRow>
       {expanded && (
-        <tr>
-          <td colSpan={6} className="px-8 py-3 bg-zinc-50 border-b">
-            <pre className="text-xs text-zinc-600 whitespace-pre-wrap">
+        <TableRow>
+          <TableCell colSpan={6} className="px-8 py-3 bg-tremor-background-subtle">
+            <pre className="text-xs text-tremor-content whitespace-pre-wrap">
               {JSON.stringify(entry.detalles, null, 2)}
             </pre>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   );
@@ -87,7 +95,7 @@ export function Auditoria({ toastError }: AuditoriaProps) {
     setLoading(true);
     try {
       const result = await api.audit.list(tenantId, {
-        accion: filterAccion || undefined,
+        accion: filterAccion && filterAccion !== 'all' ? filterAccion : undefined,
         desde: filterDesde || undefined,
         hasta: filterHasta || undefined,
         page,
@@ -107,7 +115,7 @@ export function Auditoria({ toastError }: AuditoriaProps) {
   const handleExport = () => {
     if (!tenantId) return;
     const url = api.audit.exportUrl(tenantId, {
-      accion: filterAccion || undefined,
+      accion: filterAccion && filterAccion !== 'all' ? filterAccion : undefined,
       desde: filterDesde || undefined,
       hasta: filterHasta || undefined,
     });
@@ -129,87 +137,92 @@ export function Auditoria({ toastError }: AuditoriaProps) {
         onRefresh={tenantId ? load : undefined}
         refreshing={loading}
         actions={tenantId ? (
-          <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
-            <Download className="w-3.5 h-3.5" />
+          <Button onClick={handleExport} variant="secondary" icon={Download}>
             Exportar CSV
-          </button>
+          </Button>
         ) : undefined}
       />
 
       {!tenantId ? <NoTenantState message="Seleccioná una empresa para ver su registro de auditoría." /> : (
-      <>
-      {loading && entries.length === 0 ? <PageLoader /> : (
-      <>
-      <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">
-        <div>
-          <label className="label-sm">Acción</label>
-          <select
-            className="input-sm"
-            value={filterAccion}
-            onChange={(e) => { setFilterAccion(e.target.value); setPage(1); }}
-          >
-            <option value="">Todas</option>
-            <option value="LOGIN">LOGIN</option>
-            <option value="EXPORT_DATA">EXPORT_DATA</option>
-            <option value="USUARIO_CREADO">USUARIO_CREADO</option>
-            <option value="API_TOKEN_CREADO">API_TOKEN_CREADO</option>
-            <option value="BANCO_EXTRACTO_IMPORTADO">BANCO_EXTRACTO_IMPORTADO</option>
-            <option value="CONCILIACION_INICIADA">CONCILIACION_INICIADA</option>
-            <option value="PLAN_CAMBIADO">PLAN_CAMBIADO</option>
-          </select>
-        </div>
-        <div>
-          <label className="label-sm">Desde</label>
-          <input type="date" className="input-sm" value={filterDesde} onChange={(e) => { setFilterDesde(e.target.value); setPage(1); }} />
-        </div>
-        <div>
-          <label className="label-sm">Hasta</label>
-          <input type="date" className="input-sm" value={filterHasta} onChange={(e) => { setFilterHasta(e.target.value); setPage(1); }} />
-        </div>
-      </div>
+        <>
+          {loading && entries.length === 0 ? <PageLoader /> : (
+            <>
+              <Card className="p-4 mb-4 flex gap-4 items-end flex-wrap">
+                <div className="w-56">
+                  <Text className="mb-1 text-xs font-medium">Acción</Text>
+                  <Select
+                    value={filterAccion}
+                    onValueChange={(v) => { setFilterAccion(v); setPage(1); }}
+                    enableClear={false}
+                  >
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="LOGIN">LOGIN</SelectItem>
+                    <SelectItem value="EXPORT_DATA">EXPORT_DATA</SelectItem>
+                    <SelectItem value="USUARIO_CREADO">USUARIO_CREADO</SelectItem>
+                    <SelectItem value="API_TOKEN_CREADO">API_TOKEN_CREADO</SelectItem>
+                    <SelectItem value="BANCO_EXTRACTO_IMPORTADO">BANCO_EXTRACTO_IMPORTADO</SelectItem>
+                    <SelectItem value="CONCILIACION_INICIADA">CONCILIACION_INICIADA</SelectItem>
+                    <SelectItem value="PLAN_CAMBIADO">PLAN_CAMBIADO</SelectItem>
+                  </Select>
+                </div>
+                <div>
+                  <Text className="mb-1 text-xs font-medium">Desde</Text>
+                  <TextInput
+                    type="date"
+                    value={filterDesde}
+                    onChange={(e) => { setFilterDesde(e.target.value); setPage(1); }}
+                  />
+                </div>
+                <div>
+                  <Text className="mb-1 text-xs font-medium">Hasta</Text>
+                  <TextInput
+                    type="date"
+                    value={filterHasta}
+                    onChange={(e) => { setFilterHasta(e.target.value); setPage(1); }}
+                  />
+                </div>
+              </Card>
 
-      <div className="card overflow-hidden">
-        {entries.length === 0 ? (
-          <EmptyState
-            icon={<ShieldCheck className="w-5 h-5" />}
-            title="Sin registros de auditoría"
-            description="No hay acciones registradas para esta empresa con los filtros seleccionados."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="table-th">Fecha/Hora</th>
-                  <th className="table-th">Usuario</th>
-                  <th className="table-th">Acción</th>
-                  <th className="table-th">Entidad</th>
-                  <th className="table-th">IP</th>
-                  <th className="table-th" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {entries.map((e) => (
-                  <AuditRow key={e.id} entry={e} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              <Card className="p-0 overflow-hidden">
+                {entries.length === 0 ? (
+                  <EmptyState
+                    icon={<ShieldCheck className="w-5 h-5" />}
+                    title="Sin registros de auditoría"
+                    description="No hay acciones registradas para esta empresa con los filtros seleccionados."
+                  />
+                ) : (
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableHeaderCell>Fecha/Hora</TableHeaderCell>
+                        <TableHeaderCell>Usuario</TableHeaderCell>
+                        <TableHeaderCell>Acción</TableHeaderCell>
+                        <TableHeaderCell>Entidad</TableHeaderCell>
+                        <TableHeaderCell>IP</TableHeaderCell>
+                        <TableHeaderCell />
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {entries.map((e) => (
+                        <AuditRow key={e.id} entry={e} />
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
 
-        {total > limit && (
-          <Pagination
-            page={page}
-            totalPages={Math.ceil(total / limit)}
-            total={total}
-            limit={limit}
-            onPageChange={setPage}
-          />
-        )}
-      </div>
-      </>
-      )}
-      </>
+                {total > limit && (
+                  <Pagination
+                    page={page}
+                    totalPages={Math.ceil(total / limit)}
+                    total={total}
+                    limit={limit}
+                    onPageChange={setPage}
+                  />
+                )}
+              </Card>
+            </>
+          )}
+        </>
       )}
     </div>
   );

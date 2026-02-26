@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, Play, SearchCode } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Badge } from '../../components/ui/Badge';
+import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@tremor/react';
 
 export function SifenBatchTab({ tenantId }: { tenantId: string }) {
     const [lotes, setLotes] = useState<any[]>([]);
@@ -54,58 +54,58 @@ export function SifenBatchTab({ tenantId }: { tenantId: string }) {
                     <h3 className="text-sm font-bold text-zinc-900">Lotes de Envío SIFEN</h3>
                     <p className="text-xs text-zinc-500">Agrupación de facturas para enviar masivamente a la SIFEN</p>
                 </div>
-                <button onClick={load} className="btn btn-secondary text-xs">
-                    <RefreshCw className="w-4 h-4 mr-2" /> Actualizar
-                </button>
+                <Button variant="secondary" onClick={load} icon={RefreshCw} className="text-xs">
+                    Actualizar
+                </Button>
             </div>
 
-            <div className="card overflow-hidden">
-                <table className="w-full">
-                    <thead className="bg-zinc-50 border-b border-zinc-200">
-                        <tr>
-                            <th className="table-th">ID Lote</th>
-                            <th className="table-th">Número de Lote (SIFEN)</th>
-                            <th className="table-th">Fecha Creación</th>
-                            <th className="table-th">Estado Local</th>
-                            <th className="table-th">Acciones Worker</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-50">
+            <Card className="overflow-hidden p-0 mt-4">
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>ID Lote</TableHeaderCell>
+                            <TableHeaderCell>Número de Lote (SIFEN)</TableHeaderCell>
+                            <TableHeaderCell>Fecha Creación</TableHeaderCell>
+                            <TableHeaderCell>Estado Local</TableHeaderCell>
+                            <TableHeaderCell>Acciones Worker</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
                         {loading && lotes.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-400"><Spinner size="md" className="mx-auto" /></td></tr>
+                            <TableRow><TableCell colSpan={5} className="text-center text-tremor-content-subtle py-8"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
                         ) : lotes.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-400">No hay lotes creados aún.</td></tr>
+                            <TableRow><TableCell colSpan={5} className="text-center text-tremor-content-subtle py-8">No hay lotes creados aún.</TableCell></TableRow>
                         ) : (
                             lotes.map((lote) => (
-                                <tr key={lote.id} className="table-tr">
-                                    <td className="table-td font-mono text-[10px] text-zinc-500">{lote.id.slice(0, 8)}</td>
-                                    <td className="table-td font-mono text-zinc-700">{lote.numero_lote || '-'}</td>
-                                    <td className="table-td text-xs text-zinc-500">{new Date(lote.created_at).toLocaleString()}</td>
-                                    <td className="table-td">
-                                        <Badge variant={lote.estado === 'COMPLETED' ? 'success' : lote.estado === 'ERROR' ? 'danger' : 'warning'} dot>
+                                <TableRow key={lote.id}>
+                                    <TableCell className="font-mono text-[10px] text-tremor-content-subtle">{lote.id.slice(0, 8)}</TableCell>
+                                    <TableCell className="font-mono text-tremor-content-strong">{lote.numero_lote || '-'}</TableCell>
+                                    <TableCell className="text-xs text-tremor-content-subtle">{new Date(lote.created_at).toLocaleString()}</TableCell>
+                                    <TableCell>
+                                        <Badge color={lote.estado === 'COMPLETED' ? 'emerald' : lote.estado === 'ERROR' ? 'rose' : 'amber'}>
                                             {lote.estado}
                                         </Badge>
-                                    </td>
-                                    <td className="table-td">
+                                    </TableCell>
+                                    <TableCell>
                                         <div className="flex items-center gap-2">
                                             {lote.estado === 'CREATED' && (
-                                                <button onClick={() => handleSend(lote.id)} disabled={submitting === lote.id} className="btn-sm btn-primary">
-                                                    {submitting === lote.id ? <Spinner size="xs" className="text-white" /> : <Play className="w-3.5 h-3.5" />} Enviar
-                                                </button>
+                                                <Button size="xs" onClick={() => handleSend(lote.id)} disabled={submitting === lote.id} icon={Play}>
+                                                    Enviar
+                                                </Button>
                                             )}
                                             {lote.estado === 'SENT' && (
-                                                <button onClick={() => handlePoll(lote.id)} disabled={submitting === lote.id} className="btn-sm bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-colors border border-transparent disabled:opacity-50 gap-1">
-                                                    {submitting === lote.id ? <Spinner size="xs" className="text-white" /> : <SearchCode className="w-3.5 h-3.5" />} Consultar SIFEN
-                                                </button>
+                                                <Button size="xs" color="blue" onClick={() => handlePoll(lote.id)} disabled={submitting === lote.id} icon={SearchCode}>
+                                                    Consultar SIFEN
+                                                </Button>
                                             )}
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         )}
-                    </tbody>
-                </table>
-            </div>
+                    </TableBody>
+                </Table>
+            </Card>
         </div>
     );
 }

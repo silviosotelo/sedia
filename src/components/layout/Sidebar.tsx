@@ -131,8 +131,8 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           'w-full flex items-center transition-all duration-200 text-sm group relative',
           collapsed ? 'justify-center p-2 rounded-xl mb-1' : 'gap-3 px-3 py-2.5 rounded-xl mb-1.5',
           active
-            ? 'text-zinc-900 font-bold bg-white shadow-sm shadow-zinc-200/50 border border-zinc-200/60'
-            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100/80 border border-transparent'
+            ? 'text-zinc-900 font-bold bg-zinc-100/80 border border-transparent'
+            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 border border-transparent'
         )}
         style={active && collapsed ? { borderColor: branding.color_primario, color: branding.color_primario } : {}}
       >

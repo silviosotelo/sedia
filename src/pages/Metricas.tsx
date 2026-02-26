@@ -136,8 +136,8 @@ export function Metricas({ toastError }: MetricasProps) {
       <Grid numItemsLg={3} className="gap-6 mb-6">
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <Briefcase className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">Jobs del sistema</span>
+            <Briefcase className="w-4 h-4 text-tremor-content" />
+            <Title>Jobs del sistema</Title>
           </div>
           <div className="space-y-4">
             <div>
@@ -160,8 +160,8 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={overview?.jobs.total ? Math.round(((overview?.jobs.fallidos ?? 0) / overview.jobs.total) * 100) : 0} color="rose" />
             </div>
-            <Flex className="pt-2 border-t border-zinc-100">
-              <Text className="text-zinc-400">Total jobs</Text>
+            <Flex className="pt-2 border-t border-tremor-border">
+              <Text className="text-tremor-content-subtle">Total jobs</Text>
               <Text className="font-semibold">{(overview?.jobs.total ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
@@ -169,8 +169,8 @@ export function Metricas({ toastError }: MetricasProps) {
 
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">Estado XML</span>
+            <FileText className="w-4 h-4 text-tremor-content" />
+            <Title>Estado XML</Title>
           </div>
           <div className="space-y-4">
             <div>
@@ -193,17 +193,17 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={xmlTotal ? Math.round(((overview?.xml.sin_xml ?? 0) / xmlTotal) * 100) : 0} color="amber" />
             </div>
-            <Flex className="pt-2 border-t border-zinc-100">
-              <Text className="text-zinc-400">Aprobados SIFEN</Text>
-              <Text className="font-semibold text-emerald-600">{(overview?.xml.aprobados ?? 0).toLocaleString('es-PY')}</Text>
+            <Flex className="pt-2 border-t border-tremor-border">
+              <Text className="text-tremor-content-subtle">Aprobados SIFEN</Text>
+              <Text className="font-semibold text-emerald-500">{(overview?.xml.aprobados ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
         </Card>
 
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <Send className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">ORDS Sync</span>
+            <Send className="w-4 h-4 text-tremor-content" />
+            <Title>ORDS Sync</Title>
           </div>
           <div className="space-y-4">
             <div>
@@ -226,9 +226,9 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={ordsTotal ? Math.round(((overview?.ords.fallidos ?? 0) / ordsTotal) * 100) : 0} color="rose" />
             </div>
-            <Flex className="pt-2 border-t border-zinc-100">
-              <Text className="text-zinc-400">Pendientes</Text>
-              <Text className="font-semibold text-amber-600">{(overview?.ords.pendientes ?? 0).toLocaleString('es-PY')}</Text>
+            <Flex className="pt-2 border-t border-tremor-border">
+              <Text className="text-tremor-content-subtle">Pendientes</Text>
+              <Text className="font-semibold text-amber-500">{(overview?.ords.pendientes ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
         </Card>
@@ -236,56 +236,56 @@ export function Metricas({ toastError }: MetricasProps) {
 
       <Grid numItemsLg={2} className="gap-6 mb-6">
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
-            <Award className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">Top empresas por comprobantes</span>
+          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
+            <Award className="w-4 h-4 text-tremor-content" />
+            <Title>Top empresas por comprobantes</Title>
           </div>
-          <div className="divide-y divide-zinc-50">
+          <div className="divide-y divide-tremor-border">
             {(saas?.top_tenants ?? []).slice(0, 8).map((t, i) => (
               <div key={t.tenant_id} className="px-5 py-3 flex items-center gap-3">
-                <span className="text-xs font-bold tabular-nums text-zinc-400 w-5">{i + 1}</span>
-                <div className="w-7 h-7 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[10px] font-bold text-zinc-600">{t.nombre.slice(0, 2).toUpperCase()}</span>
+                <Text className="text-xs font-bold tabular-nums w-5">{i + 1}</Text>
+                <div className="w-7 h-7 rounded-lg bg-tremor-background-subtle flex items-center justify-center flex-shrink-0">
+                  <Text className="text-[10px] font-bold">{t.nombre.slice(0, 2).toUpperCase()}</Text>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 truncate">{t.nombre}</p>
-                  <p className="text-xs text-zinc-400">{t.total_xml} XML descargados</p>
+                  <Text className="font-medium truncate text-tremor-content-strong">{t.nombre}</Text>
+                  <Text className="text-xs">{t.total_xml} XML descargados</Text>
                 </div>
-                <span className="text-sm font-semibold tabular-nums text-zinc-700">{t.total_comprobantes.toLocaleString('es-PY')}</span>
+                <Text className="font-semibold tabular-nums text-tremor-content-strong">{t.total_comprobantes.toLocaleString('es-PY')}</Text>
               </div>
             ))}
             {(saas?.top_tenants ?? []).length === 0 && (
-              <div className="px-5 py-8 text-center text-sm text-zinc-400">Sin datos aún</div>
+              <div className="px-5 py-8 text-center text-sm text-tremor-content-subtle">Sin datos aún</div>
             )}
           </div>
         </Card>
 
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">Actividad reciente de sync</span>
+          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-tremor-content" />
+            <Title>Actividad reciente de sync</Title>
           </div>
-          <div className="divide-y divide-zinc-50">
+          <div className="divide-y divide-tremor-border">
             {(overview?.actividad_reciente ?? []).slice(0, 8).map((a, i) => (
               <div key={i} className="px-5 py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 truncate">{a.nombre_fantasia}</p>
-                  <p className="text-xs text-zinc-400">{a.fecha}</p>
+                  <Text className="font-medium truncate text-tremor-content-strong">{a.nombre_fantasia}</Text>
+                  <Text className="text-xs">{a.fecha}</Text>
                 </div>
                 <div className="flex items-center gap-4 text-right">
                   <div>
-                    <p className="text-xs font-semibold tabular-nums text-zinc-700">{parseInt(String(a.total_nuevos)).toLocaleString('es-PY')}</p>
-                    <p className="text-[10px] text-zinc-400">nuevos</p>
+                    <Text className="text-xs font-semibold tabular-nums text-tremor-content-strong">{parseInt(String(a.total_nuevos)).toLocaleString('es-PY')}</Text>
+                    <Text className="text-[10px]">nuevos</Text>
                   </div>
                   <div>
-                    <p className="text-xs font-semibold tabular-nums text-emerald-600">{parseInt(String(a.total_xml)).toLocaleString('es-PY')}</p>
-                    <p className="text-[10px] text-zinc-400">XML</p>
+                    <Text className="text-xs font-semibold tabular-nums text-emerald-500">{parseInt(String(a.total_xml)).toLocaleString('es-PY')}</Text>
+                    <Text className="text-[10px]">XML</Text>
                   </div>
                 </div>
               </div>
             ))}
             {(overview?.actividad_reciente ?? []).length === 0 && (
-              <div className="px-5 py-8 text-center text-sm text-zinc-400">Sin actividad reciente</div>
+              <div className="px-5 py-8 text-center text-sm text-tremor-content-subtle">Sin actividad reciente</div>
             )}
           </div>
         </Card>
@@ -293,9 +293,9 @@ export function Metricas({ toastError }: MetricasProps) {
 
       {(saas?.jobs_ultimos_7_dias ?? []).length > 0 && (
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-zinc-100 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-zinc-400" />
-            <span className="section-title">Jobs últimos 7 días</span>
+          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-tremor-content" />
+            <Title>Jobs últimos 7 días</Title>
           </div>
           <Table>
             <TableHead>

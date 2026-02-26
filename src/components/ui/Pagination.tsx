@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { Button, Text } from '@tremor/react';
 
 interface PaginationProps {
   page: number;
@@ -29,43 +29,39 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
   }
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100">
-      <p className="text-xs text-zinc-500">
-        {from}–{to} de {total}
-      </p>
+    <div className="flex items-center justify-between px-4 py-3 border-t border-tremor-border">
+      <Text>{from}–{to} de {total}</Text>
       <div className="flex items-center gap-1">
-        <button
+        <Button
+          variant="secondary"
+          size="xs"
+          icon={ChevronLeft}
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="btn-sm btn-secondary px-2 disabled:opacity-40"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" />
-        </button>
+        />
         {pages.map((p, i) =>
           p === '...' ? (
-            <span key={`dots-${i}`} className="px-2 text-xs text-zinc-400">
+            <span key={`dots-${i}`} className="px-2 text-xs text-tremor-content">
               …
             </span>
           ) : (
-            <button
+            <Button
               key={p}
+              variant={p === page ? 'primary' : 'secondary'}
+              size="xs"
               onClick={() => onPageChange(p as number)}
-              className={cn(
-                'btn-sm px-3 min-w-[32px]',
-                p === page ? 'btn-primary' : 'btn-secondary'
-              )}
             >
               {p}
-            </button>
+            </Button>
           )
         )}
-        <button
+        <Button
+          variant="secondary"
+          size="xs"
+          icon={ChevronRight}
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="btn-sm btn-secondary px-2 disabled:opacity-40"
-        >
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        />
       </div>
     </div>
   );

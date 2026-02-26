@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { Comprobante } from '../types';
 import { FileText, Download, Code2, AlertTriangle } from 'lucide-react';
+import { Button } from '@tremor/react';
 
 function formatCurrency(v: string | number) {
     return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(Number(v));
@@ -101,21 +102,22 @@ export function PublicInvoice({ invoiceHash }: { invoiceHash: string }) {
 
                         {/* Acciones */}
                         <div className="flex flex-col sm:flex-row gap-4">
-                            <button
+                            <Button
                                 onClick={() => window.open(api.comprobantes.downloadUrl(comprobante.tenant_id, comprobante.id, 'json'))}
-                                className="flex-1 btn-md bg-zinc-900 hover:bg-zinc-800 text-white gap-2 justify-center"
+                                className="flex-1 justify-center whitespace-normal h-10"
+                                icon={Download}
                             >
-                                <Download className="w-4 h-4" />
                                 Descargar KUDE (PDF)
-                            </button>
+                            </Button>
                             {comprobante.xml_contenido && (
-                                <button
+                                <Button
+                                    variant="secondary"
                                     onClick={() => window.open(api.comprobantes.downloadUrl(comprobante.tenant_id, comprobante.id, 'xml'))}
-                                    className="flex-1 btn-md btn-secondary gap-2 justify-center"
+                                    className="flex-1 justify-center whitespace-normal h-10"
+                                    icon={Code2}
                                 >
-                                    <Code2 className="w-4 h-4" />
                                     Descargar XML
-                                </button>
+                                </Button>
                             )}
                         </div>
                         <p className="text-xs text-center text-zinc-400 mt-6">

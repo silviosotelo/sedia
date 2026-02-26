@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Badge } from '../../components/ui/Badge';
+import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@tremor/react';
 
 export function SifenDocsTab({ tenantId }: { tenantId: string }) {
     const [docs, setDocs] = useState<any[]>([]);
@@ -47,58 +47,58 @@ export function SifenDocsTab({ tenantId }: { tenantId: string }) {
                     <h3 className="text-sm font-bold text-zinc-900">Documentos Electrónicos (DE)</h3>
                     <p className="text-xs text-zinc-500">Historial y gestión de documentos SIFEN generados</p>
                 </div>
-                <button onClick={load} className="btn btn-secondary text-xs">
-                    <RefreshCw className="w-4 h-4 mr-2" /> Actualizar
-                </button>
+                <Button variant="secondary" onClick={load} icon={RefreshCw} className="text-xs">
+                    Actualizar
+                </Button>
             </div>
 
-            <div className="card overflow-hidden">
-                <table className="w-full">
-                    <thead className="bg-zinc-50 border-b border-zinc-200">
-                        <tr>
-                            <th className="table-th">ID Local</th>
-                            <th className="table-th">CDC</th>
-                            <th className="table-th">Fecha Emisión</th>
-                            <th className="table-th">Estado</th>
-                            <th className="table-th">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-zinc-50">
+            <Card className="overflow-hidden p-0 mt-4">
+                <Table>
+                    <TableHead>
+                        <TableRow>
+                            <TableHeaderCell>ID Local</TableHeaderCell>
+                            <TableHeaderCell>CDC</TableHeaderCell>
+                            <TableHeaderCell>Fecha Emisión</TableHeaderCell>
+                            <TableHeaderCell>Estado</TableHeaderCell>
+                            <TableHeaderCell>Acciones</TableHeaderCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
                         {loading && docs.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-400"><Spinner size="md" className="mx-auto" /></td></tr>
+                            <TableRow><TableCell colSpan={5} className="text-center text-tremor-content-subtle py-8"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
                         ) : docs.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-400">No hay documentos electrónicos emitidos.</td></tr>
+                            <TableRow><TableCell colSpan={5} className="text-center text-tremor-content-subtle py-8">No hay documentos electrónicos emitidos.</TableCell></TableRow>
                         ) : (
                             docs.map((doc) => (
-                                <tr key={doc.id} className="table-tr">
-                                    <td className="table-td font-mono text-[10px] text-zinc-500">{doc.id.slice(0, 8)}</td>
-                                    <td className="table-td font-mono text-[10px]"><span className="bg-zinc-100 px-1 py-0.5 rounded">{doc.cdc}</span></td>
-                                    <td className="table-td text-xs text-zinc-500">{new Date(doc.fecha_emision).toLocaleString()}</td>
-                                    <td className="table-td">
-                                        <Badge variant={doc.estado === 'APPROVED' ? 'success' : doc.estado === 'ERROR' ? 'danger' : 'warning'} dot>
+                                <TableRow key={doc.id}>
+                                    <TableCell className="font-mono text-[10px] text-tremor-content-subtle">{doc.id.slice(0, 8)}</TableCell>
+                                    <TableCell className="font-mono text-[10px]"><span className="bg-tremor-background-subtle border border-tremor-border px-1 py-0.5 rounded">{doc.cdc}</span></TableCell>
+                                    <TableCell className="text-xs text-tremor-content-subtle">{new Date(doc.fecha_emision).toLocaleString()}</TableCell>
+                                    <TableCell>
+                                        <Badge color={doc.estado === 'APPROVED' ? 'emerald' : doc.estado === 'ERROR' ? 'rose' : 'amber'}>
                                             {doc.estado}
                                         </Badge>
-                                    </td>
-                                    <td className="table-td">
+                                    </TableCell>
+                                    <TableCell>
                                         <div className="flex items-center gap-2">
                                             {doc.estado === 'DRAFT' && (
-                                                <button onClick={() => handleSign(doc.id)} className="btn-sm btn-primary">
+                                                <Button size="xs" onClick={() => handleSign(doc.id)}>
                                                     Firmar
-                                                </button>
+                                                </Button>
                                             )}
                                             {doc.estado === 'SIGNED' && (
-                                                <button onClick={() => handleEnqueue(doc.id)} className="btn-sm bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-sm transition-colors border border-transparent">
+                                                <Button size="xs" color="blue" onClick={() => handleEnqueue(doc.id)}>
                                                     Encolar
-                                                </button>
+                                                </Button>
                                             )}
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))
                         )}
-                    </tbody>
-                </table>
-            </div>
+                    </TableBody>
+                </Table>
+            </Card>
         </div>
     );
 }

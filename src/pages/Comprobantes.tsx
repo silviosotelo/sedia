@@ -25,6 +25,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { PageLoader } from '../components/ui/Spinner';
 import { Pagination } from '../components/ui/Pagination';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem } from '@tremor/react';
 import { api } from '../lib/api';
 import {
   formatDate,
@@ -221,27 +222,24 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
         {effectiveTenantId && (
           <>
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
-              <input className="input pl-9" placeholder="RUC vendedor..." value={search} onChange={(e) => setSearch(e.target.value)} />
-              {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400"><X className="w-3.5 h-3.5" /></button>}
+              <TextInput icon={Search} placeholder="RUC vendedor..." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
 
-            <button onClick={() => setShowFilters(!showFilters)} className={`btn-md btn-secondary gap-2 ${showFilters ? 'bg-zinc-100' : ''}`}>
-              <Filter className="w-3.5 h-3.5" />
+            <Button variant="secondary" onClick={() => setShowFilters(!showFilters)} icon={Filter} className={showFilters ? 'bg-tremor-background-subtle' : ''}>
               Filtros
-              {activeFilters > 0 && <span className="bg-zinc-900 text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center">{activeFilters}</span>}
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </button>
+              {activeFilters > 0 && <span className="ml-1.5 bg-tremor-content-strong text-white rounded-full text-[10px] w-4 h-4 flex items-center justify-center">{activeFilters}</span>}
+              <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </Button>
 
             {total > 0 && <p className="text-sm text-zinc-500">{total.toLocaleString()} comprobante{total !== 1 ? 's' : ''}</p>}
 
             <div className="relative ml-auto">
-              <button onClick={() => setShowExport(!showExport)} className="btn-md btn-secondary gap-2">
-                <Download className="w-3.5 h-3.5" />Exportar
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showExport ? 'rotate-180' : ''}`} />
-              </button>
+              <Button variant="secondary" onClick={() => setShowExport(!showExport)} icon={Download}>
+                Exportar
+                <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${showExport ? 'rotate-180' : ''}`} />
+              </Button>
               {showExport && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-zinc-200 rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
+                <div className="absolute right-0 top-full mt-1 bg-white border border-tremor-border rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
 
                   {hasFeature('exportacion_json') && (
                     <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json', {
@@ -251,8 +249,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                      <FileJson className="w-3.5 h-3.5 text-zinc-400" />Exportar JSON
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                      <FileJson className="w-3.5 h-3.5 text-tremor-content" />Exportar JSON
                     </a>
                   )}
 
@@ -264,8 +262,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Hechauka TXT
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                      <FileType2 className="w-3.5 h-3.5 text-tremor-content" />Hechauka TXT
                     </a>
                   )}
 
@@ -277,8 +275,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                      <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />Excel XLSX
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                      <ExternalLink className="w-3.5 h-3.5 text-tremor-content" />Excel XLSX
                     </a>
                   )}
 
@@ -290,8 +288,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                      <FileText className="w-3.5 h-3.5 text-zinc-400" />Imprimir PDF
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                      <FileText className="w-3.5 h-3.5 text-tremor-content" />Imprimir PDF
                     </a>
                   )}
 
@@ -303,8 +301,8 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
-                      <FileType2 className="w-3.5 h-3.5 text-zinc-400" />Exportar CSV
+                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                      <FileType2 className="w-3.5 h-3.5 text-tremor-content" />Exportar CSV
                     </a>
                   )}
 
@@ -316,135 +314,137 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
       </div>
 
       {effectiveTenantId && showFilters && (
-        <div className="card p-4 mb-5 animate-fade-in">
+        <Card className="p-4 mb-5 animate-fade-in shadow-sm">
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             <div>
-              <label className="label">Tipo</label>
-              <select className="input" value={tipoFilter} onChange={(e) => setTipoFilter(e.target.value)}>
-                <option value="">Todos</option>
-                {TIPO_OPTIONS.map((t) => <option key={t} value={t}>{TIPO_COMPROBANTE_LABELS[t]}</option>)}
-              </select>
+              <Text className="mb-1 font-medium">Tipo</Text>
+              <Select value={tipoFilter} onValueChange={setTipoFilter} enableClear={true}>
+                <SelectItem value="todas">Todos</SelectItem>
+                {TIPO_OPTIONS.map((t) => <SelectItem key={t} value={t}>{TIPO_COMPROBANTE_LABELS[t]}</SelectItem>)}
+              </Select>
             </div>
             <div>
-              <label className="label">XML</label>
-              <select className="input" value={xmlFilter} onChange={(e) => setXmlFilter(e.target.value as typeof xmlFilter)}>
-                <option value="">Todos</option>
-                <option value="true">Con XML</option>
-                <option value="false">Sin XML</option>
-              </select>
+              <Text className="mb-1 font-medium">XML</Text>
+              <Select value={xmlFilter} onValueChange={(e) => setXmlFilter(e as any)} enableClear={true}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="true">Con XML</SelectItem>
+                <SelectItem value="false">Sin XML</SelectItem>
+              </Select>
             </div>
             <div>
-              <label className="label">Estado SIFEN</label>
-              <select className="input" value={sifenFilter} onChange={(e) => setSifenFilter(e.target.value as typeof sifenFilter)}>
-                <option value="">Todos</option>
-                <option value="aprobado">Aprobado</option>
-                <option value="no_aprobado">No aprobado</option>
-                <option value="sin_estado">Sin estado</option>
-              </select>
+              <Text className="mb-1 font-medium">Estado SIFEN</Text>
+              <Select value={sifenFilter} onValueChange={(e) => setSifenFilter(e as any)} enableClear={true}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="aprobado">Aprobado</SelectItem>
+                <SelectItem value="no_aprobado">No aprobado</SelectItem>
+                <SelectItem value="sin_estado">Sin estado</SelectItem>
+              </Select>
             </div>
             <div>
-              <label className="label">Sincronizar</label>
-              <select className="input" value={sincronizarFilter} onChange={(e) => setSincronizarFilter(e.target.value as typeof sincronizarFilter)}>
-                <option value="">Todos</option>
-                <option value="true">Incluidos</option>
-                <option value="false">Excluidos</option>
-              </select>
+              <Text className="mb-1 font-medium">Sincronizar</Text>
+              <Select value={sincronizarFilter} onValueChange={(e) => setSincronizarFilter(e as any)} enableClear={true}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="true">Incluidos</SelectItem>
+                <SelectItem value="false">Excluidos</SelectItem>
+              </Select>
             </div>
             <div>
-              <label className="label">Desde</label>
-              <input type="date" className="input" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+              <Text className="mb-1 font-medium">Desde</Text>
+              <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
             </div>
             <div>
-              <label className="label">Hasta</label>
-              <input type="date" className="input" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+              <Text className="mb-1 font-medium">Hasta</Text>
+              <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
             </div>
             <div>
-              <label className="label">Tipo de Operatión</label>
-              <select className="input" value={modoFilter} onChange={(e) => setModoFilter(e.target.value as any)}>
-                <option value="">Todos</option>
-                <option value="ventas">Ventas (Emitidos)</option>
-                <option value="compras">Compras (Recibidos)</option>
-              </select>
+              <Text className="mb-1 font-medium">Tipo de Operatión</Text>
+              <Select value={modoFilter} onValueChange={(e) => setModoFilter(e as any)} enableClear={true}>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="ventas">Ventas (Emitidos)</SelectItem>
+                <SelectItem value="compras">Compras (Recibidos)</SelectItem>
+              </Select>
             </div>
           </div>
           {activeFilters > 0 && (
-            <button onClick={() => { setTipoFilter(''); setXmlFilter(''); setFechaDesde(''); setFechaHasta(''); setSifenFilter(''); setSincronizarFilter(''); setModoFilter(''); }} className="mt-3 btn-sm btn-ghost text-zinc-500">
-              <X className="w-3 h-3" /> Limpiar filtros
-            </button>
+            <Button variant="light" color="gray" onClick={() => { setTipoFilter(''); setXmlFilter(''); setFechaDesde(''); setFechaHasta(''); setSifenFilter(''); setSincronizarFilter(''); setModoFilter(''); }} className="mt-3 text-tremor-content" icon={X}>
+              Limpiar filtros
+            </Button>
           )}
-        </div>
+        </Card>
       )}
 
       {!effectiveTenantId ? (
-        <div className="card p-12">
+        <Card className="p-12 flex flex-col items-center justify-center">
           <EmptyState icon={<Building2 className="w-5 h-5" />} title="Seleccioná una empresa" description="Elegí una empresa del selector para ver sus comprobantes" />
-        </div>
+        </Card>
       ) : loading ? (
         <PageLoader />
       ) : comprobantes.length === 0 ? (
         <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin comprobantes" description={activeFilters > 0 ? 'No hay comprobantes con los filtros aplicados' : 'Esta empresa no tiene comprobantes sincronizados aún.'} />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="table-th">Comprobante</th>
-                <th className="table-th">Vendedor</th>
-                <th className="table-th">Tipo</th>
-                <th className="table-th">Fecha</th>
-                <th className="table-th text-right">Total</th>
-                <th className="table-th">SIFEN</th>
-                <th className="table-th">XML</th>
-                <th className="table-th">OT</th>
-                {canEditSync && <th className="table-th text-center">Sync</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
+        <Card className="p-0 overflow-hidden">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Comprobante</TableHeaderCell>
+                <TableHeaderCell>Vendedor</TableHeaderCell>
+                <TableHeaderCell>Tipo</TableHeaderCell>
+                <TableHeaderCell>Fecha</TableHeaderCell>
+                <TableHeaderCell className="text-right">Total</TableHeaderCell>
+                <TableHeaderCell>SIFEN</TableHeaderCell>
+                <TableHeaderCell>XML</TableHeaderCell>
+                <TableHeaderCell>OT</TableHeaderCell>
+                {canEditSync && <TableHeaderCell className="text-center">Sync</TableHeaderCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {comprobantes.map((c) => (
-                <tr key={c.id} className={`table-tr cursor-pointer ${!c.sincronizar ? 'opacity-50' : ''}`} onClick={() => void openDetail(c)}>
-                  <td className="table-td">
+                <TableRow key={c.id} className={`cursor-pointer hover:bg-tremor-background-subtle ${!c.sincronizar ? 'opacity-50' : ''}`} onClick={() => void openDetail(c)}>
+                  <TableCell>
                     <div>
-                      <p className="font-mono text-xs font-medium text-zinc-900">{c.numero_comprobante}</p>
-                      {c.cdc && <p className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">{c.cdc.slice(0, 20)}...</p>}
+                      <p className="font-mono text-xs font-medium text-tremor-content-strong">{c.numero_comprobante}</p>
+                      {c.cdc && <p className="text-[10px] font-mono text-tremor-content-subtle truncate max-w-[180px]">{c.cdc.slice(0, 20)}...</p>}
                     </div>
-                  </td>
-                  <td className="table-td">
+                  </TableCell>
+                  <TableCell>
                     <div>
-                      <p className="text-sm text-zinc-900">{c.razon_social_vendedor || <span className="text-zinc-400">—</span>}</p>
-                      <p className="text-xs font-mono text-zinc-400">{c.ruc_vendedor}</p>
+                      <Text className="text-sm text-tremor-content-strong">{c.razon_social_vendedor || <span className="text-tremor-content-subtle">—</span>}</Text>
+                      <Text className="text-xs font-mono text-tremor-content-subtle">{c.ruc_vendedor}</Text>
                     </div>
-                  </td>
-                  <td className="table-td"><TipoComprobanteBadge tipo={c.tipo_comprobante} /></td>
-                  <td className="table-td text-xs text-zinc-600">{formatDate(c.fecha_emision)}</td>
-                  <td className="table-td text-right"><span className="font-mono text-sm font-medium text-zinc-900">{formatCurrency(c.total_operacion)}</span></td>
-                  <td className="table-td"><SifenBadge estado={c.estado_sifen} /></td>
-                  <td className="table-td">
+                  </TableCell>
+                  <TableCell><TipoComprobanteBadge tipo={c.tipo_comprobante} /></TableCell>
+                  <TableCell>
+                    <Text className="text-xs">{formatDate(c.fecha_emision)}</Text>
+                  </TableCell>
+                  <TableCell className="text-right"><span className="font-mono text-sm font-medium text-tremor-content-strong">{formatCurrency(c.total_operacion)}</span></TableCell>
+                  <TableCell><SifenBadge estado={c.estado_sifen} /></TableCell>
+                  <TableCell>
                     {c.xml_descargado_at
                       ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /><span className="text-xs">Desc.</span></span>
                       : c.cdc
-                        ? <span className="flex items-center gap-1 text-zinc-400"><Circle className="w-3.5 h-3.5" /><span className="text-xs">Pend.</span></span>
-                        : <span className="flex items-center gap-1 text-zinc-300"><X className="w-3.5 h-3.5" /><span className="text-xs">S/CDC</span></span>
+                        ? <span className="flex items-center gap-1 text-tremor-content-subtle"><Circle className="w-3.5 h-3.5" /><span className="text-xs">Pend.</span></span>
+                        : <span className="flex items-center gap-1 text-tremor-content-subtle"><X className="w-3.5 h-3.5" /><span className="text-xs">S/CDC</span></span>
                     }
-                  </td>
-                  <td className="table-td">{c.nro_ot ? <span className="tag text-xs">{c.nro_ot}</span> : <span className="text-zinc-300 text-xs">—</span>}</td>
+                  </TableCell>
+                  <TableCell>{c.nro_ot ? <Badge variant="neutral" size="sm">{c.nro_ot}</Badge> : <span className="text-tremor-content-subtle text-xs">—</span>}</TableCell>
                   {canEditSync && (
-                    <td className="table-td text-center" onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         disabled={savingSync === c.id}
                         onClick={() => void handleToggleSincronizar(c, !c.sincronizar)}
-                        className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 inline-flex items-center ${c.sincronizar ? 'bg-emerald-500' : 'bg-zinc-300'} ${savingSync === c.id ? 'opacity-50' : ''}`}
+                        className={`w-8 h-4 rounded-full transition-colors relative flex-shrink-0 inline-flex items-center ${c.sincronizar ? 'bg-emerald-500' : 'bg-tremor-content-subtle'} ${savingSync === c.id ? 'opacity-50' : ''}`}
                         title={c.sincronizar ? 'Excluir' : 'Incluir'}
                       >
                         <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${c.sincronizar ? 'left-4' : 'left-0.5'}`} />
                       </button>
-                    </td>
+                    </TableCell>
                   )}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
-        </div>
+        </Card>
       )}
 
       {selectedComprobante && (
@@ -521,10 +521,10 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                         <div>
                           <label className="text-xs font-semibold text-zinc-600 flex items-center gap-1.5 mb-2"><Hash className="w-3.5 h-3.5" />Nro. OT <span className="font-normal text-zinc-400">(opcional)</span></label>
                           <div className="flex gap-2">
-                            <input className="input flex-1" value={editingOt} onChange={(e) => setEditingOt(e.target.value)} placeholder="Ej: OT-2024-001" />
-                            <button onClick={() => void handleSaveOt()} disabled={savingOt} className="btn-md btn-primary gap-1.5 px-4 font-medium shrink-0">
-                              {savingOt ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : null}Guardar
-                            </button>
+                            <TextInput className="flex-1" value={editingOt} onChange={(e) => setEditingOt(e.target.value)} placeholder="Ej: OT-2024-001" />
+                            <Button onClick={() => void handleSaveOt()} disabled={savingOt} loading={savingOt} icon={savingOt ? undefined : RefreshCcw}>
+                              Guardar
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -562,10 +562,10 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       { label: 'IVA Total', value: selectedComprobante.detalles_xml?.totales?.ivaTotal ?? (selectedComprobante.detalles_virtual?.totales?.iva5 || 0) + (selectedComprobante.detalles_virtual?.totales?.iva10 || 0), show: true },
                       { label: 'Total', value: selectedComprobante.detalles_xml?.totales?.total ?? selectedComprobante.total_operacion, show: true },
                     ].filter(({ show }) => show).map(({ label, value }) => (
-                      <div key={label} className={`card p-3 text-center ${label === 'Total' ? 'border-zinc-900' : ''}`}>
-                        <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                        <p className={`font-mono font-semibold text-sm ${label === 'Total' ? 'text-zinc-900' : 'text-zinc-700'}`}>{formatCurrency(value)}</p>
-                      </div>
+                      <Card key={label} className={`p-3 text-center ${label === 'Total' ? 'ring-1 ring-zinc-900 border-none' : ''}`}>
+                        <p className="text-xs text-tremor-content-subtle mb-1">{label}</p>
+                        <p className={`font-mono font-semibold text-sm ${label === 'Total' ? 'text-tremor-content-strong' : 'text-tremor-content'}`}>{formatCurrency(value)}</p>
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -581,15 +581,23 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                       : <span className="text-zinc-400">No descargado</span>}
                   </p>
                   {selectedComprobante.xml_url && (
-                    <a href={selectedComprobante.xml_url} target="_blank" rel="noopener noreferrer" className="ml-auto btn-sm btn-secondary"><ExternalLink className="w-3 h-3" /> Ver en eKuatia</a>
+                    <a href={selectedComprobante.xml_url} target="_blank" rel="noopener noreferrer" className="ml-auto">
+                      <Button size="xs" variant="secondary" icon={ExternalLink}>Ver en eKuatia</Button>
+                    </a>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-zinc-400">Descargar:</span>
-                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')} download className="btn-sm btn-secondary gap-1.5"><FileJson className="w-3 h-3" /> JSON</a>
-                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')} download className="btn-sm btn-secondary gap-1.5"><FileType2 className="w-3 h-3" /> TXT</a>
+                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')} download>
+                    <Button size="xs" variant="secondary" icon={FileJson}>JSON</Button>
+                  </a>
+                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')} download>
+                    <Button size="xs" variant="secondary" icon={FileType2}>TXT</Button>
+                  </a>
                   {selectedComprobante.xml_contenido && (
-                    <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')} download className="btn-sm btn-secondary gap-1.5"><Code2 className="w-3 h-3" /> XML</a>
+                    <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')} download>
+                      <Button size="xs" variant="secondary" icon={Code2}>XML</Button>
+                    </a>
                   )}
                 </div>
               </div>
@@ -599,30 +607,30 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
           {detailView === 'detalles' && (
             <div>
               {(selectedComprobante.detalles_xml?.items?.length || selectedComprobante.detalles_virtual?.items?.length) ? (
-                <table className="w-full text-sm">
-                  <thead className="bg-zinc-50 border-b border-zinc-200">
-                    <tr>
-                      <th className="table-th">Descripción</th>
-                      <th className="table-th text-right">Cant.</th>
-                      <th className="table-th text-right">P. Unitario</th>
-                      <th className="table-th text-right">Descuento</th>
-                      <th className="table-th text-right">IVA</th>
-                      <th className="table-th text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-50">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableHeaderCell>Descripción</TableHeaderCell>
+                      <TableHeaderCell className="text-right">Cant.</TableHeaderCell>
+                      <TableHeaderCell className="text-right">P. Unitario</TableHeaderCell>
+                      <TableHeaderCell className="text-right">Descuento</TableHeaderCell>
+                      <TableHeaderCell className="text-right">IVA</TableHeaderCell>
+                      <TableHeaderCell className="text-right">Subtotal</TableHeaderCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {(selectedComprobante.detalles_xml?.items || selectedComprobante.detalles_virtual?.items || []).map((item: any, i: number) => (
-                      <tr key={i} className="table-tr">
-                        <td className="table-td font-medium">{item.descripcion}</td>
-                        <td className="table-td text-right tabular-nums">{formatNumber(item.cantidad)}</td>
-                        <td className="table-td text-right tabular-nums font-mono">{formatCurrency(item.precioUnitario)}</td>
-                        <td className="table-td text-right tabular-nums font-mono">{(item.descuento || 0) > 0 ? formatCurrency(item.descuento) : '—'}</td>
-                        <td className="table-td text-right"><span className="tag">{item.tasaIva}%</span></td>
-                        <td className="table-td text-right tabular-nums font-mono font-medium">{formatCurrency(item.subtotal)}</td>
-                      </tr>
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{item.descripcion}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumber(item.cantidad)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-mono">{formatCurrency(item.precioUnitario)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-mono">{(item.descuento || 0) > 0 ? formatCurrency(item.descuento) : '—'}</TableCell>
+                        <TableCell className="text-right"><Badge variant="neutral">{item.tasaIva}%</Badge></TableCell>
+                        <TableCell className="text-right tabular-nums font-mono font-medium">{formatCurrency(item.subtotal)}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               ) : (
                 <EmptyState icon={<FileText className="w-5 h-5" />} title="Sin items" description="No hay items parseados para este comprobante" />
               )}

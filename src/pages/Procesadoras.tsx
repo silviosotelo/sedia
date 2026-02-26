@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Plus, Settings, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Plus, Settings, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { api } from '../lib/api';
 import { useTenant } from '../contexts/TenantContext';
 import { Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Badge } from '../components/ui/Badge';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab, TabPanels, TabPanel, Badge } from '@tremor/react';
 
 
 interface ProcesadorasProps {
@@ -48,20 +48,20 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
     };
 
     return (
-        <div className="space-y-3 mt-4 border-t border-zinc-200 pt-4">
+        <div className="space-y-3 mt-4 border-t border-tremor-border pt-4">
             <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-zinc-800">Mapeo Avanzado de CSV</h4>
-                <button type="button" onClick={addColumn} className="btn-sm btn-ghost gap-1 text-primary">
-                    <Plus className="w-3.5 h-3.5" /> Agregar Columna
-                </button>
+                <Text className="font-medium">Mapeo Avanzado de CSV</Text>
+                <Button type="button" variant="light" onClick={addColumn} icon={Plus} className="text-xs h-7">
+                    Agregar Columna
+                </Button>
             </div>
-            <p className="text-xs text-zinc-500">Configurá cómo leer las columnas de los extractos de esta procesadora.</p>
+            <Text className="text-xs text-tremor-content-subtle">Configurá cómo leer las columnas de los extractos de esta procesadora.</Text>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {columns.map((col, idx) => (
-                    <div key={idx} className="flex gap-2 items-start bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                    <div key={idx} className="flex gap-2 items-start bg-tremor-background-subtle p-2 rounded-lg border border-tremor-border">
                         <select
-                            className="input py-1.5 h-auto text-xs flex-1"
+                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-1"
                             value={col.targetField}
                             onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
                         >
@@ -70,15 +70,15 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
                                 <option key={f.value} value={f.value}>{f.label}</option>
                             ))}
                         </select>
-                        <input
-                            className="input py-1.5 h-auto text-xs flex-[1.5]"
+                        <TextInput
+                            className="flex-[1.5]"
                             placeholder="Ej: importe neto, total"
                             value={(col.exactMatchHeaders || []).join(', ')}
                             onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
                             title="Nombres de columnas del CSV (separados por coma)"
                         />
                         <select
-                            className="input py-1.5 h-auto text-xs w-28"
+                            className="w-28 rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none"
                             value={col.format || ''}
                             onChange={(e) => updateColumn(idx, 'format', e.target.value)}
                             title="Formato Especial"
@@ -88,15 +88,13 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
                             <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
                             <option value="DATE_TIME_DDMMYYYY">DD/MM/YYYY HH:MM:SS</option>
                         </select>
-                        <button type="button" onClick={() => removeColumn(idx)} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
-                            <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <Button type="button" variant="light" color="rose" onClick={() => removeColumn(idx)} className="h-7 w-7 p-0" icon={Trash2} />
                     </div>
                 ))}
                 {columns.length === 0 && (
-                    <div className="text-center py-4 text-xs text-zinc-400">
+                    <Text className="text-center py-4 text-xs text-tremor-content-subtle">
                         Usará mapeo automático predeterminado si no se configuran columnas.
-                    </div>
+                    </Text>
                 )}
             </div>
         </div>
@@ -270,12 +268,12 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                 title="Procesadoras de Pago"
                 subtitle="Gestione las integraciones con procesadoras como Bancard, Pagopar y Dinelco"
                 actions={
-                    <button
+                    <Button
                         onClick={() => handleOpenCreateAndEdit()}
-                        className="btn-md btn-primary gap-1.5"
+                        icon={Plus}
                     >
-                        <Plus className="w-4 h-4" /> Nueva Procesadora
-                    </button>
+                        Nueva Procesadora
+                    </Button>
                 }
             />
 
@@ -291,198 +289,182 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                 </div>
             ) : (
                 <>
-                    <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
-                        <button
-                            onClick={() => setActiveTab('procesadoras')}
-                            className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'procesadoras' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-                                }`}
-                        >
-                            Procesadoras
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('historial')}
-                            className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'historial' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-                                }`}
-                        >
-                            Historial de Importaciones
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('datos')}
-                            className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'datos' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-                                }`}
-                        >
-                            Datos Importados
-                        </button>
-                    </div>
+                    <TabGroup index={activeTab === 'procesadoras' ? 0 : activeTab === 'historial' ? 1 : 2} onIndexChange={(index) => setActiveTab(index === 0 ? 'procesadoras' : index === 1 ? 'historial' : 'datos')}>
+                        <TabList variant="solid" className="mb-8">
+                            <Tab>Procesadoras</Tab>
+                            <Tab>Historial de Importaciones</Tab>
+                            <Tab>Datos Importados</Tab>
+                        </TabList>
 
-                    {activeTab === 'procesadoras' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {processors.length === 0 ? (
-                                <div className="col-span-full text-center py-12 card">
-                                    <CreditCard className="w-12 h-12 text-zinc-300 mx-auto mb-3" />
-                                    <p className="text-zinc-500">No hay procesadoras configuradas para esta cuenta</p>
-                                </div>
-                            ) : (
-                                processors.map(p => {
-                                    const connected = p.conexion && p.conexion.activo;
-
-
-                                    return (
-                                        <div key={p.id} className="card overflow-hidden transition-shadow">
-                                            <div className="p-5 border-b border-zinc-100 flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
-                                                        <CreditCard className="w-5 h-5 text-emerald-600" />
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-medium text-zinc-900">{p.nombre}</h3>
-                                                        <p className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                                                            {connected ? (
-                                                                <><ShieldCheck className="w-3 h-3 text-emerald-500" /> Conectado</>
-                                                            ) : (
-                                                                <><ShieldAlert className="w-3 h-3 text-amber-500" /> Sin configurar</>
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="px-5 py-4 bg-zinc-50 flex gap-2">
-                                                <button
-                                                    onClick={() => handleOpenCreateAndEdit(p)}
-                                                    className="flex flex-col items-center justify-center py-2 px-3 bg-white border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
-                                                    title="Editar Procesadora"
-                                                >
-                                                    <Settings className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleOpenConfig(p)}
-                                                    className="flex-1 flex items-center justify-center py-2 px-3 bg-white border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
-                                                >
-                                                    <Key className="w-4 h-4 mr-2" />
-                                                    Configurar Auth
-                                                </button>
-                                                <button
-                                                    onClick={() => handleOpenImport(p)}
-                                                    disabled={!connected}
-                                                    className="flex items-center justify-center py-2 px-3 bg-emerald-600 text-white border border-transparent rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title={!connected ? 'Configure la procesadora primero' : 'Descargar últimas liquidaciones'}
-                                                >
-                                                    <Download className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                        <TabPanels>
+                            <TabPanel>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {processors.length === 0 ? (
+                                        <div className="col-span-full">
+                                            <EmptyState
+                                                icon={<CreditCard className="w-8 h-8 text-tremor-content-subtle mx-auto mb-3" />}
+                                                title="Sin procesadoras"
+                                                description="No hay procesadoras configuradas para esta cuenta"
+                                            />
                                         </div>
-                                    );
-                                })
-                            )}
-                        </div>
-                    )}
+                                    ) : (
+                                        processors.map(p => {
+                                            const connected = p.conexion && p.conexion.activo;
 
-                    {activeTab === 'historial' && (
-                        <div className="card overflow-hidden">
-                            <div className="p-5 border-b border-zinc-100">
-                                <h3 className="font-semibold text-zinc-900">Historial de Importaciones</h3>
-                                <p className="text-sm text-zinc-500">Registro de tareas de importación desde las procesadoras de pago</p>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr>
-                                            <th className="table-th py-3">Fecha</th>
-                                            <th className="table-th py-3">Procesadora</th>
-                                            <th className="table-th py-3">Periodo</th>
-                                            <th className="table-th py-3">Estado</th>
-                                            <th className="table-th py-3">Filas Procesadas</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-50 bg-white">
-                                        {loadingTasks ? (
-                                            <tr>
-                                                <td colSpan={5} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-zinc-400" /></td>
-                                            </tr>
-                                        ) : jobs.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={5} className="py-8 text-center text-sm text-zinc-500">No hay importaciones registradas.</td>
-                                            </tr>
-                                        ) : (
-                                            jobs.map((job) => {
-                                                const processor = processors.find(p => p.id === job.payload?.processor_id);
-                                                return (
-                                                    <tr key={job.id} className="table-tr">
-                                                        <td className="table-td py-3">{new Date(job.created_at).toLocaleString('es-PY')}</td>
-                                                        <td className="table-td py-3">{processor?.nombre || 'Desconocida'}</td>
-                                                        <td className="table-td py-3 font-mono">{job.payload?.mes ? `${job.payload.mes}/${job.payload.anio}` : '-'}</td>
-                                                        <td className="table-td py-3">
-                                                            <Badge
-                                                                variant={
-                                                                    job.estado === 'DONE' ? 'success'
-                                                                        : job.estado === 'FAILED' ? 'danger'
-                                                                            : job.estado === 'RUNNING' ? 'warning'
-                                                                                : 'default'
-                                                                }
-                                                            >
-                                                                {job.estado}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="table-td py-3">
-                                                            {job.resultado?.added !== undefined ? `${job.resultado.added} transacciones` : '-'}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                            return (
+                                                <Card key={p.id} className="p-0 overflow-hidden hover:shadow-md transition-shadow">
+                                                    <div className="p-5 border-b border-tremor-border flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
+                                                                <CreditCard className="w-5 h-5 text-emerald-600" />
+                                                            </div>
+                                                            <div>
+                                                                <Text className="font-medium text-tremor-content-strong">{p.nombre}</Text>
+                                                                <div className="flex items-center gap-1 mt-0.5">
+                                                                    {connected ? (
+                                                                        <><ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> <span className="text-xs text-emerald-600">Conectado</span></>
+                                                                    ) : (
+                                                                        <><ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> <span className="text-xs text-amber-600">Sin configurar</span></>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
 
-                    {activeTab === 'datos' && (
-                        <div className="card overflow-hidden">
-                            <div className="p-5 border-b border-zinc-100">
-                                <h3 className="font-semibold text-zinc-900">Transacciones Importadas</h3>
-                                <p className="text-sm text-zinc-500">Lista de las operaciones extraídas de las distintas procesadoras</p>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr>
-                                            <th className="table-th py-3">Fecha/Hora</th>
-                                            <th className="table-th py-3">Procesadora</th>
-                                            <th className="table-th py-3">Comercio</th>
-                                            <th className="table-th py-3">Nro. Autorización</th>
-                                            <th className="table-th py-3 text-right">Monto Bruto</th>
-                                            <th className="table-th py-3 text-right">Comisión</th>
-                                            <th className="table-th py-3 text-right">Monto Neto</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-zinc-50 bg-white">
-                                        {loadingTasks ? (
-                                            <tr>
-                                                <td colSpan={7} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-zinc-400" /></td>
-                                            </tr>
-                                        ) : transactions.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={7} className="py-8 text-center text-sm text-zinc-500">No hay transacciones importadas.</td>
-                                            </tr>
-                                        ) : (
-                                            transactions.map((tx) => (
-                                                <tr key={tx.id} className="table-tr">
-                                                    <td className="table-td py-3">{new Date(tx.fecha).toLocaleString('es-PY')}</td>
-                                                    <td className="table-td py-3">{tx.processor_nombre || 'Desconocida'}</td>
-                                                    <td className="table-td py-3 font-mono text-xs">{tx.merchant_id || '-'}</td>
-                                                    <td className="table-td py-3 font-mono text-xs text-zinc-500">{tx.autorizacion || '-'}</td>
-                                                    <td className="table-td py-3 text-right text-zinc-900 font-medium">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_bruto))}</td>
-                                                    <td className="table-td py-3 text-right text-rose-600">{new Intl.NumberFormat('es-PY').format(Number(tx.comision))}</td>
-                                                    <td className="table-td py-3 text-right text-emerald-600 font-semibold">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_neto))}</td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                                    <div className="px-5 py-4 bg-tremor-background-subtle flex gap-2">
+                                                        <Button
+                                                            variant="secondary"
+                                                            onClick={() => handleOpenCreateAndEdit(p)}
+                                                            title="Editar Procesadora"
+                                                            icon={Settings}
+                                                        >
+                                                        </Button>
+                                                        <Button
+                                                            variant="secondary"
+                                                            onClick={() => handleOpenConfig(p)}
+                                                            className="flex-1"
+                                                            icon={Key}
+                                                        >
+                                                            Auth
+                                                        </Button>
+                                                        <Button
+                                                            onClick={() => handleOpenImport(p)}
+                                                            disabled={!connected}
+                                                            icon={Download}
+                                                            title={!connected ? 'Configure la procesadora primero' : 'Descargar últimas liquidaciones'}
+                                                        >
+                                                        </Button>
+                                                    </div>
+                                                </Card>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </TabPanel>
+
+                            <TabPanel>
+                                <Card className="p-0 overflow-hidden">
+                                    <div className="p-5 border-b border-tremor-border">
+                                        <Text className="font-semibold text-tremor-content-strong">Historial de Importaciones</Text>
+                                        <Text className="text-sm">Registro de tareas de importación desde las procesadoras de pago</Text>
+                                    </div>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableHeaderCell>Fecha</TableHeaderCell>
+                                                <TableHeaderCell>Procesadora</TableHeaderCell>
+                                                <TableHeaderCell>Periodo</TableHeaderCell>
+                                                <TableHeaderCell>Estado</TableHeaderCell>
+                                                <TableHeaderCell>Filas Procesadas</TableHeaderCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {loadingTasks ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-tremor-content-subtle" /></TableCell>
+                                                </TableRow>
+                                            ) : jobs.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="py-8 text-center text-sm text-tremor-content-subtle">No hay importaciones registradas.</TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                jobs.map((job) => {
+                                                    const processor = processors.find(p => p.id === job.payload?.processor_id);
+                                                    return (
+                                                        <TableRow key={job.id} className="hover:bg-tremor-background-subtle">
+                                                            <TableCell>{new Date(job.created_at).toLocaleString('es-PY')}</TableCell>
+                                                            <TableCell>{processor?.nombre || 'Desconocida'}</TableCell>
+                                                            <TableCell className="font-mono">{job.payload?.mes ? `${job.payload.mes}/${job.payload.anio}` : '-'}</TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    color={
+                                                                        job.estado === 'DONE' ? 'emerald'
+                                                                            : job.estado === 'FAILED' ? 'rose'
+                                                                                : job.estado === 'RUNNING' ? 'amber'
+                                                                                    : 'gray'
+                                                                    }
+                                                                >
+                                                                    {job.estado}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {job.resultado?.added !== undefined ? `${job.resultado.added} transacciones` : '-'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </Card>
+                            </TabPanel>
+
+                            <TabPanel>
+                                <Card className="p-0 overflow-hidden">
+                                    <div className="p-5 border-b border-tremor-border">
+                                        <Text className="font-semibold text-tremor-content-strong">Transacciones Importadas</Text>
+                                        <Text className="text-sm">Lista de las operaciones extraídas de las distintas procesadoras</Text>
+                                    </div>
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableHeaderCell>Fecha/Hora</TableHeaderCell>
+                                                <TableHeaderCell>Procesadora</TableHeaderCell>
+                                                <TableHeaderCell>Comercio</TableHeaderCell>
+                                                <TableHeaderCell>Nro. Autorización</TableHeaderCell>
+                                                <TableHeaderCell className="text-right">Monto Bruto</TableHeaderCell>
+                                                <TableHeaderCell className="text-right">Comisión</TableHeaderCell>
+                                                <TableHeaderCell className="text-right">Monto Neto</TableHeaderCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {loadingTasks ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-tremor-content-subtle" /></TableCell>
+                                                </TableRow>
+                                            ) : transactions.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} className="py-8 text-center text-sm text-tremor-content-subtle">No hay transacciones importadas.</TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                transactions.map((tx) => (
+                                                    <TableRow key={tx.id} className="hover:bg-tremor-background-subtle">
+                                                        <TableCell>{new Date(tx.fecha).toLocaleString('es-PY')}</TableCell>
+                                                        <TableCell>{tx.processor_nombre || 'Desconocida'}</TableCell>
+                                                        <TableCell className="font-mono text-xs">{tx.merchant_id || '-'}</TableCell>
+                                                        <TableCell className="font-mono text-xs text-tremor-content-subtle">{tx.autorizacion || '-'}</TableCell>
+                                                        <TableCell className="text-right text-tremor-content-strong font-medium">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_bruto))}</TableCell>
+                                                        <TableCell className="text-right text-rose-600">{new Intl.NumberFormat('es-PY').format(Number(tx.comision))}</TableCell>
+                                                        <TableCell className="text-right text-emerald-600 font-semibold">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_neto))}</TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </Card>
+                            </TabPanel>
+                        </TabPanels>
+                    </TabGroup>
 
                     {/* Configuración Modal */}
                     <Modal open={isConfigModalOpen} onClose={() => !saving && setIsConfigModalOpen(false)} title={`Configuración: ${selectedProcessor?.nombre}`}>
@@ -496,63 +478,54 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">
-                                    Usuario
-                                </label>
-                                <input
+                                <Text className="mb-1 font-medium">Usuario</Text>
+                                <TextInput
                                     type="text"
                                     required
                                     value={configForm.usuario}
                                     onChange={e => setConfigForm({ ...configForm, usuario: e.target.value })}
-                                    className="input"
                                     placeholder="Ej. admin@miempresa.com"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">
-                                    Contraseña
-                                </label>
-                                <input
+                                <Text className="mb-1 font-medium">Contraseña</Text>
+                                <TextInput
                                     type="password"
                                     required
                                     value={configForm.password}
                                     onChange={e => setConfigForm({ ...configForm, password: e.target.value })}
-                                    className="input"
                                     placeholder="••••••••"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">
-                                    Código de Comercio (Opcional)
-                                </label>
-                                <input
+                                <Text className="mb-1 font-medium">Código de Comercio (Opcional)</Text>
+                                <TextInput
                                     type="text"
                                     value={configForm.codigo_comercio}
                                     onChange={e => setConfigForm({ ...configForm, codigo_comercio: e.target.value })}
-                                    className="input"
                                     placeholder="Ej. 1293818"
                                 />
                             </div>
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-zinc-100">
-                                <button
+                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                                <Button
+                                    variant="secondary"
                                     type="button"
                                     onClick={() => setIsConfigModalOpen(false)}
                                     disabled={saving}
-                                    className="btn-md btn-secondary"
                                 >
                                     Cancelar
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="submit"
                                     disabled={saving}
-                                    className="btn-md btn-primary gap-2"
+                                    loading={saving}
+                                    icon={saving ? undefined : ShieldCheck}
                                 >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                                    {saving ? 'Guardando...' : 'Guardar Credenciales'}
-                                </button>
+                                    Guardar Credenciales
+                                </Button>
                             </div>
                         </form>
                     </Modal>
@@ -567,52 +540,47 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-700 mb-1">
-                                        Mes
-                                    </label>
-                                    <select
-                                        value={importForm.mes}
-                                        onChange={e => setImportForm({ ...importForm, mes: Number(e.target.value) })}
-                                        className="input"
+                                    <Text className="mb-1 font-medium">Mes</Text>
+                                    <Select
+                                        value={importForm.mes.toString()}
+                                        onValueChange={e => setImportForm({ ...importForm, mes: Number(e) })}
+                                        enableClear={false}
                                     >
                                         {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                            <option key={m} value={m}>{new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}</option>
+                                            <SelectItem key={m} value={m.toString()}>{new Date(2000, m - 1).toLocaleString('es', { month: 'long' })}</SelectItem>
                                         ))}
-                                    </select>
+                                    </Select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-zinc-700 mb-1">
-                                        Año
-                                    </label>
-                                    <input
+                                    <Text className="mb-1 font-medium">Año</Text>
+                                    <TextInput
                                         type="number"
                                         min={2020}
                                         max={2100}
-                                        value={importForm.anio}
+                                        value={importForm.anio.toString()}
                                         onChange={e => setImportForm({ ...importForm, anio: Number(e.target.value) })}
-                                        className="input"
                                     />
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-zinc-100">
-                                <button
+                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                                <Button
+                                    variant="secondary"
                                     type="button"
                                     onClick={() => setIsImportModalOpen(false)}
                                     disabled={saving}
-                                    className="btn-md btn-secondary"
                                 >
                                     Cancelar
-                                </button>
-                                <button
+                                </Button>
+                                <Button
                                     type="submit"
                                     disabled={saving}
-                                    className="btn-md btn-primary gap-2"
+                                    loading={saving}
+                                    icon={saving ? undefined : PlayCircle}
                                 >
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                                     Iniciar Importación
-                                </button>
+                                </Button>
                             </div>
                         </form>
                     </Modal>
@@ -620,28 +588,27 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                     <Modal open={isModalOpen} onClose={() => !saving && setIsModalOpen(false)} title={selectedProcessor ? 'Editar Procesadora' : 'Nueva Procesadora'}>
                         <form onSubmit={handleProcessorSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">Nombre</label>
-                                <input
+                                <Text className="mb-1 font-medium">Nombre</Text>
+                                <TextInput
                                     type="text"
                                     required
                                     value={processorForm.nombre}
                                     onChange={e => setProcessorForm({ ...processorForm, nombre: e.target.value })}
-                                    className="input"
                                     placeholder="Ej. Bancard, Pagopar..."
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-zinc-700 mb-1">Tipo</label>
-                                <select
+                                <Text className="mb-1 font-medium">Tipo</Text>
+                                <Select
                                     value={processorForm.tipo}
-                                    onChange={e => setProcessorForm({ ...processorForm, tipo: e.target.value })}
-                                    className="input"
+                                    onValueChange={e => setProcessorForm({ ...processorForm, tipo: e })}
+                                    enableClear={false}
                                 >
-                                    <option value="VPOS">VPOS / POS</option>
-                                    <option value="QR">QR / Billetera</option>
-                                    <option value="ESTRACTO_WEB">Portal Web (Extractos)</option>
-                                    <option value="OTROS">Otros</option>
-                                </select>
+                                    <SelectItem value="VPOS">VPOS / POS</SelectItem>
+                                    <SelectItem value="QR">QR / Billetera</SelectItem>
+                                    <SelectItem value="ESTRACTO_WEB">Portal Web (Extractos)</SelectItem>
+                                    <SelectItem value="OTROS">Otros</SelectItem>
+                                </Select>
                             </div>
 
                             <CsvMappingEditor
@@ -649,11 +616,11 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                 onChange={(v) => setProcessorForm({ ...processorForm, csv_mapping: (v && v.columns && Object.keys(v.columns).length > 0) ? v : null })}
                             />
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-zinc-100">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="btn-md btn-secondary">Cancelar</button>
-                                <button type="submit" disabled={saving} className="btn-md btn-primary">
-                                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (selectedProcessor ? 'Guardar Cambios' : 'Crear Procesadora')}
-                                </button>
+                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                                <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
+                                <Button type="submit" disabled={saving} loading={saving}>
+                                    {selectedProcessor ? 'Guardar Cambios' : 'Crear Procesadora'}
+                                </Button>
                             </div>
                         </form>
                     </Modal>

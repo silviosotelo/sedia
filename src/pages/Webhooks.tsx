@@ -1,11 +1,9 @@
+import { PageLoader } from '../components/ui/Spinner';
 import { useState, useEffect, useCallback } from 'react';
-import {
-  Webhook, Plus, Trash2, Play, ChevronDown, ChevronUp,
-  CheckCircle, XCircle, Clock, Eye, EyeOff, Save, Pencil,
-} from 'lucide-react';
+import { Webhook, Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertCircle, RefreshCw, Send, Settings, Lock, EyeOff, Eye, ChevronUp, ChevronDown } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, NumberInput, Switch } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { NoTenantState } from '../components/ui/NoTenantState';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -28,11 +26,11 @@ const EVENTOS_DISPONIBLES = [
   { value: 'ords_enviado', label: 'Enviado a ORDS' },
 ];
 
-const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'default'; icon: typeof CheckCircle }> = {
-  SUCCESS: { label: 'Exitoso', variant: 'success', icon: CheckCircle },
+const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'default'; icon: typeof CheckCircle2 }> = {
+  SUCCESS: { label: 'Exitoso', variant: 'success', icon: CheckCircle2 },
   FAILED: { label: 'Fallido', variant: 'danger', icon: XCircle },
-  RETRYING: { label: 'Reintento', variant: 'warning', icon: Clock },
-  PENDING: { label: 'Pendiente', variant: 'default', icon: Clock },
+  RETRYING: { label: 'Reintento', variant: 'warning', icon: AlertCircle },
+  PENDING: { label: 'Pendiente', variant: 'default', icon: RefreshCw },
 };
 
 interface WebhookFormData {
@@ -56,33 +54,33 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
     setForm((f) => ({ ...f, eventos: f.eventos.includes(ev) ? f.eventos.filter((e) => e !== ev) : [...f.eventos, ev] }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-2">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Nombre</label>
-          <input className="input" placeholder="Mi ERP" value={form.nombre}
+          <Text className="mb-1 font-medium">Nombre</Text>
+          <TextInput placeholder="Mi ERP" value={form.nombre}
             onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} />
         </div>
         <div>
-          <label className="label">URL del endpoint</label>
-          <input className="input font-mono text-sm" placeholder="https://erp.empresa.com/webhook"
+          <Text className="mb-1 font-medium">URL del endpoint</Text>
+          <TextInput className="font-mono text-sm" placeholder="https://erp.empresa.com/webhook"
             value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} />
         </div>
       </div>
       <div>
-        <label className="label">Secret (HMAC-SHA256)</label>
+        <Text className="mb-1 font-medium">Secret (HMAC-SHA256)</Text>
         <div className="relative">
-          <input type={showSecret ? 'text' : 'password'} className="input pr-9 font-mono text-sm"
+          <TextInput type={showSecret ? 'text' : 'password'} className="font-mono text-sm"
             placeholder="Opcional" value={form.secret}
             onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))} />
           <button type="button" onClick={() => setShowSecret(!showSecret)}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-tremor-content-subtle hover:text-tremor-content">
             {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
       <div>
-        <label className="label mb-3">Eventos</label>
+        <Text className="mb-3 font-medium">Eventos</Text>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
           {EVENTOS_DISPONIBLES.map((ev) => {
             const isChecked = form.eventos.includes(ev.value);
@@ -91,12 +89,12 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
                 key={ev.value}
                 type="button"
                 onClick={() => toggle(ev.value)}
-                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30 shadow-[0_2px_10px_-4px_rgba(16,185,129,0.3)]' : 'border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50'}`}
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30' : 'border-tremor-border hover:border-tremor-content-subtle hover:bg-tremor-background-subtle'}`}
               >
-                <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm' : 'bg-white border-zinc-300'}`}>
+                <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-tremor-border'}`}>
                   {isChecked && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                 </div>
-                <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-zinc-700")}>{ev.label}</p>
+                <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-tremor-content-strong")}>{ev.label}</p>
               </button>
             );
           })}
@@ -104,28 +102,31 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
       </div>
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="label">Max reintentos</label>
-          <input type="number" className="input" min={1} max={10} value={form.intentos_max}
+          <Text className="mb-1 font-medium">Max reintentos</Text>
+          <NumberInput min={1} max={10} value={form.intentos_max}
             onChange={(e) => setForm((f) => ({ ...f, intentos_max: parseInt(e.target.value) || 3 }))} />
         </div>
         <div>
-          <label className="label">Timeout (ms)</label>
-          <input type="number" className="input" min={1000} max={30000} step={1000} value={form.timeout_ms}
+          <Text className="mb-1 font-medium">Timeout (ms)</Text>
+          <NumberInput min={1000} max={30000} step={1000} value={form.timeout_ms}
             onChange={(e) => setForm((f) => ({ ...f, timeout_ms: parseInt(e.target.value) || 10000 }))} />
         </div>
         <div className="flex items-end pb-1">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="checkbox" checked={form.activo}
-              onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />
-            <span className="text-sm text-zinc-700">Activo</span>
-          </label>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="activo-webhook"
+              checked={form.activo}
+              onChange={(enabled) => setForm(f => ({ ...f, activo: enabled }))}
+            />
+            <label htmlFor="activo-webhook" className="text-sm text-tremor-content-strong cursor-pointer">Activo</label>
+          </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-        <button onClick={onCancel} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
-        <button onClick={() => void onSave(form)} disabled={saving || !form.nombre || !form.url || form.eventos.length === 0} className="btn-md btn-primary gap-1.5">
-          {saving ? <Spinner size="xs" /> : <Save className="w-3.5 h-3.5" />} Guardar
-        </button>
+      <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+        <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancelar</Button>
+        <Button onClick={() => void onSave(form)} disabled={saving || !form.nombre || !form.url || form.eventos.length === 0} loading={saving}>
+          Guardar
+        </Button>
       </div>
     </div>
   );
@@ -138,34 +139,38 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
     setLoading(true);
     api.webhooks.deliveries(tenantId, webhookId).then((r) => setDeliveries(r.data)).catch(() => { }).finally(() => setLoading(false));
   }, [tenantId, webhookId]);
+
   if (loading) return <PageLoader />;
-  if (!deliveries.length) return <p className="text-sm text-zinc-400 text-center py-4">Sin entregas registradas</p>;
+  if (!deliveries.length) return <p className="text-sm text-tremor-content text-center py-4">Sin entregas registradas</p>;
+
   return (
-    <table className="w-full text-xs">
-      <thead><tr className="border-b border-zinc-100">
-        <th className="text-left py-2 px-3 font-medium text-zinc-500">Evento</th>
-        <th className="text-left py-2 px-3 font-medium text-zinc-500">Estado</th>
-        <th className="text-left py-2 px-3 font-medium text-zinc-500">HTTP</th>
-        <th className="text-left py-2 px-3 font-medium text-zinc-500">Fecha</th>
-      </tr></thead>
-      <tbody className="divide-y divide-zinc-50">
+    <Table className="text-xs">
+      <TableHead>
+        <TableRow>
+          <TableHeaderCell>Evento</TableHeaderCell>
+          <TableHeaderCell>Estado</TableHeaderCell>
+          <TableHeaderCell>HTTP</TableHeaderCell>
+          <TableHeaderCell>Fecha</TableHeaderCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {deliveries.map((d) => {
           const cfg = ESTADO_CFG[d.estado] ?? ESTADO_CFG.PENDING;
           const Icon = cfg.icon;
           return (
-            <tr key={d.id} className="hover:bg-zinc-50">
-              <td className="py-2 px-3 font-mono text-zinc-600">{d.evento}</td>
-              <td className="py-2 px-3"><div className="flex items-center gap-1.5">
+            <TableRow key={d.id} className="hover:bg-tremor-background-subtle">
+              <TableCell className="font-mono text-tremor-content-strong">{d.evento}</TableCell>
+              <TableCell><div className="flex items-center gap-1.5">
                 <Icon className={cn('w-3 h-3', d.estado === 'SUCCESS' ? 'text-emerald-500' : d.estado === 'FAILED' ? 'text-rose-500' : 'text-amber-400')} />
                 <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>
-              </div></td>
-              <td className="py-2 px-3">{d.http_status ? <span className={cn('font-mono font-semibold', d.http_status < 300 ? 'text-emerald-600' : 'text-rose-600')}>{d.http_status}</span> : <span className="text-zinc-300">—</span>}</td>
-              <td className="py-2 px-3 text-zinc-400">{formatDateTime(d.created_at)}</td>
-            </tr>
+              </div></TableCell>
+              <TableCell>{d.http_status ? <span className={cn('font-mono font-semibold', d.http_status < 300 ? 'text-emerald-600' : 'text-rose-600')}>{d.http_status}</span> : <span className="text-tremor-content-subtle">—</span>}</TableCell>
+              <TableCell className="text-tremor-content">{formatDateTime(d.created_at)}</TableCell>
+            </TableRow>
           );
         })}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
@@ -226,7 +231,7 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
     <div className="animate-fade-in">
       <Header title="Webhooks" subtitle="Notifica sistemas externos cuando llegan comprobantes"
         onRefresh={tenantId ? load : undefined} refreshing={loading}
-        actions={tenantId ? <button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo webhook</button> : undefined}
+        actions={tenantId ? <Button onClick={() => setShowCreateModal(true)} icon={Plus}>Nuevo webhook</Button> : undefined}
       />
 
       {!tenantId ? (
@@ -236,53 +241,44 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
       ) : !webhooks.length ? (
         <EmptyState icon={<Webhook className="w-5 h-5" />} title="Sin webhooks"
           description="Crea tu primer webhook para notificar a tu ERP cuando lleguen comprobantes."
-          action={<button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-2"><Plus className="w-3.5 h-3.5" />Crear webhook</button>} />
+          action={<Button onClick={() => setShowCreateModal(true)} icon={Plus}>Crear webhook</Button>} />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {webhooks.map((wh) => (
-            <div key={wh.id} className="card overflow-hidden">
-              <div className="px-5 py-4 flex items-center gap-4 hover:bg-zinc-50/50 transition-colors">
-                <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', wh.activo ? 'bg-emerald-500' : 'bg-zinc-300')} />
+            <Card key={wh.id} className="p-0 overflow-hidden">
+              <div className="px-5 py-4 flex items-center gap-4 hover:bg-tremor-background-subtle transition-colors">
+                <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', wh.activo ? 'bg-emerald-500' : 'bg-tremor-content-subtle')} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-zinc-900 text-sm">{wh.nombre}</p>
-                    {wh.has_secret && <span className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded font-mono">signed</span>}
+                    <Text className="font-medium text-tremor-content-strong text-sm">{wh.nombre}</Text>
+                    {wh.has_secret && <Badge size="sm" variant="neutral">signed</Badge>}
                   </div>
-                  <p className="text-xs text-zinc-400 font-mono truncate mt-0.5">{wh.url}</p>
+                  <Text className="text-xs font-mono truncate mt-0.5">{wh.url}</Text>
                 </div>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {wh.eventos.slice(0, 2).map((ev) => (
-                    <span key={ev} className="text-[10px] bg-zinc-100/80 border border-zinc-200 text-zinc-600 px-2 py-1 rounded-md font-medium tracking-wide">
+                    <Badge key={ev} size="sm" variant="neutral" className="font-medium tracking-wide">
                       {EVENTOS_DISPONIBLES.find((e) => e.value === ev)?.label ?? ev}
-                    </span>
+                    </Badge>
                   ))}
-                  {wh.eventos.length > 2 && <span className="text-[10px] bg-zinc-100/80 border border-zinc-200 text-zinc-500 font-bold px-2 py-1 rounded-md">+{wh.eventos.length - 2}</span>}
+                  {wh.eventos.length > 2 && <Badge size="sm" variant="neutral" className="font-bold">+{wh.eventos.length - 2}</Badge>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => handleTest(wh.id)} disabled={testingId === wh.id} title="Enviar prueba"
-                    className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors">
-                    {testingId === wh.id ? <Spinner size="xs" /> : <Play className="w-3.5 h-3.5 text-zinc-500" />}
-                  </button>
-                  <button onClick={() => setEditingWebhook(wh)} title="Editar" className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors">
-                    <Pencil className="w-3.5 h-3.5 text-zinc-500" />
-                  </button>
-                  <button onClick={() => setDeletingId(wh.id)} title="Eliminar" className="p-1.5 hover:bg-rose-50 rounded-lg transition-colors">
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                  </button>
-                  <button onClick={() => setExpandedId(expandedId === wh.id ? null : wh.id)} className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors">
-                    {expandedId === wh.id ? <ChevronUp className="w-3.5 h-3.5 text-zinc-400" /> : <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />}
-                  </button>
+                  <Button variant="light" color="gray" onClick={() => handleTest(wh.id)} disabled={testingId === wh.id} title="Enviar prueba" loading={testingId === wh.id} icon={testingId === wh.id ? undefined : Send} />
+                  <Button variant="light" color="gray" onClick={() => setEditingWebhook(wh)} title="Editar" icon={Edit2} />
+                  <Button variant="light" color="rose" onClick={() => setDeletingId(wh.id)} title="Eliminar" icon={Trash2} />
+                  <Button variant="light" color="gray" onClick={() => setExpandedId(expandedId === wh.id ? null : wh.id)} icon={expandedId === wh.id ? ChevronUp : ChevronDown} />
                 </div>
               </div>
               {expandedId === wh.id && (
-                <div className="border-t border-zinc-100 bg-zinc-50">
-                  <div className="px-5 py-2 border-b border-zinc-100">
-                    <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Historial de entregas</p>
+                <div className="border-t border-tremor-border bg-tremor-background-subtle">
+                  <div className="px-5 py-2 border-b border-tremor-border">
+                    <Text className="text-[11px] font-semibold uppercase tracking-wider">Historial de entregas</Text>
                   </div>
                   <DeliveryLog tenantId={wh.tenant_id} webhookId={wh.id} />
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

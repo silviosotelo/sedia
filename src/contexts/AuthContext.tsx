@@ -116,8 +116,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Apply branding colors to CSS variables
   useEffect(() => {
+    const hexToRgb = (hex: string) => {
+      let h = hex.replace('#', '');
+      if (h.length === 3) h = h.split('').map(c => c + c).join('');
+      const r = parseInt(h.substring(0, 2), 16);
+      const g = parseInt(h.substring(2, 4), 16);
+      const b = parseInt(h.substring(4, 6), 16);
+      return `${r} ${g} ${b}`;
+    };
+
     document.documentElement.style.setProperty('--brand-primary', branding.color_primario);
     document.documentElement.style.setProperty('--brand-secondary', branding.color_secundario);
+
+    try {
+      if (branding.color_primario) {
+        document.documentElement.style.setProperty('--brand-rgb', hexToRgb(branding.color_primario));
+      }
+    } catch (e) {
+      document.documentElement.style.setProperty('--brand-rgb', '24 24 27'); // zinc-900 fallback
+    }
+
     if (branding.nombre_app) document.title = branding.nombre_app;
   }, [branding]);
 

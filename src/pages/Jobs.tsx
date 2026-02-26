@@ -13,9 +13,8 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
-import { Card, Metric, Text, Grid } from '@tremor/react';
+import { Card, Metric, Text, Grid, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, TextInput, Select, SelectItem, Button, Callout, Badge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
-import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { PageLoader } from '../components/ui/Spinner';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,15 +27,15 @@ interface JobsProps {
 }
 
 function JobStatusBadge({ status }: { status: JobStatus }) {
-  const map: Record<JobStatus, { variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral'; label: string }> = {
-    PENDING: { variant: 'warning', label: 'Pendiente' },
-    RUNNING: { variant: 'info', label: 'En ejecución' },
-    DONE: { variant: 'success', label: 'Completado' },
-    FAILED: { variant: 'danger', label: 'Fallido' },
+  const map: Record<JobStatus, { color: 'amber' | 'sky' | 'emerald' | 'rose' | 'zinc'; label: string }> = {
+    PENDING: { color: 'amber', label: 'Pendiente' },
+    RUNNING: { color: 'sky', label: 'En ejecución' },
+    DONE: { color: 'emerald', label: 'Completado' },
+    FAILED: { color: 'rose', label: 'Fallido' },
   };
-  const { variant, label } = map[status];
+  const { color, label } = map[status];
   return (
-    <Badge variant={variant} dot>
+    <Badge color={color} size="sm">
       {label}
     </Badge>
   );
@@ -75,7 +74,7 @@ function JobTypeIcon({ tipo }: { tipo: JobType }) {
 
 
 const TYPE_FILTERS: { value: string; label: string }[] = [
-  { value: '', label: 'Todos los tipos' },
+  { value: 'all', label: 'Todos los tipos' },
   { value: 'SYNC_COMPROBANTES', label: 'Sincronización' },
   { value: 'DESCARGAR_XML', label: 'Descarga XML' },
   { value: 'ENVIAR_A_ORDS', label: 'Envío ORDS' },
@@ -99,105 +98,100 @@ function JobRow({ job, tenant, expanded, onToggle }: JobRowProps) {
 
   return (
     <>
-      <tr className="table-tr cursor-pointer" onClick={onToggle}>
-        <td className="table-td">
+      <TableRow className="cursor-pointer hover:bg-tremor-background-subtle transition-colors" onClick={onToggle}>
+        <TableCell>
           <div className="flex items-center gap-3">
             <JobTypeIcon tipo={job.tipo_job} />
             <div>
-              <p className="font-medium text-zinc-900">
+              <Text className="font-medium text-tremor-content-strong">
                 {JOB_TYPE_LABELS[job.tipo_job] || job.tipo_job}
-              </p>
-              <p className="text-xs font-mono text-zinc-400">{job.id.slice(0, 8)}</p>
+              </Text>
+              <Text className="text-xs font-mono">{job.id.slice(0, 8)}</Text>
             </div>
           </div>
-        </td>
-        <td className="table-td">
+        </TableCell>
+        <TableCell>
           {tenant ? (
             <div>
-              <p className="text-sm font-medium text-zinc-700">{tenant.nombre_fantasia}</p>
-              <p className="text-xs font-mono text-zinc-400">{tenant.ruc}</p>
+              <Text className="text-sm font-medium text-tremor-content-strong">{tenant.nombre_fantasia}</Text>
+              <Text className="text-xs font-mono">{tenant.ruc}</Text>
             </div>
           ) : (
-            <span className="tag text-zinc-400">{job.tenant_id.slice(0, 8)}</span>
+            <Badge color="zinc" size="sm">{job.tenant_id.slice(0, 8)}</Badge>
           )}
-        </td>
-        <td className="table-td">
+        </TableCell>
+        <TableCell>
           <div className="flex items-center gap-2">
             {statusIcon}
             <JobStatusBadge status={job.estado} />
           </div>
-        </td>
-        <td className="table-td hidden lg:table-cell">
-          <div className="flex items-center gap-1 text-xs text-zinc-500">
+        </TableCell>
+        <TableCell className="hidden lg:table-cell">
+          <div className="flex items-center gap-1 text-xs text-tremor-content">
             <span>{job.intentos}</span>
-            <span className="text-zinc-300">/</span>
+            <span className="text-tremor-content-subtle">/</span>
             <span>{job.max_intentos}</span>
           </div>
-        </td>
-        <td className="table-td text-xs text-zinc-400">
-          {job.last_run_at ? formatRelative(job.last_run_at) : formatRelative(job.created_at)}
-        </td>
-        <td className="table-td">
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''
-              }`}
-          />
-        </td>
-      </tr>
+        </TableCell>
+        <TableCell>
+          <Text className="text-xs">
+            {job.last_run_at ? formatRelative(job.last_run_at) : formatRelative(job.created_at)}
+          </Text>
+        </TableCell>
+        <TableCell>
+          {expanded ? <ChevronDown className="w-4 h-4 text-tremor-content-subtle" /> : <ChevronRight className="w-4 h-4 text-tremor-content-subtle" />}
+        </TableCell>
+      </TableRow>
 
       {expanded && (
-        <tr className="bg-zinc-50/50">
-          <td colSpan={6} className="px-6 py-5 border-b border-zinc-100">
+        <TableRow className="bg-tremor-background-subtle">
+          <TableCell colSpan={6} className="px-6 py-5 border-b border-tremor-border">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Detalles del Job</p>
+              <Card className="p-4">
+                <Text className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-tremor-border pb-2">Detalles del Job</Text>
                 <dl className="space-y-2.5 text-xs">
-                  <MiniRow label="ID" value={<span className="font-mono bg-zinc-100 px-1.5 py-0.5 rounded text-zinc-700">{job.id}</span>} />
-                  <MiniRow label="Tipo" value={<span className="font-medium text-zinc-900">{job.tipo_job}</span>} />
+                  <MiniRow label="ID" value={<span className="font-mono bg-tremor-background-subtle px-1.5 py-0.5 rounded text-tremor-content-strong">{job.id}</span>} />
+                  <MiniRow label="Tipo" value={<span className="font-medium text-tremor-content-strong">{job.tipo_job}</span>} />
                   <MiniRow label="Estado" value={<JobStatusBadge status={job.estado} />} />
                   <MiniRow label="Intentos" value={<span className="font-mono">{job.intentos} / {job.max_intentos}</span>} />
                 </dl>
-              </div>
-              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Línea de Tiempo</p>
+              </Card>
+              <Card className="p-4">
+                <Text className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-tremor-border pb-2">Línea de Tiempo</Text>
                 <dl className="space-y-2.5 text-xs">
-                  <MiniRow label="Creado" value={<span className="text-zinc-700">{formatDateTime(job.created_at)}</span>} />
+                  <MiniRow label="Creado" value={<span className="text-tremor-content-strong">{formatDateTime(job.created_at)}</span>} />
                   <MiniRow
                     label="Última ejecución"
-                    value={<span className="text-zinc-700">{job.last_run_at ? formatDateTime(job.last_run_at) : '—'}</span>}
+                    value={<span className="text-tremor-content-strong">{job.last_run_at ? formatDateTime(job.last_run_at) : '—'}</span>}
                   />
                   <MiniRow
                     label="Próxima ejecución"
-                    value={<span className="text-zinc-700">{job.next_run_at ? formatDateTime(job.next_run_at) : '—'}</span>}
+                    value={<span className="text-tremor-content-strong">{job.next_run_at ? formatDateTime(job.next_run_at) : '—'}</span>}
                   />
                 </dl>
-              </div>
-              <div className="bg-white border border-zinc-200/60 rounded-xl p-4 shadow-sm flex flex-col">
-                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 border-b border-zinc-100 pb-2">Payload</p>
+              </Card>
+              <Card className="p-4 flex flex-col">
+                <Text className="text-[10px] font-bold uppercase tracking-widest mb-3 border-b border-tremor-border pb-2">Payload</Text>
                 {Object.keys(job.payload).length > 0 ? (
                   <pre className="font-mono text-[11px] bg-zinc-950 text-emerald-400 rounded-lg p-3 overflow-x-auto flex-1 whitespace-pre leading-relaxed">
                     {JSON.stringify(job.payload, null, 2)}
                   </pre>
                 ) : (
-                  <p className="text-xs text-zinc-400 italic">Sin payload proporcionado</p>
+                  <Text className="text-xs italic">Sin payload proporcionado</Text>
                 )}
-              </div>
+              </Card>
               {job.error_message && (
                 <div className="md:col-span-3">
-                  <div className="flex items-start gap-3 p-4 bg-rose-50/50 border border-rose-200 rounded-xl shadow-sm">
-                    <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-rose-800 mb-1">Error registrado</p>
-                      <p className="font-mono text-xs text-rose-600 whitespace-pre-wrap break-all leading-relaxed bg-white border border-rose-100 p-2 rounded-lg mt-2 shadow-sm">
-                        {job.error_message}
-                      </p>
-                    </div>
-                  </div>
+                  <Callout title="Error registrado" icon={AlertCircle} color="rose">
+                    <pre className="font-mono text-xs whitespace-pre-wrap break-all mt-2 bg-white/50 p-2 rounded border border-rose-200">
+                      {job.error_message}
+                    </pre>
+                  </Callout>
                 </div>
               )}
             </div>
-          </td>
-        </tr>
+          </TableCell>
+        </TableRow>
       )}
     </>
   );
@@ -206,8 +200,8 @@ function JobRow({ job, tenant, expanded, onToggle }: JobRowProps) {
 function MiniRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-start gap-2">
-      <dt className="text-zinc-400 w-28 flex-shrink-0">{label}</dt>
-      <dd className="text-zinc-700">{value}</dd>
+      <dt className="text-tremor-content w-28 flex-shrink-0">{label}</dt>
+      <dd className="text-tremor-content-strong">{value}</dd>
     </div>
   );
 }
@@ -222,7 +216,7 @@ export function Jobs({ toastError }: JobsProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -235,7 +229,7 @@ export function Jobs({ toastError }: JobsProps) {
         api.jobs.list({
           tenant_id: isTenantUser ? userTenantId! : undefined,
           estado: statusFilter || undefined,
-          tipo_job: typeFilter || undefined,
+          tipo_job: typeFilter && typeFilter !== 'all' ? typeFilter : undefined,
           limit: 100,
         }),
         isTenantUser
@@ -305,12 +299,12 @@ export function Jobs({ toastError }: JobsProps) {
           <button
             key={key}
             onClick={() => setStatusFilter(statusFilter === key ? '' : key)}
-            className="text-left w-full"
+            className="text-left w-full focus:outline-none"
           >
             <Card
               decoration="top"
               decorationColor={color}
-              className={`transition-all hover:shadow-md ${statusFilter === key ? 'ring-2 ring-zinc-900 ring-offset-1' : ''}`}
+              className={`transition-all hover:shadow-md ${statusFilter === key ? 'ring-2 ring-tremor-brand ring-offset-1' : ''}`}
             >
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconBg}`}>
@@ -328,9 +322,8 @@ export function Jobs({ toastError }: JobsProps) {
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
-          <input
-            className="input pl-9"
+          <TextInput
+            icon={Search}
             placeholder="Buscar por ID, empresa..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -338,28 +331,30 @@ export function Jobs({ toastError }: JobsProps) {
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-tremor-content-subtle hover:text-tremor-content"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        <select
-          className="input w-auto"
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-        >
-          {TYPE_FILTERS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
-            </option>
-          ))}
-        </select>
+        <div className="w-48">
+          <Select
+            value={typeFilter}
+            onValueChange={setTypeFilter}
+            enableClear={false}
+          >
+            {TYPE_FILTERS.map((f) => (
+              <SelectItem key={f.value} value={f.value}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </Select>
+        </div>
 
-        <p className="text-sm text-zinc-500 ml-auto">
+        <Text className="ml-auto">
           {filtered.length} job{filtered.length !== 1 ? 's' : ''}
-        </p>
+        </Text>
       </div>
 
       {paginated.length === 0 ? (
@@ -369,19 +364,19 @@ export function Jobs({ toastError }: JobsProps) {
           description="No hay jobs con los filtros seleccionados"
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="table-th">Job</th>
-                <th className="table-th">Empresa</th>
-                <th className="table-th">Estado</th>
-                <th className="table-th hidden lg:table-cell">Intentos</th>
-                <th className="table-th">Actualizado</th>
-                <th className="table-th w-8" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
+        <Card className="p-0 overflow-hidden">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Job</TableHeaderCell>
+                <TableHeaderCell>Empresa</TableHeaderCell>
+                <TableHeaderCell>Estado</TableHeaderCell>
+                <TableHeaderCell className="hidden lg:table-cell">Intentos</TableHeaderCell>
+                <TableHeaderCell>Actualizado</TableHeaderCell>
+                <TableHeaderCell className="w-8" />
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {paginated.map((job) => (
                 <JobRow
                   key={job.id}
@@ -391,37 +386,37 @@ export function Jobs({ toastError }: JobsProps) {
                   onToggle={() => setExpandedId(expandedId === job.id ? null : job.id)}
                 />
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-100">
-              <p className="text-xs text-zinc-500">
+            <div className="flex items-center justify-between px-5 py-3 border-t border-tremor-border">
+              <Text>
                 {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} de{' '}
                 {filtered.length}
-              </p>
+              </Text>
               <div className="flex items-center gap-1">
-                <button
+                <Button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="btn-sm btn-secondary px-2 disabled:opacity-40"
-                >
-                  <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-                </button>
-                <span className="text-xs text-zinc-500 px-2">
+                  variant="secondary"
+                  icon={ChevronRight}
+                  className="p-1 px-1.5 rotate-180"
+                />
+                <Text className="px-2">
                   {page}/{totalPages}
-                </span>
-                <button
+                </Text>
+                <Button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="btn-sm btn-secondary px-2 disabled:opacity-40"
-                >
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                  variant="secondary"
+                  icon={ChevronRight}
+                  className="p-1 px-1.5"
+                />
               </div>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

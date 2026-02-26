@@ -4,15 +4,13 @@ import {
   Plus,
   Pencil,
   Trash2,
-  X,
   Shield,
   Building2,
   CheckCircle2,
   XCircle,
-  Loader2,
 } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Select, SelectItem, TextInput, Switch, Badge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
-import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -27,11 +25,11 @@ interface UsuariosProps {
   toastSuccess: (title: string, desc?: string) => void;
 }
 
-const ROL_COLORS: Record<string, 'success' | 'info' | 'warning' | 'neutral' | 'danger'> = {
-  super_admin: 'danger',
-  admin_empresa: 'info',
-  usuario_empresa: 'success',
-  readonly: 'neutral',
+const ROL_COLORS: Record<string, 'emerald' | 'blue' | 'amber' | 'zinc' | 'rose'> = {
+  super_admin: 'rose',
+  admin_empresa: 'blue',
+  usuario_empresa: 'emerald',
+  readonly: 'zinc',
 };
 
 const ROL_LABELS: Record<string, string> = {
@@ -58,7 +56,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
     email: '',
     password: '',
     rol_id: '',
-    tenant_id: '',
+    tenant_id: 'global',
     activo: true,
   });
 
@@ -91,13 +89,13 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm({ nombre: '', email: '', password: '', rol_id: roles[roles.length - 1]?.id ?? '', tenant_id: currentUser?.tenant_id ?? '', activo: true });
+    setForm({ nombre: '', email: '', password: '', rol_id: roles[roles.length - 1]?.id ?? '', tenant_id: currentUser?.tenant_id ?? 'global', activo: true });
     setShowForm(true);
   };
 
   const openEdit = (u: Usuario) => {
     setEditTarget(u);
-    setForm({ nombre: u.nombre, email: u.email, password: '', rol_id: u.rol_id, tenant_id: u.tenant_id ?? '', activo: u.activo });
+    setForm({ nombre: u.nombre, email: u.email, password: '', rol_id: u.rol_id, tenant_id: u.tenant_id ?? 'global', activo: u.activo });
     setShowForm(true);
   };
 
@@ -120,7 +118,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
           email: form.email,
           password: form.password,
           rol_id: form.rol_id,
-          tenant_id: form.tenant_id || undefined,
+          tenant_id: form.tenant_id !== 'global' ? form.tenant_id : undefined,
           activo: form.activo,
         });
         toastSuccess('Usuario creado');
@@ -156,9 +154,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
         onRefresh={() => void load(true)}
         refreshing={refreshing}
         actions={
-          <button onClick={openCreate} className="btn-md btn-primary gap-2">
-            <Plus className="w-3.5 h-3.5" />Nuevo usuario
-          </button>
+          <Button onClick={openCreate} icon={Plus}>Nuevo usuario</Button>
         }
       />
 
@@ -169,124 +165,121 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
           icon={<Users className="w-5 h-5" />}
           title="Sin usuarios"
           description="Creá el primer usuario del sistema"
-          action={<button onClick={openCreate} className="btn-md btn-primary gap-2"><Plus className="w-3.5 h-3.5" />Crear usuario</button>}
+          action={<Button onClick={openCreate} icon={Plus}>Crear usuario</Button>}
         />
       ) : (
-        <div className="card overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="table-th">Usuario</th>
-                <th className="table-th">Rol</th>
-                {isSuperAdmin && <th className="table-th">Empresa</th>}
-                <th className="table-th">Último acceso</th>
-                <th className="table-th">Estado</th>
-                <th className="table-th text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
+        <Card className="p-0 overflow-hidden">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Usuario</TableHeaderCell>
+                <TableHeaderCell>Rol</TableHeaderCell>
+                {isSuperAdmin && <TableHeaderCell>Empresa</TableHeaderCell>}
+                <TableHeaderCell>Último acceso</TableHeaderCell>
+                <TableHeaderCell>Estado</TableHeaderCell>
+                <TableHeaderCell className="text-right">Acciones</TableHeaderCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {usuarios.map((u) => (
-                <tr key={u.id} className="table-tr">
-                  <td className="table-td">
+                <TableRow key={u.id}>
+                  <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-xs font-bold text-zinc-600">{u.nombre.slice(0, 2).toUpperCase()}</span>
+                      <div className="w-8 h-8 rounded-full bg-tremor-background-subtle flex items-center justify-center flex-shrink-0">
+                        <Text className="font-bold text-tremor-content-strong">{u.nombre.slice(0, 2).toUpperCase()}</Text>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-zinc-900">{u.nombre}</p>
-                        <p className="text-xs text-zinc-400">{u.email}</p>
+                        <Text className="font-medium text-tremor-content-strong">{u.nombre}</Text>
+                        <Text className="text-xs">{u.email}</Text>
                       </div>
                     </div>
-                  </td>
-                  <td className="table-td">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Shield className="w-3 h-3 text-zinc-400" />
-                      <Badge variant={ROL_COLORS[u.rol.nombre] ?? 'neutral'}>
+                      <Shield className="w-3 h-3 text-tremor-content-subtle" />
+                      <Badge color={ROL_COLORS[u.rol.nombre] ?? 'zinc'}>
                         {ROL_LABELS[u.rol.nombre] ?? u.rol.nombre}
                       </Badge>
                     </div>
-                  </td>
+                  </TableCell>
                   {isSuperAdmin && (
-                    <td className="table-td">
+                    <TableCell>
                       {u.tenant_nombre
-                        ? <span className="flex items-center gap-1 text-xs text-zinc-600"><Building2 className="w-3 h-3" />{u.tenant_nombre}</span>
-                        : <span className="text-zinc-400 text-xs">Global</span>}
-                    </td>
+                        ? <span className="flex items-center gap-1 text-xs text-tremor-content-strong"><Building2 className="w-3 h-3" />{u.tenant_nombre}</span>
+                        : <Text className="text-xs">Global</Text>}
+                    </TableCell>
                   )}
-                  <td className="table-td text-xs text-zinc-500">
-                    {u.ultimo_login ? formatDate(u.ultimo_login) : <span className="text-zinc-300">Nunca</span>}
-                  </td>
-                  <td className="table-td">
+                  <TableCell>
+                    <Text className="text-xs">
+                      {u.ultimo_login ? formatDate(u.ultimo_login) : 'Nunca'}
+                    </Text>
+                  </TableCell>
+                  <TableCell>
                     {u.activo
                       ? <span className="flex items-center gap-1 text-emerald-600 text-xs"><CheckCircle2 className="w-3.5 h-3.5" />Activo</span>
-                      : <span className="flex items-center gap-1 text-zinc-400 text-xs"><XCircle className="w-3.5 h-3.5" />Inactivo</span>}
-                  </td>
-                  <td className="table-td text-right">
+                      : <span className="flex items-center gap-1 text-tremor-content-subtle text-xs"><XCircle className="w-3.5 h-3.5" />Inactivo</span>}
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors" title="Editar">
-                        <Pencil className="w-3.5 h-3.5 text-zinc-500" />
-                      </button>
+                      <Button variant="light" color="gray" icon={Pencil} onClick={() => openEdit(u)} title="Editar" />
                       {u.id !== currentUser?.id && (
-                        <button onClick={() => setDeleteTarget(u)} className="p-1.5 hover:bg-rose-50 rounded-lg transition-colors" title="Eliminar">
-                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                        </button>
+                        <Button variant="light" color="rose" icon={Trash2} onClick={() => setDeleteTarget(u)} title="Eliminar" />
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       <Modal open={showForm} onClose={() => setShowForm(false)} title={editTarget ? 'Editar usuario' : 'Nuevo usuario'} size="md">
         <div className="space-y-4">
           <div>
-            <label className="label">Nombre completo *</label>
-            <input className="input" value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} placeholder="Juan Pérez" />
+            <Text className="mb-1 font-medium">Nombre completo *</Text>
+            <TextInput value={form.nombre} onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))} placeholder="Juan Pérez" />
           </div>
           <div>
-            <label className="label">Email *</label>
-            <input type="email" className="input" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="usuario@empresa.com" />
+            <Text className="mb-1 font-medium">Email *</Text>
+            <TextInput type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="usuario@empresa.com" />
           </div>
           <div>
-            <label className="label">{editTarget ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}</label>
-            <input type="password" className="input" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="••••••••" />
+            <Text className="mb-1 font-medium">{editTarget ? 'Nueva contraseña (dejar vacío para no cambiar)' : 'Contraseña *'}</Text>
+            <TextInput type="password" value={form.password} onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))} placeholder="••••••••" />
           </div>
           <div>
-            <label className="label">Rol *</label>
-            <select className="input" value={form.rol_id} onChange={(e) => setForm((p) => ({ ...p, rol_id: e.target.value }))}>
-              <option value="">Seleccionar rol</option>
+            <Text className="mb-1 font-medium">Rol *</Text>
+            <Select value={form.rol_id} onValueChange={(v) => setForm((p) => ({ ...p, rol_id: v }))} enableClear={false}>
+              <SelectItem value="">Seleccionar rol</SelectItem>
               {availableRoles.map((r) => (
-                <option key={r.id} value={r.id}>{ROL_LABELS[r.nombre] ?? r.nombre} — {r.descripcion}</option>
+                <SelectItem key={r.id} value={r.id}>{ROL_LABELS[r.nombre] ?? r.nombre} — {r.descripcion}</SelectItem>
               ))}
-            </select>
+            </Select>
           </div>
           {isSuperAdmin && (
             <div>
-              <label className="label">Empresa (vacío = acceso global)</label>
-              <select className="input" value={form.tenant_id} onChange={(e) => setForm((p) => ({ ...p, tenant_id: e.target.value }))}>
-                <option value="">Sin empresa (global)</option>
-                {tenants.map((t) => <option key={t.id} value={t.id}>{t.nombre_fantasia} ({t.ruc})</option>)}
-              </select>
+              <Text className="mb-1 font-medium">Empresa (global por defecto)</Text>
+              <Select value={form.tenant_id} onValueChange={(v) => setForm((p) => ({ ...p, tenant_id: v }))} enableClear={false}>
+                <SelectItem value="global">Sin empresa (global)</SelectItem>
+                {tenants.map((t) => <SelectItem key={t.id} value={t.id}>{t.nombre_fantasia} ({t.ruc})</SelectItem>)}
+              </Select>
             </div>
           )}
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setForm((p) => ({ ...p, activo: !p.activo }))}
-              className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${form.activo ? 'bg-emerald-500' : 'bg-zinc-300'}`}
-            >
-              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${form.activo ? 'left-5' : 'left-0.5'}`} />
-            </button>
-            <span className="text-sm text-zinc-700">Usuario activo</span>
+            <Switch
+              id="activo"
+              name="activo"
+              checked={form.activo}
+              onChange={(enabled) => setForm(p => ({ ...p, activo: enabled }))}
+            />
+            <label htmlFor="activo" className="text-sm text-tremor-content-strong cursor-pointer">Usuario activo</label>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setShowForm(false)} className="btn-md btn-secondary gap-1.5"><X className="w-3.5 h-3.5" />Cancelar</button>
-            <button onClick={() => void handleSubmit()} disabled={saving} className="btn-md btn-primary gap-1.5">
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+            <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button onClick={() => void handleSubmit()} disabled={saving} loading={saving}>
               {editTarget ? 'Guardar cambios' : 'Crear usuario'}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BancardIframe } from 'react-bancard-checkout-js';
 import { CreditCard, CheckCircle2, AlertCircle, TrendingUp, Zap } from 'lucide-react';
-import { Card, Metric, Text, ProgressBar, Callout, Grid, BarChart } from '@tremor/react';
+import { Card, Metric, Text, ProgressBar, Callout, Grid, BarChart, Button, TabGroup, TabList, Tab } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Modal } from '../components/ui/Modal';
@@ -48,14 +48,14 @@ function PlanCard({
 }) {
   const features = plan.features as Record<string, boolean | string | number>;
   return (
-    <div className={`card p-6 flex flex-col gap-5 relative overflow-hidden transition-all duration-300 ${current ? 'ring-2 ring-emerald-500 shadow-md transform -translate-y-1' : 'hover:shadow-lg hover:-translate-y-0.5'}`}>
+    <Card className={`p-6 flex flex-col gap-5 relative overflow-hidden transition-all duration-300 ${current ? 'ring-2 ring-emerald-500 shadow-md transform -translate-y-1' : 'hover:shadow-lg hover:-translate-y-0.5'}`}>
       {current && (
         <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg tracking-wider uppercase">
           Plan Actual
         </div>
       )}
       <div className="mt-2">
-        <h3 className="text-lg font-bold text-zinc-900 tracking-tight mb-2">{plan.nombre}</h3>
+        <h3 className="text-lg font-bold text-tremor-content-strong tracking-tight mb-2">{plan.nombre}</h3>
         <div className="flex items-end gap-1">
           <p className="text-3xl font-extrabold text-zinc-900 tracking-tight">{fmtGs(plan.precio_mensual_pyg)}</p>
           <p className="text-sm font-medium text-zinc-500 mb-1">/mes</p>
@@ -97,13 +97,14 @@ function PlanCard({
 
       {!current && (
         <div className="flex flex-col gap-3 w-full mt-auto pt-6">
-          <button
+          <Button
             onClick={() => onSelect(plan.id)}
             disabled={selecting}
-            className="btn-md btn-primary w-full shadow-md"
+            className="w-full shadow-md"
+            loading={selecting}
           >
-            {selecting ? <Spinner size="xs" /> : 'Seleccionar plan'}
-          </button>
+            Seleccionar plan
+          </Button>
           {isSuperAdmin && onManualChange && (
             <button
               onClick={() => onManualChange(plan.id)}
@@ -115,7 +116,7 @@ function PlanCard({
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -296,22 +297,12 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         />
       )}
 
-      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
-        <button
-          onClick={() => setActiveTab('plans')}
-          className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'plans' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
-        >
-          Suscripciones y Uso
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${activeTab === 'history' ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-            }`}
-        >
-          Historial de Pagos
-        </button>
-      </div>
+      <TabGroup index={activeTab === 'plans' ? 0 : 1} onIndexChange={(idx) => setActiveTab(idx === 0 ? 'plans' : 'history')} className="mb-8 w-full sm:w-auto">
+        <TabList variant="solid">
+          <Tab>Suscripciones y Uso</Tab>
+          <Tab>Historial de Pagos</Tab>
+        </TabList>
+      </TabGroup>
 
       {activeTab === 'plans' ? (
         <>

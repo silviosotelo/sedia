@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
+import { Button } from '@tremor/react';
 import { Modal } from './Modal';
-import { Spinner } from './Spinner';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -31,17 +31,17 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <>
-          <button onClick={onClose} className="btn-md btn-secondary" disabled={loading}>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
+            color={variant === 'danger' ? 'rose' : undefined}
             onClick={onConfirm}
             disabled={loading}
-            className={variant === 'danger' ? 'btn-md btn-danger' : 'btn-md btn-primary'}
+            loading={!!loading}
           >
-            {loading && <Spinner size="xs" />}
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
@@ -49,7 +49,7 @@ export function ConfirmDialog({
         <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
           <AlertTriangle className="w-4 h-4 text-amber-500" />
         </div>
-        <p className="text-sm text-zinc-600 pt-1.5">{description}</p>
+        <p className="text-sm text-tremor-content pt-1.5">{description}</p>
       </div>
     </Modal>
   );

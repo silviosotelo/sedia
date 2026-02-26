@@ -1,8 +1,9 @@
+import { PageLoader } from '../components/ui/Spinner';
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, CheckCircle2, XCircle, ChevronRight, Briefcase, Calendar } from 'lucide-react';
+import { Card, Text, Button, Select, SelectItem, NumberInput, TabGroup, TabList, Tab } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatDate, formatCurrency } from '../lib/utils';
@@ -25,7 +26,7 @@ function RunModal({
   onSuccess: () => void;
   toastError: (msg: string) => void;
 }) {
-  const [form, setForm] = useState({ bank_account_id: '', periodo_desde: '', periodo_hasta: '' });
+  const [form, setForm] = useState({ bank_account_id: 'all', periodo_desde: '', periodo_hasta: '' });
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
@@ -33,7 +34,7 @@ function RunModal({
     setCreating(true);
     try {
       await api.bank.createRun(tenantId, {
-        bank_account_id: form.bank_account_id || undefined,
+        bank_account_id: form.bank_account_id === 'all' ? undefined : form.bank_account_id,
         periodo_desde: form.periodo_desde,
         periodo_hasta: form.periodo_hasta,
       });
@@ -52,42 +53,44 @@ function RunModal({
       onClose={onClose}
       title="Nueva conciliación"
       size="sm"
-      footer={
-        <>
-          <button onClick={onClose} className="btn-md btn-secondary" disabled={creating}>Cancelar</button>
-          <button
-            onClick={() => void handleCreate()}
-            disabled={!form.periodo_desde || !form.periodo_hasta || creating}
-            className="btn-md btn-primary grow sm:grow-0"
-          >
-            {creating ? <Spinner size="sm" /> : <CheckCircle2 className="w-4 h-4" />} Iniciar proceso
-          </button>
-        </>
-      }
     >
       <div className="space-y-4 pt-2">
         <div>
-          <label className="label">Cuenta bancaria (opcional)</label>
-          <select
-            className="input"
+          <Text className="mb-1 font-medium">Cuenta bancaria (opcional)</Text>
+          <Select
             value={form.bank_account_id}
-            onChange={(e) => setForm((f) => ({ ...f, bank_account_id: e.target.value }))}
+            onValueChange={(v) => setForm((f) => ({ ...f, bank_account_id: v }))}
+            enableClear={false}
           >
-            <option value="">Todas las cuentas</option>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.alias}</option>)}
-          </select>
+            <SelectItem value="all">Todas las cuentas</SelectItem>
+            {accounts.map((a) => <SelectItem key={a.id} value={a.id}>{a.alias}</SelectItem>)}
+          </Select>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Desde</label>
-            <input type="date" className="input" value={form.periodo_desde}
+            <Text className="mb-1 font-medium">Desde</Text>
+            <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+              value={form.periodo_desde}
               onChange={(e) => setForm((f) => ({ ...f, periodo_desde: e.target.value }))} />
           </div>
           <div>
-            <label className="label">Hasta</label>
-            <input type="date" className="input" value={form.periodo_hasta}
+            <Text className="mb-1 font-medium">Hasta</Text>
+            <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+              value={form.periodo_hasta}
               onChange={(e) => setForm((f) => ({ ...f, periodo_hasta: e.target.value }))} />
           </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+          <Button variant="secondary" onClick={onClose} disabled={creating}>Cancelar</Button>
+          <Button
+            onClick={() => void handleCreate()}
+            disabled={!form.periodo_desde || !form.periodo_hasta || creating}
+            loading={creating}
+            icon={creating ? undefined : CheckCircle2}
+          >
+            Iniciar proceso
+          </Button>
         </div>
       </div>
     </Modal>
@@ -130,8 +133,8 @@ function ManualMatchModal({
     }
   };
 
-  const updateAmount = (id: string, montoStr: string) => {
-    const val = parseFloat(montoStr) || 0;
+  const updateAmount = (id: string, monto: number | null) => {
+    const val = monto || 0;
     setAllocations(allocations.map((a) => a.comprobante_id === id ? { ...a, monto: val } : a));
   };
 
@@ -165,43 +168,43 @@ function ManualMatchModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
-          <p className="text-sm text-zinc-600">Total asignado: <strong className="text-zinc-900">{fmtGs(totalAsignado)}</strong></p>
+          <Text className="text-sm">Total asignado: <strong className="text-tremor-content-strong">{fmtGs(totalAsignado)}</strong></Text>
           <div className="flex gap-3">
-            <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
-            <button
+            <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button
               onClick={() => void handleSave()}
               disabled={allocations.length === 0 || saving}
-              className="btn-md btn-primary"
+              loading={saving}
+              icon={saving ? undefined : CheckCircle2}
             >
-              {saving ? <Spinner size="sm" /> : <CheckCircle2 className="w-4 h-4 mr-1" />} Confirmar Match
-            </button>
+              Confirmar Match
+            </Button>
           </div>
         </div>
       }
     >
-      <div className="space-y-3 min-h-[200px]">
-        {loading ? <div className="py-8 text-center"><Spinner /></div> : comprobantes.length === 0 ? <p className="text-sm text-zinc-500 text-center py-8">No hay comprobantes pendientes en este periodo</p> : (
+      <div className="space-y-3 min-h-[200px] pt-4">
+        {loading ? <div className="py-8"><PageLoader /></div> : comprobantes.length === 0 ? <Text className="text-center py-8">No hay comprobantes pendientes en este periodo</Text> : (
           comprobantes.map((c) => {
             const checked = allocations.find((a) => a.comprobante_id === c.id);
             return (
-              <div key={c.id} className={`flex items-center gap-4 p-4 border rounded-xl transition-colors ${checked ? 'border-primary ring-1 ring-primary bg-primary/5' : 'hover:bg-zinc-50 border-zinc-200'}`}>
-                <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="checkbox" />
+              <Card key={c.id} className={`p-4 flex items-center gap-4 transition-colors ${checked ? 'ring-2 ring-tremor-brand bg-tremor-brand-faint' : 'hover:bg-tremor-background-subtle'}`}>
+                <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="w-5 h-5 rounded border-gray-300 text-tremor-brand focus:ring-tremor-brand" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate text-zinc-900">{c.numero_comprobante || 'S/N'}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{formatDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
+                  <Text className="text-sm font-semibold truncate text-tremor-content-strong">{c.numero_comprobante || 'S/N'}</Text>
+                  <Text className="text-xs mt-0.5">{formatDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</Text>
                 </div>
                 {checked && (
                   <div className="w-32">
-                    <label className="label-sm">Monto Asignado</label>
-                    <input
-                      type="number"
-                      className="input py-1.5 text-sm h-9"
+                    <Text className="text-xs font-medium mb-1">Monto Asignado</Text>
+                    <NumberInput
+                      min={0}
                       value={checked.monto}
-                      onChange={(e) => updateAmount(c.id, e.target.value)}
+                      onValueChange={(v) => updateAmount(c.id, v)}
                     />
                   </div>
                 )}
-              </div>
+              </Card>
             );
           })
         )}
@@ -293,9 +296,9 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
         title="Procesos de Conciliación"
         subtitle="Cotejo automático de movimientos bancarios contra comprobantes fiscales"
         actions={
-          <button onClick={() => setShowNewRun(true)} className="btn-md btn-primary gap-2">
-            <Plus className="w-4 h-4" /> Nueva conciliación
-          </button>
+          <Button onClick={() => setShowNewRun(true)} icon={Plus}>
+            Nueva conciliación
+          </Button>
         }
         onRefresh={loadAll}
         refreshing={loading}
@@ -307,14 +310,14 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
           title="Sin procesos de conciliación"
           description="Inicia un nuevo proceso para que el sistema busque coincidencias automáticamente entre tus extractos y comprobantes."
           action={
-            <button onClick={() => setShowNewRun(true)} className="btn-md btn-primary gap-2">
-              <Plus className="w-4 h-4" /> Iniciar primera conciliación
-            </button>
+            <Button onClick={() => setShowNewRun(true)} icon={Plus}>
+              Iniciar primera conciliación
+            </Button>
           }
         />
       ) : (
-        <div className="card overflow-hidden transition-all duration-300">
-          <div className="divide-y divide-zinc-50">
+        <Card className="p-0 overflow-hidden transition-all duration-300">
+          <div className="divide-y divide-tremor-border">
             {runs.map((run) => {
               const summary = run.summary as {
                 total?: number; conciliados?: number;
@@ -324,13 +327,13 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                 <div key={run.id} className="animate-fade-in">
                   <button
                     onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                    className="w-full text-left px-6 py-5 flex items-center gap-4 hover:bg-zinc-50 transition-colors"
+                    className="w-full text-left px-6 py-5 flex items-center gap-4 hover:bg-tremor-background-subtle transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <span className="text-base font-semibold text-zinc-900">
+                        <Text className="text-base font-semibold text-tremor-content-strong">
                           {formatDate(run.periodo_desde)} – {formatDate(run.periodo_hasta)}
-                        </span>
+                        </Text>
                         <Badge
                           variant={run.estado === 'DONE' ? 'success' : run.estado === 'FAILED' ? 'danger' : run.estado === 'RUNNING' ? 'info' : 'warning'}
                           size="sm"
@@ -339,33 +342,35 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                         </Badge>
                       </div>
                       {summary.total != null && (
-                        <p className="text-xs text-zinc-400 mt-1.5 flex gap-3">
-                          <span><b className="text-zinc-600">{summary.conciliados ?? 0}</b> conciliados</span>
-                          <span><b className="text-zinc-600">{summary.sin_match_banco ?? 0}</b> sin banco</span>
-                          <span><b className="text-zinc-600">{summary.sin_match_comprobante ?? 0}</b> sin cpte.</span>
-                        </p>
+                        <Text className="text-xs mt-1.5 flex gap-3">
+                          <span><b className="text-tremor-content-strong">{summary.conciliados ?? 0}</b> conciliados</span>
+                          <span><b className="text-tremor-content-strong">{summary.sin_match_banco ?? 0}</b> sin banco</span>
+                          <span><b className="text-tremor-content-strong">{summary.sin_match_comprobante ?? 0}</b> sin cpte.</span>
+                        </Text>
                       )}
                     </div>
-                    <ChevronRight className={`w-5 h-5 text-zinc-300 transition-transform duration-200 ${selectedRun?.id === run.id ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`w-5 h-5 text-tremor-content-subtle transition-transform duration-200 ${selectedRun?.id === run.id ? 'rotate-90' : ''}`} />
                   </button>
 
                   {selectedRun?.id === run.id && (
-                    <div className="bg-zinc-50/30 border-t border-zinc-100 p-8 animate-slide-down">
-                      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
-                        {([
-                          { id: 'conciliados', label: 'Conciliados' },
-                          { id: 'sin_banco', label: 'Sin match Banco' },
-                          { id: 'sin_comprobante', label: 'Sin match Cptes.' },
-                        ] as const).map(({ id, label }) => (
-                          <button
-                            key={id}
-                            onClick={() => setMatchTab(id)}
-                            className={`px-5 py-2 text-xs font-semibold rounded-xl transition-all ${matchTab === id ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'}`}
-                          >
-                            {label} ({id === 'conciliados' ? conciliadosMatches.length : id === 'sin_banco' ? sinBancoMatches.length : sinComprobanteMatches.length})
-                          </button>
-                        ))}
-                      </div>
+                    <div className="bg-tremor-background-subtle border-t border-tremor-border p-8 animate-slide-down">
+                      <TabGroup
+                        index={matchTab === 'conciliados' ? 0 : matchTab === 'sin_banco' ? 1 : 2}
+                        onIndexChange={(idx) => setMatchTab(idx === 0 ? 'conciliados' : idx === 1 ? 'sin_banco' : 'sin_comprobante')}
+                        className="mb-8 w-fit"
+                      >
+                        <TabList variant="solid">
+                          {([
+                            { id: 'conciliados', label: 'Conciliados' },
+                            { id: 'sin_banco', label: 'Sin match Banco' },
+                            { id: 'sin_comprobante', label: 'Sin match Cptes.' },
+                          ] as const).map(({ id, label }) => (
+                            <Tab key={id}>
+                              {label} ({id === 'conciliados' ? conciliadosMatches.length : id === 'sin_banco' ? sinBancoMatches.length : sinComprobanteMatches.length})
+                            </Tab>
+                          ))}
+                        </TabList>
+                      </TabGroup>
 
                       {(() => {
                         const displayMatches = matchTab === 'conciliados' ? conciliadosMatches
@@ -387,7 +392,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                         return (
                           <div className="grid gap-4">
                             {displayMatches.map((m) => (
-                              <div key={m.id} className="bg-white border border-zinc-200 rounded-2xl px-6 py-4 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                              <Card key={m.id} className="p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex items-center gap-5">
                                   <Badge
                                     variant={m.estado === 'CONFIRMADO' ? 'success' : m.estado === 'RECHAZADO' ? 'danger' : 'warning'}
@@ -396,46 +401,50 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                                     {m.estado}
                                   </Badge>
                                   <div>
-                                    <p className="text-sm font-semibold text-zinc-900">{m.tipo_match || 'Coincidencia detectada'}</p>
-                                    <p className="text-xs text-zinc-500 mt-1 flex items-center gap-3">
-                                      <span className="font-mono text-[11px] uppercase tracking-tight bg-zinc-100 px-1.5 py-0.5 rounded">
+                                    <Text className="text-sm font-semibold text-tremor-content-strong">{m.tipo_match || 'Coincidencia detectada'}</Text>
+                                    <Text className="text-xs mt-1 flex items-center gap-3">
+                                      <span className="font-mono text-[11px] uppercase tracking-tight bg-tremor-background-subtle border border-tremor-border px-1.5 py-0.5 rounded">
                                         Dif mto: {fmtGs(m.diferencia_monto)}
                                       </span>
                                       <span>•</span>
                                       <span>{m.diferencia_dias} días de diferencia</span>
-                                    </p>
+                                    </Text>
                                   </div>
                                 </div>
                                 {m.estado === 'PROPUESTO' && (
-                                  <div className="flex gap-3">
-                                    <button
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="secondary"
                                       onClick={() => void handleConfirmMatch(m.id, 'CONFIRMADO')}
-                                      className="btn-sm btn-secondary hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"
+                                      className="hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200"
                                       title="Confirmar"
+                                      icon={CheckCircle2}
                                     >
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    </button>
-                                    <button
+                                      Confirmar
+                                    </Button>
+                                    <Button
+                                      variant="secondary"
                                       onClick={() => void handleConfirmMatch(m.id, 'RECHAZADO')}
-                                      className="btn-sm btn-secondary hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
+                                      className="hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200"
                                       title="Rechazar"
+                                      icon={XCircle}
                                     >
-                                      <XCircle className="w-4 h-4" />
-                                    </button>
+                                      Rechazar
+                                    </Button>
                                   </div>
                                 )}
                                 {m.estado === 'PROPUESTO' && matchTab === 'sin_comprobante' && (
                                   <div className="flex gap-3">
-                                    <button
+                                    <Button
                                       onClick={() => setManualMatchDoc(m)}
-                                      className="btn-sm btn-primary shadow-sm text-xs"
+                                      className="text-xs"
                                       title="Conciliar manualmente"
                                     >
                                       Manual
-                                    </button>
+                                    </Button>
                                   </div>
                                 )}
-                              </div>
+                              </Card>
                             ))}
                           </div>
                         );
@@ -446,7 +455,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
 
       {showNewRun && tenantId && (

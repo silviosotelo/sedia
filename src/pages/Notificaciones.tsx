@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Badge } from '@tremor/react';
 import { api } from '../lib/api';
 import { Header } from '../components/layout/Header';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
-import { Badge } from '../components/ui/Badge';
+import { PageLoader } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Pagination } from '../components/ui/Pagination';
 import { NoTenantState } from '../components/ui/NoTenantState';
@@ -38,9 +38,9 @@ const EVENTO_LABELS: Record<string, string> = {
 };
 
 const ESTADO_CONFIG = {
-  SENT: { label: 'Enviado', variant: 'success' as const, icon: CheckCircle },
-  FAILED: { label: 'Fallido', variant: 'danger' as const, icon: XCircle },
-  PENDING: { label: 'Pendiente', variant: 'warning' as const, icon: Clock },
+  SENT: { label: 'Enviado', color: 'emerald' as const, icon: CheckCircle },
+  FAILED: { label: 'Fallido', color: 'rose' as const, icon: XCircle },
+  PENDING: { label: 'Pendiente', color: 'amber' as const, icon: Clock },
 };
 
 export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps) {
@@ -96,88 +96,90 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
         onRefresh={activeTenantId ? loadLogs : undefined}
         refreshing={loading}
         actions={activeTenantId ? (
-          <button
+          <Button
             onClick={handleTest}
             disabled={sendingTest}
-            className="btn-md btn-primary gap-1.5"
+            loading={sendingTest}
+            icon={Send}
           >
-            {sendingTest ? <Spinner size="xs" /> : <Send className="w-3.5 h-3.5" />}
             Enviar prueba
-          </button>
+          </Button>
         ) : undefined}
       />
 
       {!activeTenantId ? (
         <NoTenantState message="Seleccioná una empresa para ver su historial de notificaciones." />
       ) : (
-      <div className="card overflow-hidden">
-        {loading && logs.length === 0 ? (
-          <PageLoader />
-        ) : logs.length === 0 ? (
-          <EmptyState
-            icon={<Bell className="w-8 h-8 text-zinc-300" />}
-            title="Sin notificaciones"
-            description="No se han enviado notificaciones aun. Configure el SMTP en la pestaña Integraciones de la empresa y active los eventos."
-          />
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-zinc-50 border-b border-zinc-200">
-                  <tr>
-                    <th className="table-th">Evento</th>
-                    <th className="table-th">Asunto</th>
-                    <th className="table-th">Destinatario</th>
-                    <th className="table-th">Estado</th>
-                    <th className="table-th">Fecha</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-50">
+        <Card className="p-0 overflow-hidden">
+          {loading && logs.length === 0 ? (
+            <PageLoader />
+          ) : logs.length === 0 ? (
+            <EmptyState
+              icon={<Bell className="w-8 h-8 text-zinc-300" />}
+              title="Sin notificaciones"
+              description="No se han enviado notificaciones aun. Configure el SMTP en la pestaña Integraciones de la empresa y active los eventos."
+            />
+          ) : (
+            <>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Evento</TableHeaderCell>
+                    <TableHeaderCell>Asunto</TableHeaderCell>
+                    <TableHeaderCell>Destinatario</TableHeaderCell>
+                    <TableHeaderCell>Estado</TableHeaderCell>
+                    <TableHeaderCell>Fecha</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {logs.map((log) => {
                     const estadoCfg = ESTADO_CONFIG[log.estado] ?? ESTADO_CONFIG.PENDING;
                     const Icon = estadoCfg.icon;
                     return (
-                      <tr key={log.id} className="table-tr">
-                        <td className="table-td">
-                          <span className="font-medium text-zinc-900">
+                      <TableRow key={log.id}>
+                        <TableCell>
+                          <Text className="font-medium text-tremor-content-strong">
                             {EVENTO_LABELS[log.evento] ?? log.evento}
-                          </span>
-                        </td>
-                        <td className="table-td max-w-xs">
-                          <p className="text-zinc-600 truncate" title={log.asunto}>{log.asunto}</p>
+                          </Text>
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          <Text className="truncate" title={log.asunto}>{log.asunto}</Text>
                           {log.error_message && (
                             <p className="text-rose-500 mt-0.5 truncate text-[10px]" title={log.error_message}>
                               {log.error_message}
                             </p>
                           )}
-                        </td>
-                        <td className="table-td text-zinc-500 font-mono text-xs">{log.destinatario}</td>
-                        <td className="table-td">
+                        </TableCell>
+                        <TableCell>
+                          <Text className="font-mono text-xs">{log.destinatario}</Text>
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1.5">
                             <Icon className={cn(
                               'w-3.5 h-3.5',
                               log.estado === 'SENT' ? 'text-emerald-500' :
                                 log.estado === 'FAILED' ? 'text-rose-500' : 'text-amber-400'
                             )} />
-                            <Badge variant={estadoCfg.variant} size="sm">
+                            <Badge color={estadoCfg.color} size="sm">
                               {estadoCfg.label}
                             </Badge>
                           </div>
-                        </td>
-                        <td className="table-td text-zinc-400 text-xs whitespace-nowrap">
-                          {formatDateTime(log.created_at)}
-                        </td>
-                      </tr>
+                        </TableCell>
+                        <TableCell>
+                          <Text className="text-xs whitespace-nowrap">
+                            {formatDateTime(log.created_at)}
+                          </Text>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
 
-            <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
-          </>
-        )}
-      </div>
+              <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
+            </>
+          )}
+        </Card>
       )}
     </div>
   );

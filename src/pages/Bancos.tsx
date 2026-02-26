@@ -1,10 +1,11 @@
+import { PageLoader } from '../components/ui/Spinner';
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, Search, Edit2, Trash2 } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, Switch } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Badge } from '../components/ui/Badge';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { api } from '../lib/api';
 import type { Bank } from '../types';
@@ -46,20 +47,20 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
     };
 
     return (
-        <div className="space-y-3 mt-4 border-t border-zinc-200 pt-4">
+        <div className="space-y-3 mt-4 border-t border-tremor-border pt-4">
             <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-zinc-800">Mapeo Avanzado de CSV</h4>
-                <button type="button" onClick={addColumn} className="btn-sm btn-ghost gap-1 text-primary">
-                    <Plus className="w-3.5 h-3.5" /> Agregar Columna
-                </button>
+                <Text className="font-medium">Mapeo Avanzado de CSV</Text>
+                <Button type="button" variant="light" onClick={addColumn} icon={Plus} className="text-xs h-7">
+                    Agregar Columna
+                </Button>
             </div>
-            <p className="text-xs text-zinc-500">Configurá cómo leer las columnas del extracto bancario de este banco.</p>
+            <Text className="text-xs text-tremor-content-subtle">Configurá cómo leer las columnas del extracto bancario de este banco.</Text>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {columns.map((col, idx) => (
-                    <div key={idx} className="flex gap-2 items-start bg-zinc-50 p-2 rounded-lg border border-zinc-100">
+                    <div key={idx} className="flex gap-2 items-start bg-tremor-background-subtle p-2 rounded-lg border border-tremor-border">
                         <select
-                            className="input py-1.5 h-auto text-xs flex-1"
+                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-1"
                             value={col.targetField}
                             onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
                         >
@@ -69,14 +70,14 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
                             ))}
                         </select>
                         <input
-                            className="input py-1.5 h-auto text-xs flex-[1.5]"
+                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-[1.5]"
                             placeholder="Ej: importe, monto neto"
                             value={(col.exactMatchHeaders || []).join(', ')}
                             onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
                             title="Nombres de columnas del CSV (separados por coma)"
                         />
                         <select
-                            className="input py-1.5 h-auto text-xs w-28"
+                            className="w-28 rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none"
                             value={col.format || ''}
                             onChange={(e) => updateColumn(idx, 'format', e.target.value)}
                             title="Formato Especial"
@@ -85,15 +86,13 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
                             <option value="MONTO">Monto</option>
                             <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
                         </select>
-                        <button type="button" onClick={() => removeColumn(idx)} className="p-1.5 text-rose-500 hover:bg-rose-100 rounded-lg">
-                            <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <Button type="button" variant="light" color="rose" onClick={() => removeColumn(idx)} className="h-7 w-7 p-0" icon={Trash2} />
                     </div>
                 ))}
                 {columns.length === 0 && (
-                    <div className="text-center py-4 text-xs text-zinc-400">
+                    <Text className="text-center py-4 text-xs text-tremor-content-subtle">
                         Usará mapeo automático predeterminado si no se configuran columnas.
-                    </div>
+                    </Text>
                 )}
             </div>
         </div>
@@ -209,89 +208,89 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                 onRefresh={loadBanks}
                 refreshing={loading}
                 actions={
-                    <button onClick={handleOpenCreate} className="btn-md btn-primary gap-2">
-                        <Plus className="w-4 h-4" /> Nuevo Banco
-                    </button>
+                    <Button onClick={handleOpenCreate} icon={Plus}>
+                        Nuevo Banco
+                    </Button>
                 }
             />
 
-            <div className="mb-6">
-                <div className="relative max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por nombre o código..."
-                        className="input pl-10"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
+            <div className="mb-6 max-w-sm">
+                <TextInput
+                    icon={Search}
+                    placeholder="Buscar por nombre o código..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             {!filtered.length ? (
                 <EmptyState
-                    icon={<Landmark className="w-8 h-8 text-zinc-300" />}
+                    icon={<Landmark className="w-8 h-8 text-tremor-content-subtle" />}
                     title="No se encontraron bancos"
                     description={searchTerm ? 'Probá con otros términos de búsqueda.' : 'Cargá el primer banco al sistema.'}
                     action={!searchTerm && (
-                        <button onClick={handleOpenCreate} className="btn-md btn-primary gap-2">
-                            <Plus className="w-4 h-4" /> Crear Banco
-                        </button>
+                        <Button onClick={handleOpenCreate} icon={Plus}>
+                            Crear Banco
+                        </Button>
                     )}
                 />
             ) : (
-                <div className="card overflow-hidden">
-                    <table className="w-full">
-                        <thead className="bg-zinc-50 border-b border-zinc-200">
-                            <tr>
-                                <th className="table-th">Nombre</th>
-                                <th className="table-th text-center">Código</th>
-                                <th className="table-th text-center">País</th>
-                                <th className="table-th text-center">Estado</th>
-                                <th className="table-th w-20" />
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-50">
+                <Card className="p-0 overflow-hidden">
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableHeaderCell>Nombre</TableHeaderCell>
+                                <TableHeaderCell className="text-center">Código</TableHeaderCell>
+                                <TableHeaderCell className="text-center">País</TableHeaderCell>
+                                <TableHeaderCell className="text-center">Estado</TableHeaderCell>
+                                <TableHeaderCell />
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
                             {filtered.map((bank) => (
-                                <tr key={bank.id} className="table-tr">
-                                    <td className="table-td">
+                                <TableRow key={bank.id} className="hover:bg-tremor-background-subtle">
+                                    <TableCell>
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center">
-                                                <Landmark className="w-4 h-4 text-zinc-500" />
+                                            <div className="w-8 h-8 rounded-lg bg-tremor-background-subtle flex items-center justify-center">
+                                                <Landmark className="w-4 h-4 text-tremor-content" />
                                             </div>
-                                            <span className="font-medium text-zinc-900">{bank.nombre}</span>
+                                            <Text className="font-medium text-tremor-content-strong">{bank.nombre}</Text>
                                         </div>
-                                    </td>
-                                    <td className="table-td text-center font-mono text-xs">{bank.codigo}</td>
-                                    <td className="table-td text-center">{bank.pais}</td>
-                                    <td className="table-td text-center">
-                                        <Badge variant={bank.activo ? 'success' : 'neutral'} dot>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <code className="text-xs font-mono bg-tremor-background-subtle px-2 py-1 rounded text-tremor-content-strong border border-tremor-border">{bank.codigo}</code>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Text>{bank.pais}</Text>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <Badge variant={bank.activo ? 'success' : 'neutral'} dot size="sm">
                                             {bank.activo ? 'Activo' : 'Inactivo'}
                                         </Badge>
-                                    </td>
-                                    <td className="table-td">
+                                    </TableCell>
+                                    <TableCell>
                                         <div className="flex items-center justify-end gap-1">
-                                            <button
+                                            <Button
+                                                variant="light"
+                                                color="gray"
                                                 onClick={() => handleOpenEdit(bank)}
-                                                className="btn-sm btn-ghost px-2"
                                                 title="Editar"
-                                            >
-                                                <Edit2 className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button
+                                                icon={Edit2}
+                                            />
+                                            <Button
+                                                variant="light"
+                                                color="rose"
                                                 onClick={() => { setSelectedBank(bank); setShowDeleteConfirm(true); }}
-                                                className="btn-sm btn-ghost px-2 text-rose-500 hover:bg-rose-50"
                                                 title="Eliminar"
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </button>
+                                                icon={Trash2}
+                                            />
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
+                        </TableBody>
+                    </Table>
+                </Card>
             )}
 
             <Modal
@@ -299,46 +298,46 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                 onClose={() => setShowModal(false)}
                 title={selectedBank ? 'Editar Banco' : 'Nuevo Banco'}
             >
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                     <div>
-                        <label className="label">Nombre del Banco</label>
-                        <input
-                            className="input"
+                        <Text className="mb-1 font-medium">Nombre del Banco</Text>
+                        <TextInput
+                            placeholder="Ej: Banco Itaú"
                             value={form.nombre}
                             onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                            placeholder="Ej: Banco Itaú"
                         />
                     </div>
                     <div>
-                        <label className="label">Código Único</label>
-                        <input
-                            className="input font-mono uppercase"
+                        <Text className="mb-1 font-medium">Código Único</Text>
+                        <TextInput
+                            className="font-mono uppercase"
+                            placeholder="Ej: ITAU_PY"
                             value={form.codigo}
                             onChange={(e) => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
-                            placeholder="Ej: ITAU_PY"
                         />
-                        <p className="text-[10px] text-zinc-400 mt-1">Se usa para machear extractos bancarios.</p>
+                        <Text className="text-[10px] text-tremor-content-subtle mt-1">Se usa para machear extractos bancarios.</Text>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="label">País (ISO)</label>
-                            <input
-                                className="input uppercase"
+                            <Text className="mb-1 font-medium">País (ISO)</Text>
+                            <TextInput
+                                className="uppercase"
+                                placeholder="PRY"
                                 value={form.pais}
                                 onChange={(e) => setForm({ ...form, pais: e.target.value.toUpperCase().slice(0, 3) })}
-                                placeholder="PRY"
                             />
                         </div>
                         <div className="flex flex-col justify-end pb-1">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <input
-                                    type="checkbox"
-                                    className="checkbox"
+                            <div className="flex items-center gap-3">
+                                <Switch
+                                    id="bank-active"
                                     checked={form.activo}
-                                    onChange={(e) => setForm({ ...form, activo: e.target.checked })}
+                                    onChange={(checked) => setForm({ ...form, activo: checked })}
                                 />
-                                <span className="text-sm text-zinc-600 group-hover:text-zinc-900">Banco activo</span>
-                            </label>
+                                <label htmlFor="bank-active" className="text-sm text-tremor-content cursor-pointer">
+                                    Banco activo
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -346,12 +345,11 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                         value={form.csv_mapping}
                         onChange={(v) => setForm({ ...form, csv_mapping: Object.keys(v.columns).length > 0 ? v : null })}
                     />
-                    <div className="flex justify-end gap-3 pt-4">
-                        <button onClick={() => setShowModal(false)} className="btn-md btn-ghost">Cancelar</button>
-                        <button onClick={handleSave} disabled={saving} className="btn-md btn-primary gap-2">
-                            {saving ? <Spinner size="xs" /> : <Landmark className="w-4 h-4" />}
+                    <div className="flex justify-end gap-3 pt-4 border-t border-tremor-border">
+                        <Button variant="secondary" onClick={() => setShowModal(false)} disabled={saving}>Cancelar</Button>
+                        <Button onClick={() => void handleSave()} disabled={saving} loading={saving} icon={saving ? undefined : Landmark}>
                             {selectedBank ? 'Guardar Cambios' : 'Crear Banco'}
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </Modal>
@@ -359,7 +357,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
             <ConfirmDialog
                 open={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
-                onConfirm={handleDelete}
+                onConfirm={() => void handleDelete()}
                 title="¿Eliminar banco?"
                 description={`Esta acción eliminará el banco "${selectedBank?.nombre}". No se verán afectadas las cuentas bancarias existentes, pero no se podrán crear nuevas con este banco.`}
                 variant="danger"

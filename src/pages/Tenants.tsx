@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   FileText,
 } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Badge as TremorBadge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -216,10 +217,9 @@ export function Tenants({
         refreshing={refreshing}
         actions={
           isSuperAdmin ? (
-            <button onClick={() => setView('create')} className="btn-md btn-primary">
-              <Plus className="w-3.5 h-3.5" />
+            <Button onClick={() => setView('create')} icon={Plus}>
               Nueva empresa
-            </button>
+            </Button>
           ) : undefined
         }
       />
@@ -228,9 +228,8 @@ export function Tenants({
         <>
           <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-xl shadow-sm border border-zinc-200/60 sticky top-0 z-10 backdrop-blur-md bg-white/90">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-              <input
-                className="input pl-9 border-transparent shadow-none bg-zinc-50 hover:bg-zinc-100 focus:bg-white"
+              <TextInput
+                icon={Search}
                 placeholder="Buscar por nombre o RUC..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -250,111 +249,113 @@ export function Tenants({
           </div>
 
           {filtered.length === 0 ? (
-            <div className="card p-1">
+            <Card className="p-1">
               <EmptyState
-                icon={<Building2 className="w-5 h-5" />}
+                icon={<Building2 className="w-8 h-8 text-tremor-content-subtle mx-auto mb-3" />}
                 title="Sin empresas"
                 description="Registrá la primera empresa para comenzar a sincronizar comprobantes"
                 action={
-                  <button onClick={() => setView('create')} className="btn-md btn-primary">
-                    <Plus className="w-4 h-4" /> Nueva empresa
-                  </button>
+                  <Button onClick={() => setView('create')} icon={Plus}>
+                    Nueva empresa
+                  </Button>
                 }
               />
-            </div>
+            </Card>
           ) : (
-            <div className="card overflow-hidden !border-zinc-200/80">
-              <table className="w-full">
-                <thead className="bg-zinc-50/80 backdrop-blur-sm border-b border-zinc-200/80">
-                  <tr>
-                    <th className="table-th">Empresa</th>
-                    <th className="table-th">RUC</th>
-                    <th className="table-th">Estado</th>
-                    <th className="table-th hidden lg:table-cell">Creado</th>
-                    <th className="table-th w-10" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-50">
+            <Card className="p-0 overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Empresa</TableHeaderCell>
+                    <TableHeaderCell>RUC</TableHeaderCell>
+                    <TableHeaderCell>Estado</TableHeaderCell>
+                    <TableHeaderCell className="hidden lg:table-cell">Creado</TableHeaderCell>
+                    <TableHeaderCell className="w-10" />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
                   {filtered.map((tenant) => (
-                    <tr key={tenant.id} className="table-tr">
-                      <td className="table-td">
+                    <TableRow key={tenant.id} className="hover:bg-tremor-background-subtle">
+                      <TableCell>
                         <button
                           onClick={() => openDetail(tenant.id)}
                           className="flex items-center gap-3 group"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                            <span className="text-xs font-bold text-zinc-600">
+                          <div className="w-8 h-8 rounded-lg bg-tremor-background-subtle border border-tremor-border flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-bold text-tremor-content-strong">
                               {tenant.nombre_fantasia.slice(0, 2).toUpperCase()}
                             </span>
                           </div>
                           <div className="text-left">
-                            <p className="font-medium text-zinc-900 group-hover:text-zinc-600">
+                            <p className="font-medium text-tremor-content-strong group-hover:text-tremor-brand">
                               {tenant.nombre_fantasia}
                             </p>
                             {tenant.email_contacto && (
-                              <p className="text-xs text-zinc-400">{tenant.email_contacto}</p>
+                              <p className="text-xs text-tremor-content-subtle">{tenant.email_contacto}</p>
                             )}
                           </div>
-                          <ChevronRight className="w-3.5 h-3.5 text-zinc-300 opacity-0 group-hover:opacity-100" />
+                          <ChevronRight className="w-3.5 h-3.5 text-tremor-content-subtle opacity-0 group-hover:opacity-100" />
                         </button>
-                      </td>
-                      <td className="table-td">
-                        <span className="tag">{tenant.ruc}</span>
-                      </td>
-                      <td className="table-td">
+                      </TableCell>
+                      <TableCell>
+                        <TremorBadge color="gray" className="font-mono text-xs">{tenant.ruc}</TremorBadge>
+                      </TableCell>
+                      <TableCell>
                         <Badge variant={tenant.activo ? 'success' : 'neutral'} dot>
                           {tenant.activo ? 'Activo' : 'Inactivo'}
                         </Badge>
-                      </td>
-                      <td className="table-td hidden lg:table-cell text-zinc-400 text-xs">
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell text-tremor-content-subtle text-xs">
                         {formatRelative(tenant.created_at)}
-                      </td>
-                      <td className="table-td">
+                      </TableCell>
+                      <TableCell>
                         <div className="relative">
-                          <button
+                          <Button
+                            variant="light"
+                            color="gray"
+                            icon={MoreHorizontal}
                             onClick={() =>
                               setOpenMenu(openMenu === tenant.id ? null : tenant.id)
                             }
-                            className="btn-sm btn-ghost px-2"
+                            className="h-8 w-8 p-0"
                           >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
+                          </Button>
                           {openMenu === tenant.id && (
                             <>
                               <div
                                 className="fixed inset-0 z-10"
                                 onClick={() => setOpenMenu(null)}
                               />
-                              <div className="absolute right-0 top-8 z-20 w-44 card shadow-md py-1 animate-fade-in">
+                              <Card className="absolute right-0 top-8 z-20 w-44 shadow-md py-1 px-1 animate-fade-in flex flex-col gap-1">
                                 <button
                                   onClick={() => {
                                     setSelectedId(tenant.id);
                                     setSyncModalOpen(true);
                                     setOpenMenu(null);
                                   }}
-                                  className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                                  className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle rounded-md"
                                 >
-                                  <Play className="w-3.5 h-3.5" /> Sincronizar
+                                  <Play className="w-4 h-4" /> Sincronizar
                                 </button>
                                 <button
                                   onClick={() => {
                                     openDetail(tenant.id);
                                     setOpenMenu(null);
                                   }}
-                                  className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+                                  className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle rounded-md"
                                 >
-                                  <Settings className="w-3.5 h-3.5" /> Ver detalles
+                                  <Settings className="w-4 h-4" /> Ver detalles
                                 </button>
-                              </div>
+                              </Card>
                             </>
                           )}
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </Card>
           )}
         </>
       )}
@@ -374,9 +375,9 @@ export function Tenants({
       {(view === 'detail' || view === 'edit') && selectedTenant && (
         <div>
           {!isAdminEmpresaOnly && (
-            <button onClick={() => setView('list')} className="btn-sm btn-ghost mb-6 -ml-1">
-              <ChevronRight className="w-3.5 h-3.5 rotate-180" /> Volver
-            </button>
+            <Button variant="light" onClick={() => setView('list')} className="mb-6 -ml-1" icon={ChevronRight}>
+              Volver
+            </Button>
           )}
           <div className="space-y-6">
             <div className="flex items-start justify-between">
@@ -399,36 +400,40 @@ export function Tenants({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={() => setSyncModalOpen(true)}
-                  className="btn-md btn-emerald"
+                  color="emerald"
+                  icon={Play}
                 >
-                  <Play className="w-3.5 h-3.5" /> Sincronizar
-                </button>
-                <button
+                  Sincronizar
+                </Button>
+                <Button
                   onClick={() => setVirtualSyncModalOpen(true)}
-                  className="btn-md btn-secondary"
+                  variant="secondary"
+                  icon={FileText}
                 >
-                  <FileText className="w-3.5 h-3.5" /> Facturas virtuales
-                </button>
-                <button
+                  Facturas virtuales
+                </Button>
+                <Button
                   onClick={() => setXmlModalOpen(true)}
-                  className="btn-md btn-secondary"
+                  variant="secondary"
+                  icon={Download}
                 >
-                  <Download className="w-3.5 h-3.5" /> Descargar XML
-                </button>
-                <button
+                  Descargar XML
+                </Button>
+                <Button
                   onClick={() => setView('edit')}
-                  className="btn-md btn-secondary"
+                  variant="secondary"
+                  icon={Edit3}
                 >
-                  <Edit3 className="w-3.5 h-3.5" /> Editar
-                </button>
+                  Editar
+                </Button>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="card p-5">
-                <h3 className="section-title">Información general</h3>
+              <Card>
+                <Text className="font-semibold text-tremor-content-strong mb-4">Información general</Text>
                 <dl className="space-y-3">
                   <Row label="Nombre" value={selectedTenant.nombre_fantasia} />
                   <Row label="RUC" value={<span className="tag">{selectedTenant.ruc}</span>} />
@@ -446,11 +451,11 @@ export function Tenants({
                     value={formatDateTime(selectedTenant.updated_at)}
                   />
                 </dl>
-              </div>
+              </Card>
 
               {selectedTenant.config && (
-                <div className="card p-5">
-                  <h3 className="section-title">Configuración Marangatu</h3>
+                <Card>
+                  <Text className="font-semibold text-tremor-content-strong mb-4">Configuración Marangatu</Text>
                   <dl className="space-y-3">
                     <Row label="Usuario" value={selectedTenant.config.usuario_marangatu} />
                     <Row label="RUC login" value={<span className="tag">{selectedTenant.config.ruc_login}</span>} />
@@ -475,12 +480,12 @@ export function Tenants({
                       value={`${selectedTenant.config.frecuencia_sincronizacion_minutos} min`}
                     />
                   </dl>
-                </div>
+                </Card>
               )}
 
               {selectedTenant.config?.ords_base_url && (
-                <div className="card p-5 lg:col-span-2">
-                  <h3 className="section-title">Configuración ORDS</h3>
+                <Card className="lg:col-span-2">
+                  <Text className="font-semibold text-tremor-content-strong mb-4">Configuración ORDS</Text>
                   <div className="grid grid-cols-2 gap-x-8 gap-y-3">
                     <Row
                       label="Envío automático"
@@ -533,7 +538,7 @@ export function Tenants({
                       }
                     />
                   </div>
-                </div>
+                </Card>
               )}
             </div>
           </div>
@@ -585,23 +590,22 @@ export function Tenants({
         description={activeTenantName}
         size="sm"
         footer={
-          <>
-            <button
+          <div className="flex justify-end gap-2 w-full mt-4">
+            <Button
               onClick={() => setXmlModalOpen(false)}
-              className="btn-md btn-secondary"
+              variant="secondary"
               disabled={xmlLoading}
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleDescargarXml}
               disabled={xmlLoading}
-              className="btn-md btn-primary"
+              loading={xmlLoading}
             >
-              {xmlLoading && <Spinner size="xs" />}
               Encolar descarga
-            </button>
-          </>
+            </Button>
+          </div>
         }
       >
         <p className="text-sm text-zinc-600">

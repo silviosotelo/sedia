@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Card, Text, Title, TextInput, Button } from '@tremor/react';
 import { Save, RefreshCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -130,76 +131,76 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
 
       <div className="max-w-2xl space-y-6 pb-12">
         {/* Identidad */}
-        <div className="card p-5 space-y-4">
+        <Card className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="section-title mb-0">Identidad de marca</h3>
-            <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider bg-zinc-50 px-2 py-1 rounded">
+            <Title>Identidad de marca</Title>
+            <span className="text-[10px] font-medium text-tremor-content-subtle uppercase tracking-wider bg-tremor-background-subtle px-2 py-1 rounded">
               Configuración por Empresa
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="label mb-0">Nombre de la aplicación</label>
+              <Text className="font-medium text-tremor-content-strong">Nombre de la aplicación</Text>
               {isInherited('app_name') && (
-                <span className="text-[10px] text-emerald-600 font-medium">Heredado del sistema</span>
+                <Text className="text-[10px] text-emerald-500 font-medium">Heredado del sistema</Text>
               )}
             </div>
-            <input className="input" value={form.app_name ?? ''} onChange={set('app_name')} placeholder={globalData.app_name || "Ej: Mi Sistema"} />
+            <TextInput value={form.app_name ?? ''} onChange={set('app_name')} placeholder={globalData.app_name || "Ej: Mi Sistema"} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="label mb-0">URL del logo</label>
+                <Text className="font-medium text-tremor-content-strong">URL del logo</Text>
                 {isInherited('logo_url') && (
-                  <span className="text-[10px] text-emerald-600 font-medium">Heredado</span>
+                  <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
               </div>
-              <input className="input" type="url" value={form.logo_url ?? ''} onChange={set('logo_url')} placeholder="https://miempresa.com/logo.png" />
+              <TextInput type="url" value={form.logo_url ?? ''} onChange={set('logo_url')} placeholder="https://miempresa.com/logo.png" />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="label mb-0">URL del favicon</label>
+                <Text className="font-medium text-tremor-content-strong">URL del favicon</Text>
                 {isInherited('favicon_url') && (
-                  <span className="text-[10px] text-emerald-600 font-medium">Heredado</span>
+                  <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
               </div>
-              <input className="input" type="url" value={form.favicon_url ?? ''} onChange={set('favicon_url')} placeholder="https://miempresa.com/favicon.ico" />
+              <TextInput type="url" value={form.favicon_url ?? ''} onChange={set('favicon_url')} placeholder="https://miempresa.com/favicon.ico" />
             </div>
           </div>
 
-          <div className="flex gap-4 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
+          <div className="flex gap-4 p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
             <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase">Vista previa logo</span>
-              <div className="h-12 flex items-center bg-white p-2 rounded-lg border border-zinc-200">
+              <Text className="text-[10px] font-bold uppercase">Vista previa logo</Text>
+              <div className="h-12 flex items-center bg-white p-2 rounded-lg border border-tremor-border">
                 <img src={getValue('logo_url')} alt="Logo preview" className="h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                {!getValue('logo_url') && <div className="text-[10px] text-zinc-400 px-4 italic">Sin logo</div>}
+                {!getValue('logo_url') && <Text className="text-[10px] px-4 italic">Sin logo</Text>}
               </div>
             </div>
             <div className="space-y-1.5">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase">Favicon</span>
-              <div className="w-12 h-12 flex items-center justify-center bg-white p-2 rounded-lg border border-zinc-200">
+              <Text className="text-[10px] font-bold uppercase">Favicon</Text>
+              <div className="w-12 h-12 flex items-center justify-center bg-white p-2 rounded-lg border border-tremor-border">
                 <img src={getValue('favicon_url')} alt="Favicon preview" className="w-6 h-6 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
-                {!getValue('favicon_url') && <div className="text-[10px] text-zinc-400 italic">No icon</div>}
+                {!getValue('favicon_url') && <Text className="text-[10px] italic">No icon</Text>}
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Colores */}
-        <div className="card p-5 space-y-4">
+        <Card className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="section-title mb-0">Colores de interfaz</h3>
-            <span className="text-[10px] text-zinc-400">Dejar vacío para usar valores del sistema</span>
+            <Title>Colores de interfaz</Title>
+            <Text className="text-[10px]">Dejar vacío para usar valores del sistema</Text>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="label mb-0">Color primario</label>
+                <Text className="font-medium text-tremor-content-strong">Color primario</Text>
                 {isInherited('color_primario') && (
-                  <span className="text-[10px] text-emerald-600 font-medium">Heredado</span>
+                  <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -207,10 +208,10 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
                   type="color"
                   value={getValue('color_primario')}
                   onChange={set('color_primario')}
-                  className="w-10 h-10 rounded-lg border border-zinc-200 cursor-pointer p-0.5"
+                  className="w-10 h-10 rounded-lg border border-tremor-border cursor-pointer p-0.5"
                 />
-                <input
-                  className="input flex-1 font-mono text-xs"
+                <TextInput
+                  className="flex-1 font-mono text-xs"
                   value={form.color_primario ?? ''}
                   onChange={set('color_primario')}
                   placeholder={globalData.color_primario}
@@ -219,9 +220,9 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="label mb-0">Color secundario</label>
+                <Text className="font-medium text-tremor-content-strong">Color secundario</Text>
                 {isInherited('color_secundario') && (
-                  <span className="text-[10px] text-emerald-600 font-medium">Heredado</span>
+                  <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -229,10 +230,10 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
                   type="color"
                   value={getValue('color_secundario')}
                   onChange={set('color_secundario')}
-                  className="w-10 h-10 rounded-lg border border-zinc-200 cursor-pointer p-0.5"
+                  className="w-10 h-10 rounded-lg border border-tremor-border cursor-pointer p-0.5"
                 />
-                <input
-                  className="input flex-1 font-mono text-xs"
+                <TextInput
+                  className="flex-1 font-mono text-xs"
                   value={form.color_secundario ?? ''}
                   onChange={set('color_secundario')}
                   placeholder={globalData.color_secundario}
@@ -240,35 +241,35 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Dominio */}
-        <div className="card p-5 space-y-4">
-          <h3 className="section-title">Dominio personalizado</h3>
+        <Card className="space-y-4">
+          <Title>Dominio personalizado</Title>
           <div>
-            <label className="label">Dominio</label>
-            <input
-              className="input font-mono"
+            <Text className="mb-1 font-medium text-tremor-content-strong">Dominio</Text>
+            <TextInput
+              className="font-mono"
               value={form.dominio_personalizado ?? ''}
               onChange={set('dominio_personalizado')}
               placeholder="app.miempresa.com"
             />
-            <p className="text-xs text-zinc-400 mt-1.5">
+            <Text className="text-xs mt-1.5">
               Configurá un CNAME en tu DNS apuntando a nuestro servidor.
-            </p>
+            </Text>
           </div>
-        </div>
+        </Card>
 
         {/* Save button */}
         <div className="flex justify-end">
-          <button
+          <Button
             onClick={() => void handleSave()}
             disabled={saving || !tenantId}
-            className="btn-md btn-primary gap-2"
+            loading={saving}
+            icon={saving ? undefined : Save}
           >
-            {saving ? <Spinner size="xs" /> : <Save className="w-4 h-4" />}
             Guardar configuración
-          </button>
+          </Button>
         </div>
       </div>
 

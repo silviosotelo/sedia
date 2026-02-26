@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Spinner } from '../ui/Spinner';
+import { Button, Select, SelectItem, TextInput } from '@tremor/react';
 
 interface VirtualSyncModalProps {
   open: boolean;
@@ -44,13 +45,12 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
       size="sm"
       footer={
         <>
-          <button onClick={onClose} className="btn-md btn-secondary" disabled={loading}>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
             Cancelar
-          </button>
-          <button onClick={handleSubmit} disabled={loading || !canSubmit} className="btn-md btn-primary">
-            {loading && <Spinner size="xs" />}
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading || !canSubmit} icon={loading ? () => <Spinner size="xs" /> : undefined}>
             Encolar sync
-          </button>
+          </Button>
         </>
       }
     >
@@ -84,32 +84,30 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
           {!useControl && usePeriodo && (
             <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-zinc-200/60">
               <div>
-                <label className="label">Mes</label>
-                <select
-                  className="input text-sm"
-                  value={mes}
-                  onChange={(e) => setMes(Number(e.target.value))}
+                <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Mes</label>
+                <Select
+                  value={mes.toString()}
+                  onValueChange={(v) => setMes(Number(v))}
                 >
                   {MONTHS.map((m, i) => (
-                    <option key={i + 1} value={i + 1}>
+                    <SelectItem key={i + 1} value={(i + 1).toString()}>
                       {m}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="label">Año</label>
-                <select
-                  className="input text-sm"
-                  value={anio}
-                  onChange={(e) => setAnio(Number(e.target.value))}
+                <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Año</label>
+                <Select
+                  value={anio.toString()}
+                  onValueChange={(v) => setAnio(Number(v))}
                 >
                   {years.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
+                    <SelectItem key={y} value={y.toString()}>
+                      {y.toString()}
+                    </SelectItem>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           )}
@@ -139,9 +137,8 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
 
           {useControl && (
             <div className="mt-4 pt-3 border-t border-zinc-200/60">
-              <label className="label">Número de control</label>
-              <input
-                className="input text-sm"
+              <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Número de control</label>
+              <TextInput
                 placeholder="Ej: 3a4b5c6d7e8f..."
                 value={numeroControl}
                 onChange={(e) => setNumeroControl(e.target.value)}

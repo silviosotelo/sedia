@@ -2,13 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, CheckCircle2, XCircle } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
-import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/utils';
 import type { AnomalyDetection } from '../types';
-import { Card, Metric, Text, Grid } from '@tremor/react';
+import { Card, Metric, Text, Grid, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Badge, Select, SelectItem, Button } from '@tremor/react';
 
 interface AnomaliasSummary {
   total_activas: number;
@@ -21,10 +20,10 @@ interface AnomaliasProps {
   toastError: (msg: string) => void;
 }
 
-const SEVERIDAD_VARIANT: Record<string, 'danger' | 'warning' | 'neutral'> = {
-  ALTA: 'danger',
-  MEDIA: 'warning',
-  BAJA: 'neutral',
+const SEVERIDAD_VARIANT: Record<string, 'rose' | 'amber' | 'zinc'> = {
+  ALTA: 'rose',
+  MEDIA: 'amber',
+  BAJA: 'zinc',
 };
 
 const TIPO_LABELS: Record<string, string> = {
@@ -121,109 +120,107 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
         </Grid>
       )}
 
-      <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">
-        <div>
-          <label className="label-sm">Estado</label>
-          <select className="input-sm" value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPage(1); }}>
-            <option value="ACTIVA">Activas</option>
-            <option value="REVISADA">Revisadas</option>
-            <option value="DESCARTADA">Descartadas</option>
-            <option value="">Todas</option>
-          </select>
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="w-48">
+          <Select value={filterEstado} onValueChange={(v) => { setFilterEstado(v); setPage(1); }} enableClear={false}>
+            <SelectItem value="ACTIVA">Activas</SelectItem>
+            <SelectItem value="REVISADA">Revisadas</SelectItem>
+            <SelectItem value="DESCARTADA">Descartadas</SelectItem>
+            <SelectItem value="">Todas</SelectItem>
+          </Select>
         </div>
-        <div>
-          <label className="label-sm">Tipo</label>
-          <select className="input-sm" value={filterTipo} onChange={(e) => { setFilterTipo(e.target.value); setPage(1); }}>
-            <option value="">Todos</option>
-            <option value="DUPLICADO">Duplicado</option>
-            <option value="MONTO_INUSUAL">Monto inusual</option>
-            <option value="PROVEEDOR_NUEVO">Proveedor nuevo</option>
-            <option value="FRECUENCIA_INUSUAL">Frecuencia inusual</option>
-          </select>
+        <div className="w-48">
+          <Select value={filterTipo} onValueChange={(v) => { setFilterTipo(v); setPage(1); }} enableClear={false}>
+            <SelectItem value="">Todos los tipos</SelectItem>
+            <SelectItem value="DUPLICADO">Duplicado</SelectItem>
+            <SelectItem value="MONTO_INUSUAL">Monto inusual</SelectItem>
+            <SelectItem value="PROVEEDOR_NUEVO">Proveedor nuevo</SelectItem>
+            <SelectItem value="FRECUENCIA_INUSUAL">Frecuencia inusual</SelectItem>
+          </Select>
         </div>
       </div>
 
-      <div className="card overflow-hidden">
+      <Card className="p-0 overflow-hidden">
         {anomalias.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <TrendingUp className="w-10 h-10 text-zinc-300 mb-3" />
             <p className="text-sm text-zinc-500">No hay anomalías con los filtros seleccionados</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-zinc-50 border-b border-zinc-200">
-                <tr>
-                  <th className="table-th">Fecha</th>
-                  <th className="table-th">Tipo</th>
-                  <th className="table-th">Severidad</th>
-                  <th className="table-th">Comprobante</th>
-                  <th className="table-th">Proveedor</th>
-                  <th className="table-th">Descripción</th>
-                  <th className="table-th">Estado</th>
-                  <th className="table-th" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {anomalias.map((a) => (
-                  <tr key={a.id} className="table-tr">
-                    <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
-                      {formatDate(a.created_at)}
-                    </td>
-                    <td className="table-td">
-                      <Badge variant="info" size="sm">{TIPO_LABELS[a.tipo] ?? a.tipo}</Badge>
-                    </td>
-                    <td className="table-td">
-                      <Badge variant={SEVERIDAD_VARIANT[a.severidad] ?? 'neutral'} size="sm">{a.severidad}</Badge>
-                    </td>
-                    <td className="table-td text-xs font-mono">{a.numero_comprobante ?? '—'}</td>
-                    <td className="table-td text-xs">{a.razon_social_vendedor ?? a.ruc_vendedor ?? '—'}</td>
-                    <td className="table-td text-xs max-w-xs truncate">{a.descripcion ?? '—'}</td>
-                    <td className="table-td">
-                      <Badge
-                        variant={a.estado === 'ACTIVA' ? 'warning' : a.estado === 'REVISADA' ? 'success' : 'neutral'}
-                        size="sm"
-                      >
-                        {a.estado}
-                      </Badge>
-                    </td>
-                    <td className="table-td">
-                      {a.estado === 'ACTIVA' && (
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => void handleAccion(a.id, 'REVISADA')}
-                            className="p-1 hover:bg-emerald-50 rounded text-emerald-600"
-                            title="Revisar"
-                          >
-                            <CheckCircle2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => void handleAccion(a.id, 'DESCARTADA')}
-                            className="p-1 hover:bg-rose-50 rounded text-rose-500"
-                            title="Descartar"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableHeaderCell>Fecha</TableHeaderCell>
+                <TableHeaderCell>Tipo</TableHeaderCell>
+                <TableHeaderCell>Severidad</TableHeaderCell>
+                <TableHeaderCell>Comprobante</TableHeaderCell>
+                <TableHeaderCell>Proveedor</TableHeaderCell>
+                <TableHeaderCell>Descripción</TableHeaderCell>
+                <TableHeaderCell>Estado</TableHeaderCell>
+                <TableHeaderCell />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {anomalias.map((a) => (
+                <TableRow key={a.id}>
+                  <TableCell className="text-xs text-tremor-content whitespace-nowrap">
+                    {formatDate(a.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge color="blue" size="sm">{TIPO_LABELS[a.tipo] ?? a.tipo}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge color={SEVERIDAD_VARIANT[a.severidad] ?? 'zinc'} size="sm">{a.severidad}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs font-mono">{a.numero_comprobante ?? '—'}</TableCell>
+                  <TableCell className="text-xs">{a.razon_social_vendedor ?? a.ruc_vendedor ?? '—'}</TableCell>
+                  <TableCell className="text-xs max-w-xs truncate" title={a.descripcion || ''}>{a.descripcion ?? '—'}</TableCell>
+                  <TableCell>
+                    <Badge
+                      color={a.estado === 'ACTIVA' ? 'amber' : a.estado === 'REVISADA' ? 'emerald' : 'zinc'}
+                      size="sm"
+                    >
+                      {a.estado}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {a.estado === 'ACTIVA' && (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="light" color="emerald"
+                          onClick={() => void handleAccion(a.id, 'REVISADA')}
+                          className="px-1.5 py-1"
+                          title="Revisar"
+                          icon={CheckCircle2}
+                        />
+                        <Button
+                          variant="light" color="rose"
+                          onClick={() => void handleAccion(a.id, 'DESCARTADA')}
+                          className="px-1.5 py-1"
+                          title="Descartar"
+                          icon={XCircle}
+                        />
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         {total > limit && (
-          <Pagination
-            page={page}
-            totalPages={Math.ceil(total / limit)}
-            total={total}
-            limit={limit}
-            onPageChange={setPage}
-          />
+          <div className="p-4 border-t border-tremor-border">
+            <Pagination
+              page={page}
+              totalPages={Math.ceil(total / limit)}
+              total={total}
+              limit={limit}
+              onPageChange={setPage}
+            />
+          </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

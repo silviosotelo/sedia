@@ -1,4 +1,5 @@
 import React from 'react';
+import { Card, Text, Subtitle } from '@tremor/react';
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -9,15 +10,13 @@ interface EmptyStateProps {
 
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="empty-state w-full">
-      <div className="w-16 h-16 rounded-2xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 mb-6 shadow-sm">
-        {React.cloneElement(icon as React.ReactElement, { className: 'w-8 h-8' })}
+    <Card className="flex flex-col items-center justify-center py-16 text-center animate-pop-in">
+      <div className="w-14 h-14 rounded-2xl bg-tremor-background-subtle flex items-center justify-center text-tremor-content mb-5">
+        {React.cloneElement(icon as React.ReactElement, { className: 'w-7 h-7' })}
       </div>
-      <h3 className="text-lg font-bold text-zinc-900 tracking-tight mb-2">{title}</h3>
-      <p className="text-sm font-medium text-zinc-500 max-w-sm mx-auto mb-6">
-        {description}
-      </p>
+      <Subtitle className="font-bold mb-1">{title}</Subtitle>
+      <Text className="max-w-sm mx-auto mb-5">{description}</Text>
       {action && <div>{action}</div>}
-    </div>
+    </Card>
   );
 }

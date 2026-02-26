@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
+import { Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab } from '@tremor/react';
 import type { TenantWithConfig, AuthType } from '../../types';
 
 interface TenantFormProps {
@@ -55,7 +56,7 @@ interface FieldProps {
 function Field({ label, required, hint, error, children }: FieldProps) {
   return (
     <div>
-      <label className="label">
+      <label className="text-xs font-medium text-tremor-content-strong mb-1 block">
         {label}
         {required && <span className="text-rose-500 ml-0.5">*</span>}
         {hint && (
@@ -65,7 +66,7 @@ function Field({ label, required, hint, error, children }: FieldProps) {
         )}
       </label>
       {children}
-      {error && <p className="field-error">{error}</p>}
+      {error && <p className="text-xs flex items-center gap-1 font-medium text-rose-500 mt-1.5">{error}</p>}
     </div>
   );
 }
@@ -84,13 +85,13 @@ function PasswordInput({
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
-      <input
+      <TextInput
         type={show ? 'text' : 'password'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder || '••••••••'}
         name={name}
-        className="input pr-9"
+        className="pr-9"
         autoComplete="new-password"
       />
       <button
@@ -269,46 +270,34 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="flex gap-0 border border-zinc-200 rounded-lg overflow-hidden mb-6">
-        {TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              'flex-1 py-2 text-xs font-medium transition-colors duration-100',
-              t === tab
-                ? 'bg-zinc-900 text-white'
-                : 'bg-white text-zinc-500 hover:text-zinc-700 hover:bg-zinc-50'
-            )}
-          >
-            {TAB_LABELS[t]}
-          </button>
-        ))}
-      </div>
+      <TabGroup index={TABS.indexOf(tab as any)} onIndexChange={(idx) => setTab(TABS[idx])} className="mb-6 w-full">
+        <TabList variant="solid" className="w-full flex">
+          {TABS.map((t) => (
+            <Tab key={t} className="flex-1 justify-center">{TAB_LABELS[t]}</Tab>
+          ))}
+        </TabList>
+      </TabGroup>
 
       <div className="space-y-4">
         {tab === 'general' && (
           <>
             <Field label="Nombre / Razón social" required error={errors.nombre_fantasia}>
-              <input
-                className="input"
+              <TextInput
                 value={form.nombre_fantasia}
                 onChange={(e) => set('nombre_fantasia', e.target.value)}
                 placeholder="Farmacia Central S.A."
               />
             </Field>
             <Field label="RUC" required error={errors.ruc} hint="Ej: 80012345-6">
-              <input
-                className="input font-mono"
+              <TextInput
+                className="font-mono"
                 value={form.ruc}
                 onChange={(e) => set('ruc', e.target.value)}
                 placeholder="80012345-6"
               />
             </Field>
             <Field label="Email de contacto">
-              <input
-                className="input"
+              <TextInput
                 type="email"
                 value={form.email_contacto}
                 onChange={(e) => set('email_contacto', e.target.value)}
@@ -325,16 +314,15 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               cifran con AES-256 antes de almacenarse.
             </div>
             <Field label="RUC de login" required error={errors.ruc_login}>
-              <input
-                className="input font-mono"
+              <TextInput
+                className="font-mono"
                 value={form.config.ruc_login}
                 onChange={(e) => setConfig('ruc_login', e.target.value)}
                 placeholder="80012345-6"
               />
             </Field>
             <Field label="Usuario Marangatu" required error={errors.usuario_marangatu}>
-              <input
-                className="input"
+              <TextInput
                 value={form.config.usuario_marangatu}
                 onChange={(e) => setConfig('usuario_marangatu', e.target.value)}
                 placeholder="mi_usuario_set"
@@ -352,8 +340,8 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               />
             </Field>
             <Field label="URL base Marangatu">
-              <input
-                className="input font-mono text-xs"
+              <TextInput
+                className="font-mono text-xs"
                 value={form.config.marangatu_base_url}
                 onChange={(e) => setConfig('marangatu_base_url', e.target.value)}
               />
@@ -371,16 +359,16 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
             />
 
             <Field label="URL base ORDS">
-              <input
-                className="input font-mono text-xs"
+              <TextInput
+                className="font-mono text-xs"
                 value={form.config.ords_base_url}
                 onChange={(e) => setConfig('ords_base_url', e.target.value)}
                 placeholder="https://oracle.empresa.com/ords"
               />
             </Field>
             <Field label="Endpoint facturas">
-              <input
-                className="input font-mono text-xs"
+              <TextInput
+                className="font-mono text-xs"
                 value={form.config.ords_endpoint_facturas}
                 onChange={(e) => setConfig('ords_endpoint_facturas', e.target.value)}
                 placeholder="/api/v1/facturas"
@@ -388,24 +376,22 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
             </Field>
 
             <Field label="Tipo de autenticación">
-              <select
-                className="input"
+              <Select
                 value={form.config.ords_tipo_autenticacion}
-                onChange={(e) =>
-                  setConfig('ords_tipo_autenticacion', e.target.value as AuthType)
+                onValueChange={(val) =>
+                  setConfig('ords_tipo_autenticacion', val as AuthType)
                 }
               >
-                <option value="NONE">Sin autenticación</option>
-                <option value="BASIC">Basic Auth</option>
-                <option value="BEARER">Bearer Token</option>
-              </select>
+                <SelectItem value="NONE">Sin autenticación</SelectItem>
+                <SelectItem value="BASIC">Basic Auth</SelectItem>
+                <SelectItem value="BEARER">Bearer Token</SelectItem>
+              </Select>
             </Field>
 
             {form.config.ords_tipo_autenticacion === 'BASIC' && (
               <>
                 <Field label="Usuario ORDS">
-                  <input
-                    className="input"
+                  <TextInput
                     value={form.config.ords_usuario}
                     onChange={(e) => setConfig('ords_usuario', e.target.value)}
                     placeholder="oracle_user"
@@ -471,18 +457,17 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               )}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Host SMTP" hint="Ej: smtp.gmail.com">
-                  <input
-                    className="input font-mono text-xs"
+                  <TextInput
+                    className="font-mono text-xs"
                     value={ex.smtp_host}
                     onChange={(e) => setExtra('smtp_host', e.target.value)}
                     placeholder="smtp.gmail.com"
                   />
                 </Field>
                 <Field label="Puerto">
-                  <input
+                  <TextInput
                     type="number"
-                    className="input"
-                    value={ex.smtp_port}
+                    value={ex.smtp_port.toString()}
                     onChange={(e) => setExtra('smtp_port', Number(e.target.value))}
                     placeholder="587"
                   />
@@ -490,8 +475,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <Field label="Usuario SMTP">
-                  <input
-                    className="input"
+                  <TextInput
                     value={ex.smtp_user}
                     onChange={(e) => setExtra('smtp_user', e.target.value)}
                     placeholder="usuario@empresa.com"
@@ -507,8 +491,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <Field label="Email remitente" hint="Ej: noreply@empresa.com.py">
-                  <input
-                    className="input"
+                  <TextInput
                     type="email"
                     value={ex.smtp_from}
                     onChange={(e) => setExtra('smtp_from', e.target.value)}
@@ -516,8 +499,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
                   />
                 </Field>
                 <Field label="Nombre remitente">
-                  <input
-                    className="input"
+                  <TextInput
                     value={ex.smtp_from_name}
                     onChange={(e) => setExtra('smtp_from_name', e.target.value)}
                     placeholder="Sistema SET"
@@ -577,10 +559,9 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               label="Frecuencia de sincronización (minutos)"
               hint="Con qué frecuencia el scheduler encola un nuevo sync automático"
             >
-              <input
+              <TextInput
                 type="number"
-                className="input"
-                value={form.config.frecuencia_sincronizacion_minutos}
+                value={form.config.frecuencia_sincronizacion_minutos.toString()}
                 onChange={(e) =>
                   setConfig('frecuencia_sincronizacion_minutos', Number(e.target.value))
                 }
@@ -594,10 +575,9 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
       </div>
 
       <div className="pt-5 mt-5 border-t border-zinc-100 flex justify-end gap-3">
-        <button type="submit" disabled={loading} className="btn-lg btn-primary">
-          {loading && <Spinner size="xs" />}
+        <Button type="submit" disabled={loading} size="lg" icon={loading ? () => <Spinner size="xs" /> : undefined}>
           {initialData ? 'Guardar cambios' : 'Crear empresa'}
-        </button>
+        </Button>
       </div>
     </form>
   );

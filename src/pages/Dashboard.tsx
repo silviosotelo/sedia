@@ -21,7 +21,7 @@ import {
   BarChart,
   DonutChart,
   AreaChart,
-  Badge as TremorBadge,
+  Badge,
   Flex,
   Grid,
   Col,
@@ -29,7 +29,6 @@ import {
   Legend,
 } from '@tremor/react';
 import { Header } from '../components/layout/Header';
-import { Badge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
@@ -43,15 +42,15 @@ interface DashboardProps {
 }
 
 function JobStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'orange'; label: string }> = {
-    PENDING: { variant: 'warning', label: 'Pendiente' },
-    RUNNING: { variant: 'info', label: 'En ejecución' },
-    DONE: { variant: 'success', label: 'Completado' },
-    FAILED: { variant: 'danger', label: 'Fallido' },
+  const map: Record<string, { color: 'emerald' | 'amber' | 'rose' | 'blue' | 'zinc'; label: string }> = {
+    PENDING: { color: 'amber', label: 'Pendiente' },
+    RUNNING: { color: 'blue', label: 'En ejecución' },
+    DONE: { color: 'emerald', label: 'Completado' },
+    FAILED: { color: 'rose', label: 'Fallido' },
   };
-  const { variant, label } = map[status] || { variant: 'neutral', label: status };
+  const { color, label } = map[status] || { color: 'zinc', label: status };
   return (
-    <Badge variant={variant} dot>
+    <Badge color={color}>
       {label}
     </Badge>
   );
@@ -239,8 +238,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           <Card className="overflow-hidden p-0">
             <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Activity className="w-4 h-4 text-zinc-400" />
-                <span className="section-title">Jobs recientes</span>
+                <Activity className="w-4 h-4 text-tremor-content" />
+                <Title>Jobs recientes</Title>
               </div>
               <button
                 onClick={() => onNavigate('jobs')}
@@ -264,12 +263,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                       className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
                     >
                       <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                          job.estado === 'DONE' ? 'bg-emerald-50'
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${job.estado === 'DONE' ? 'bg-emerald-50'
                           : job.estado === 'FAILED' ? 'bg-rose-50'
-                          : job.estado === 'RUNNING' ? 'bg-sky-50'
-                          : 'bg-amber-50'
-                        }`}
+                            : job.estado === 'RUNNING' ? 'bg-sky-50'
+                              : 'bg-amber-50'
+                          }`}
                       >
                         {job.estado === 'DONE' ? (
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -308,8 +306,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             <Card className="overflow-hidden p-0">
               <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-zinc-400" />
-                  <span className="section-title">Empresas</span>
+                  <Building2 className="w-4 h-4 text-tremor-content" />
+                  <Title>Empresas</Title>
                 </div>
                 <button
                   onClick={() => onNavigate('tenants')}
@@ -348,7 +346,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                         </p>
                         <p className="text-xs text-zinc-400 font-mono">{tenant.ruc}</p>
                       </div>
-                      <Badge variant={tenant.activo ? 'success' : 'neutral'} dot>
+                      <Badge color={tenant.activo ? 'emerald' : 'zinc'}>
                         {tenant.activo ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </button>
@@ -364,8 +362,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <Grid numItemsLg={2} className="gap-4 mt-6">
           <Card>
             <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-zinc-400" />
-              <span className="section-title">Acciones rápidas</span>
+              <TrendingUp className="w-4 h-4 text-tremor-content" />
+              <Title>Acciones rápidas</Title>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {tenants.slice(0, 4).map((tenant) => (
@@ -388,8 +386,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
           <Card>
             <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-4 h-4 text-zinc-400" />
-              <span className="section-title">Comprobantes por empresa</span>
+              <FileText className="w-4 h-4 text-tremor-content" />
+              <Title>Comprobantes por empresa</Title>
             </div>
             <div className="space-y-2">
               {tenants.slice(0, 4).map((tenant) => (
@@ -499,9 +497,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               {/* Top vendedores */}
               <Card className="overflow-hidden p-0">
                 <div className="px-5 py-4 border-b border-zinc-100">
-                  <span className="section-title">Top 10 proveedores</span>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Activity className="w-4 h-4 text-tremor-content" />
+                    <Title>Top 10 proveedores</Title>
+                  </div>
                 </div>
-                <div className="divide-y divide-zinc-50">
+                <div className="divide-y divide-tremor-border">
                   {dashAvanzado.top_vendedores.slice(0, 10).map((v, i) => (
                     <div key={v.ruc_vendedor} className="px-5 py-2.5 flex items-center gap-3">
                       <span className="text-xs text-zinc-400 w-5 tabular-nums">{i + 1}</span>
@@ -526,13 +527,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <Flex>
                 <Title>Proyección de gastos (3 meses)</Title>
                 {forecast.tendencia && (
-                  <TremorBadge color={
+                  <Badge color={
                     forecast.tendencia === 'CRECIENTE' ? 'rose'
                       : forecast.tendencia === 'DECRECIENTE' ? 'emerald'
                         : 'zinc'
                   }>
                     {forecast.tendencia}
-                  </TremorBadge>
+                  </Badge>
                 )}
               </Flex>
               <AreaChart

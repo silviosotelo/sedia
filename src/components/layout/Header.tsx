@@ -1,4 +1,5 @@
 import { RefreshCw, Menu } from 'lucide-react';
+import { Title, Subtitle, Flex, Button } from '@tremor/react';
 
 interface HeaderProps {
   title: string;
@@ -16,29 +17,33 @@ export function Header({ title, subtitle, actions, onRefresh, refreshing, onMenu
   };
 
   return (
-    <div className="page-header sticky top-0 z-20 bg-white border-b border-zinc-200 lg:static lg:border-none lg:bg-transparent">
+    <Flex
+      justifyContent="between"
+      alignItems="start"
+      className="pb-6 border-b border-tremor-border mb-8"
+    >
       <div className="flex items-center gap-3">
-        <button className="lg:hidden p-2 -ml-2 hover:bg-zinc-100 rounded-lg" onClick={handleToggle}>
-          <Menu className="w-5 h-5 text-zinc-600" />
+        <button className="lg:hidden p-2 -ml-2 hover:bg-tremor-background-subtle rounded-lg" onClick={handleToggle}>
+          <Menu className="w-5 h-5 text-tremor-content" />
         </button>
         <div>
-          <h1 className="page-title">{title}</h1>
-          {subtitle && <p className="page-subtitle">{subtitle}</p>}
+          <Title>{title}</Title>
+          {subtitle && <Subtitle className="mt-0.5">{subtitle}</Subtitle>}
         </div>
       </div>
       <div className="flex items-center gap-2">
         {onRefresh && (
-          <button
+          <Button
+            variant="secondary"
+            icon={RefreshCw}
             onClick={onRefresh}
             disabled={refreshing}
-            className="btn-md btn-secondary"
-            title="Actualizar"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
+            loading={refreshing}
+            tooltip="Actualizar"
+          />
         )}
         {actions}
       </div>
-    </div>
+    </Flex>
   );
 }

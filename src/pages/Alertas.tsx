@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   AlertTriangle, Plus, Trash2, Bell, Clock, DollarSign,
-  UserPlus, Copy, Zap, Save, Pencil,
+  UserPlus, Copy, Zap, Pencil,
 } from 'lucide-react';
+import { Card, Text, Button, TextInput, NumberInput, Select, SelectItem, Switch, Badge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
-import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageLoader } from '../components/ui/Spinner';
@@ -59,91 +59,94 @@ function AlertaForm({
     setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pt-2">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Nombre de la alerta</label>
-          <input className="input" placeholder="Facturas grandes" value={form.nombre}
+          <Text className="mb-1 font-medium">Nombre de la alerta</Text>
+          <TextInput placeholder="Facturas grandes" value={form.nombre}
             onChange={(e) => setField('nombre', e.target.value)} />
         </div>
         <div>
-          <label className="label">Tipo de alerta</label>
-          <select className="input" value={form.tipo}
-            onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value, config: {} }))}>
+          <Text className="mb-1 font-medium">Tipo de alerta</Text>
+          <Select value={form.tipo}
+            onValueChange={(v) => setForm((f) => ({ ...f, tipo: v, config: {} }))} enableClear={false}>
             {Object.entries(TIPO_CFG).map(([v, c]) => (
-              <option key={v} value={v}>{c.label}</option>
+              <SelectItem key={v} value={v}>{c.label}</SelectItem>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
       {tipoCfg && (
-        <p className="text-xs text-zinc-500 bg-zinc-50 px-3 py-2 rounded-lg">{tipoCfg.desc}</p>
+        <Text className="text-xs text-tremor-content-subtle bg-tremor-background-subtle px-3 py-2 rounded-lg">{tipoCfg.desc}</Text>
       )}
 
       {tipoCfg?.fields.includes('monto') && (
         <div>
-          <label className="label">Monto umbral (Gs.)</label>
-          <input type="number" className="input" placeholder="Ej: 5000000" min={0}
-            value={form.config.monto ?? ''}
+          <Text className="mb-1 font-medium">Monto umbral (Gs.)</Text>
+          <NumberInput placeholder="Ej: 5000000" min={0}
+            value={form.config.monto ? parseInt(form.config.monto) : undefined}
             onChange={(e) => setField('config', { ...form.config, monto: e.target.value })} />
         </div>
       )}
       {tipoCfg?.fields.includes('horas') && (
         <div>
-          <label className="label">Horas sin sincronización</label>
-          <input type="number" className="input" placeholder="Ej: 4" min={1} max={168}
-            value={form.config.horas ?? ''}
+          <Text className="mb-1 font-medium">Horas sin sincronización</Text>
+          <NumberInput placeholder="Ej: 4" min={1} max={168}
+            value={form.config.horas ? parseInt(form.config.horas) : undefined}
             onChange={(e) => setField('config', { ...form.config, horas: e.target.value })} />
         </div>
       )}
 
       <div className="grid grid-cols-3 gap-4">
         <div>
-          <label className="label">Canal de notificación</label>
-          <select className="input" value={form.canal}
-            onChange={(e) => setField('canal', e.target.value as 'email' | 'webhook')}>
-            <option value="email">Email (SMTP)</option>
-            <option value="webhook">Webhook</option>
-          </select>
+          <Text className="mb-1 font-medium">Canal de notificación</Text>
+          <Select value={form.canal}
+            onValueChange={(v) => setField('canal', v as 'email' | 'webhook')} enableClear={false}>
+            <SelectItem value="email">Email (SMTP)</SelectItem>
+            <SelectItem value="webhook">Webhook</SelectItem>
+          </Select>
         </div>
         {form.canal === 'webhook' && (
           <div>
-            <label className="label">Webhook</label>
-            <select className="input" value={form.webhook_id}
-              onChange={(e) => setField('webhook_id', e.target.value)}>
-              <option value="">Seleccionar</option>
+            <Text className="mb-1 font-medium">Webhook</Text>
+            <Select value={form.webhook_id}
+              onValueChange={(v) => setField('webhook_id', v)}>
+              <SelectItem value="">Seleccionar</SelectItem>
               {webhooks.filter((w) => w.activo).map((w) => (
-                <option key={w.id} value={w.id}>{w.nombre}</option>
+                <SelectItem key={w.id} value={w.id}>{w.nombre}</SelectItem>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         <div>
-          <label className="label">Cooldown (minutos)</label>
-          <input type="number" className="input" min={1} max={10080} value={form.cooldown_minutos}
+          <Text className="mb-1 font-medium">Cooldown (minutos)</Text>
+          <NumberInput min={1} max={10080} value={form.cooldown_minutos}
             onChange={(e) => setField('cooldown_minutos', parseInt(e.target.value) || 60)} />
         </div>
         <div className="flex items-end pb-1">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="checkbox" checked={form.activo}
-              onChange={(e) => setField('activo', e.target.checked)} />
-            <span className="text-sm text-zinc-700">Activa</span>
-          </label>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="activa"
+              checked={form.activo}
+              onChange={(enabled) => setField('activo', enabled)}
+            />
+            <label htmlFor="activa" className="text-sm text-tremor-content-strong cursor-pointer">Activa</label>
+          </div>
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100">
-        <button onClick={onCancel} className="btn-md btn-secondary" disabled={saving}>
+      <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+        <Button variant="secondary" onClick={onCancel} disabled={saving}>
           Cancelar
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={() => void onSave(form)}
           disabled={saving || !form.nombre || !form.tipo}
-          className="btn-md btn-primary gap-1.5"
+          loading={saving}
         >
-          {saving ? <Spinner size="xs" /> : <Save className="w-3.5 h-3.5" />} Guardar
-        </button>
+          Guardar
+        </Button>
       </div>
     </div>
   );
@@ -159,22 +162,22 @@ function AlertaLogPanel({ tenantId }: { tenantId: string }) {
   }, [tenantId]);
 
   if (loading) return <PageLoader />;
-  if (!logs.length) return <p className="text-sm text-zinc-400 text-center py-6">Sin disparos recientes</p>;
+  if (!logs.length) return <Text className="text-center py-6">Sin disparos recientes</Text>;
 
   return (
-    <div className="divide-y divide-zinc-50">
+    <div className="divide-y divide-tremor-border">
       {logs.map((l) => (
         <div key={l.id} className="px-5 py-3 flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-zinc-700">{l.alerta_nombre}</span>
-              <Badge variant="default" size="sm">{TIPO_CFG[l.tipo]?.label ?? l.tipo}</Badge>
+              <Text className="text-xs font-medium text-tremor-content-strong">{l.alerta_nombre}</Text>
+              <Badge color="zinc" size="sm">{TIPO_CFG[l.tipo]?.label ?? l.tipo}</Badge>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">{l.mensaje}</p>
+            <Text className="text-xs mt-0.5">{l.mensaje}</Text>
           </div>
           <div className="flex-shrink-0 text-right">
-            <p className="text-xs text-zinc-400">{formatDateTime(l.created_at)}</p>
-            <Badge variant={l.notificado ? 'success' : 'warning'} size="sm">
+            <Text className="text-xs mb-1">{formatDateTime(l.created_at)}</Text>
+            <Badge color={l.notificado ? 'emerald' : 'amber'} size="sm">
               {l.notificado ? 'Notificado' : 'Pendiente'}
             </Badge>
           </div>
@@ -265,12 +268,12 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
         refreshing={loading}
         actions={tenantId ? (
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowLogModal(true)} className="btn-md btn-secondary gap-1.5">
-              <Bell className="w-3.5 h-3.5" /> Historial
-            </button>
-            <button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Nueva alerta
-            </button>
+            <Button onClick={() => setShowLogModal(true)} variant="secondary" icon={Bell}>
+              Historial
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)} icon={Plus}>
+              Nueva alerta
+            </Button>
           </div>
         ) : undefined}
       />
@@ -284,56 +287,54 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
           icon={<AlertTriangle className="w-5 h-5" />}
           title="Sin alertas configuradas"
           description="Configura alertas para recibir notificaciones cuando lleguen facturas grandes, falte sincronización, o aparezcan proveedores nuevos."
-          action={<button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-2"><Plus className="w-3.5 h-3.5" />Crear alerta</button>}
+          action={<Button onClick={() => setShowCreateModal(true)} icon={Plus}>Crear alerta</Button>}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {alertas.map((a) => {
             const cfg = TIPO_CFG[a.tipo];
             const Icon = cfg?.icon ?? Bell;
             return (
-              <div key={a.id} className="card px-4 py-3 flex items-center gap-4">
+              <Card key={a.id} className="p-4 flex items-center gap-4">
                 <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
-                  a.activo ? 'bg-amber-50' : 'bg-zinc-100')}>
-                  <Icon className={cn('w-4 h-4', a.activo ? 'text-amber-600' : 'text-zinc-400')} />
+                  a.activo ? 'bg-amber-50' : 'bg-tremor-background-subtle')}>
+                  <Icon className={cn('w-4 h-4', a.activo ? 'text-amber-600' : 'text-tremor-content-subtle')} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-zinc-900">{a.nombre}</p>
-                    <Badge variant={a.activo ? 'success' : 'default'} size="sm">
+                    <Text className="text-sm font-medium text-tremor-content-strong">{a.nombre}</Text>
+                    <Badge color={a.activo ? 'emerald' : 'zinc'} size="sm">
                       {a.activo ? 'Activa' : 'Inactiva'}
                     </Badge>
-                    <span className="text-[10px] bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded-full">
+                    <Badge size="xs" color="zinc">
                       {cfg?.label ?? a.tipo}
-                    </span>
+                    </Badge>
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5">
-                    <span className="text-xs text-zinc-500">
+                  <div className="flex items-center gap-3 mt-1">
+                    <Text className="text-xs">
                       Canal: <span className="font-medium">{a.canal === 'webhook' ? (a.webhook_nombre ?? 'Webhook') : 'Email'}</span>
-                    </span>
-                    <span className="text-xs text-zinc-400">Cooldown: {a.cooldown_minutos}min</span>
+                    </Text>
+                    <Text className="text-xs">Cooldown: {a.cooldown_minutos}min</Text>
                     {a.ultima_disparo && (
-                      <span className="text-xs text-zinc-400">Último: {formatDateTime(a.ultima_disparo)}</span>
+                      <Text className="text-xs">Último: {formatDateTime(a.ultima_disparo)}</Text>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
+                  <Button
+                    variant="light" color="gray"
                     onClick={() => setEditingAlerta(a)}
-                    className="p-1.5 hover:bg-zinc-100 rounded-lg transition-colors"
                     title="Editar"
-                  >
-                    <Pencil className="w-3.5 h-3.5 text-zinc-500" />
-                  </button>
-                  <button
+                    icon={Pencil}
+                  />
+                  <Button
+                    variant="light" color="rose"
                     onClick={() => setDeletingId(a.id)}
-                    className="p-1.5 hover:bg-rose-50 rounded-lg transition-colors"
                     title="Eliminar"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                  </button>
+                    icon={Trash2}
+                  />
                 </div>
-              </div>
+              </Card>
             );
           })}
         </div>

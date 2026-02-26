@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, Upload } from 'lucide-react';
+import { Card, Text, Button, Select, SelectItem, TextInput, Badge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
-import { Badge } from '../components/ui/Badge';
-import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Modal } from '../components/ui/Modal';
 import type { BankAccount, Bank, BankStatement } from '../types';
 
 function fmtDate(iso: string) {
@@ -23,36 +24,36 @@ function AccountCard({
     onUpload: (id: string) => void;
 }) {
     return (
-        <div
+        <Card
             onClick={onSelect}
-            className={`card p-5 cursor-pointer transition-all ${selected ? 'ring-2 ring-zinc-900 border-zinc-900 shadow-md' : 'hover:border-zinc-300'}`}
+            className={`cursor-pointer transition-all ${selected ? 'ring-2 ring-tremor-brand border-transparent shadow-md bg-tremor-brand-faint' : 'hover:border-tremor-content-subtle'}`}
         >
             <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-zinc-100 rounded-xl flex items-center justify-center">
-                    <Landmark className="w-5 h-5 text-zinc-600" />
+                <div className="w-10 h-10 bg-tremor-background-subtle rounded-xl flex items-center justify-center">
+                    <Landmark className="w-5 h-5 text-tremor-content" />
                 </div>
-                <Badge variant={account.activo ? 'success' : 'neutral'} size="sm">
+                <Badge color={account.activo ? 'emerald' : 'zinc'} size="sm">
                     {account.activo ? 'Activa' : 'Inactiva'}
                 </Badge>
             </div>
-            <p className="text-base font-semibold text-zinc-900">{account.alias}</p>
-            <p className="text-sm text-zinc-500 mt-1">{account.bank_nombre ?? '—'} · {account.moneda}</p>
+            <Text className="text-base font-semibold text-tremor-content-strong">{account.alias}</Text>
+            <Text className="text-sm mt-1">{account.bank_nombre ?? '—'} · {account.moneda}</Text>
             {account.numero_cuenta && (
-                <p className="text-xs text-zinc-400 font-mono mt-2 bg-zinc-50 px-2 py-1 rounded inline-block">
+                <Text className="text-xs font-mono mt-2 bg-white border border-tremor-border px-2 py-1 rounded inline-block">
                     {account.numero_cuenta}
-                </p>
+                </Text>
             )}
-            <button
+            <Button
+                variant="secondary"
                 onClick={(e) => { e.stopPropagation(); onUpload(account.id); }}
-                className="mt-4 w-full btn-md btn-secondary gap-2 text-sm"
+                className="mt-4 w-full"
+                icon={Upload}
             >
-                <Upload className="w-3.5 h-3.5" /> Importar extracto
-            </button>
-        </div>
+                Importar extracto
+            </Button>
+        </Card>
     );
 }
-
-import { Modal } from '../components/ui/Modal';
 
 // ─── UploadModal ──────────────────────────────────────────────────────────────
 
@@ -102,29 +103,30 @@ function UploadModal({
             description="Carga el archivo del banco para conciliar"
             footer={
                 <>
-                    <button onClick={onClose} className="btn-md btn-secondary" disabled={uploading}>Cancelar</button>
-                    <button
+                    <Button variant="secondary" onClick={onClose} disabled={uploading}>Cancelar</Button>
+                    <Button
                         onClick={() => void handleUpload()}
                         disabled={!file || !periodoDesde || !periodoHasta || uploading}
-                        className="btn-md btn-primary grow sm:grow-0"
+                        loading={uploading}
+                        icon={uploading ? undefined : Upload}
                     >
-                        {uploading ? <Spinner size="sm" /> : <Upload className="w-4 h-4" />} Subir archivo
-                    </button>
+                        Subir archivo
+                    </Button>
                 </>
             }
         >
-            <div className="space-y-6">
+            <div className="space-y-6 pt-2">
                 <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
-                    className="border-2 border-dashed border-zinc-200 rounded-2xl p-8 text-center hover:border-zinc-300 transition-all cursor-pointer bg-zinc-50/50"
+                    className="border-2 border-dashed border-tremor-border rounded-2xl p-8 text-center hover:border-tremor-content-subtle transition-all cursor-pointer bg-tremor-background-subtle"
                     onClick={() => document.getElementById('file-input-upload')?.click()}
                 >
-                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-zinc-100 flex items-center justify-center mx-auto mb-4">
-                        <Upload className="w-6 h-6 text-zinc-400" />
+                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-tremor-border flex items-center justify-center mx-auto mb-4">
+                        <Upload className="w-6 h-6 text-tremor-content" />
                     </div>
-                    <p className="text-sm font-medium text-zinc-700">{file ? file.name : 'Arrastrá tu archivo aquí'}</p>
-                    <p className="text-xs text-zinc-400 mt-2">CSV, XLSX o TXT hasta 10MB</p>
+                    <Text className="font-medium">{file ? file.name : 'Arrastrá tu archivo aquí'}</Text>
+                    <Text className="text-xs text-tremor-content-subtle mt-2">CSV, XLSX o TXT hasta 10MB</Text>
                     <input
                         id="file-input-upload"
                         type="file"
@@ -136,12 +138,14 @@ function UploadModal({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="label">Periodo desde</label>
-                        <input type="date" className="input" value={periodoDesde} onChange={(e) => setPeriodoDesde(e.target.value)} />
+                        <Text className="mb-1 font-medium">Periodo desde</Text>
+                        <input type="date" className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong shadow-tremor-input focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+                            value={periodoDesde} onChange={(e) => setPeriodoDesde(e.target.value)} />
                     </div>
                     <div>
-                        <label className="label">Periodo hasta</label>
-                        <input type="date" className="input" value={periodoHasta} onChange={(e) => setPeriodoHasta(e.target.value)} />
+                        <Text className="mb-1 font-medium">Periodo hasta</Text>
+                        <input type="date" className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong shadow-tremor-input focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+                            value={periodoHasta} onChange={(e) => setPeriodoHasta(e.target.value)} />
                     </div>
                 </div>
             </div>
@@ -185,29 +189,29 @@ function NewAccountModal({
             title="Nueva cuenta"
             footer={
                 <>
-                    <button onClick={onClose} className="btn-md btn-secondary" disabled={saving}>Cancelar</button>
-                    <button
+                    <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+                    <Button
                         onClick={() => void handleSave()}
                         disabled={!form.bank_id || !form.alias || saving}
-                        className="btn-md btn-primary"
+                        loading={saving}
+                        icon={saving ? undefined : Plus}
                     >
-                        {saving ? <Spinner size="sm" /> : <Plus className="w-4 h-4" />} Crear cuenta
-                    </button>
+                        Crear cuenta
+                    </Button>
                 </>
             }
         >
-            <div className="space-y-4">
+            <div className="space-y-4 pt-2">
                 <div>
-                    <label className="label">Banco</label>
-                    <select className="input" value={form.bank_id} onChange={(e) => setForm((f) => ({ ...f, bank_id: e.target.value }))}>
-                        <option value="">Seleccionar banco</option>
-                        {banks.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
-                    </select>
+                    <Text className="mb-1 font-medium">Banco</Text>
+                    <Select value={form.bank_id} onValueChange={(v) => setForm((f) => ({ ...f, bank_id: v }))} enableClear={false}>
+                        <SelectItem value="">Seleccionar banco</SelectItem>
+                        {banks.map((b) => <SelectItem key={b.id} value={b.id}>{b.nombre}</SelectItem>)}
+                    </Select>
                 </div>
                 <div>
-                    <label className="label">Alias / Nombre</label>
-                    <input
-                        className="input"
+                    <Text className="mb-1 font-medium">Alias / Nombre</Text>
+                    <TextInput
                         placeholder="Ej: Cuenta Principal ITAU"
                         value={form.alias}
                         onChange={(e) => setForm((f) => ({ ...f, alias: e.target.value }))}
@@ -215,25 +219,25 @@ function NewAccountModal({
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="label">Nro. de cuenta</label>
-                        <input className="input" placeholder="0000000" value={form.numero_cuenta}
+                        <Text className="mb-1 font-medium">Nro. de cuenta</Text>
+                        <TextInput placeholder="0000000" value={form.numero_cuenta}
                             onChange={(e) => setForm((f) => ({ ...f, numero_cuenta: e.target.value }))} />
                     </div>
                     <div>
-                        <label className="label">Moneda</label>
-                        <select className="input" value={form.moneda} onChange={(e) => setForm((f) => ({ ...f, moneda: e.target.value }))}>
-                            <option value="PYG">PYG</option>
-                            <option value="USD">USD</option>
-                        </select>
+                        <Text className="mb-1 font-medium">Moneda</Text>
+                        <Select value={form.moneda} onValueChange={(v) => setForm((f) => ({ ...f, moneda: v }))} enableClear={false}>
+                            <SelectItem value="PYG">PYG</SelectItem>
+                            <SelectItem value="USD">USD</SelectItem>
+                        </Select>
                     </div>
                 </div>
                 <div>
-                    <label className="label">Tipo de cuenta</label>
-                    <select className="input" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
-                        <option value="corriente">Cuenta Corriente</option>
-                        <option value="ahorro">Caja de Ahorro</option>
-                        <option value="virtual">Billetera / Virtual</option>
-                    </select>
+                    <Text className="mb-1 font-medium">Tipo de cuenta</Text>
+                    <Select value={form.tipo} onValueChange={(v) => setForm((f) => ({ ...f, tipo: v }))} enableClear={false}>
+                        <SelectItem value="corriente">Cuenta Corriente</SelectItem>
+                        <SelectItem value="ahorro">Caja de Ahorro</SelectItem>
+                        <SelectItem value="virtual">Billetera / Virtual</SelectItem>
+                    </Select>
                 </div>
             </div>
         </Modal>
@@ -278,7 +282,7 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
     }, [activeTenantId]);
 
     useEffect(() => {
-        if (selectedAccountId) loadStatements(selectedAccountId);
+        if (selectedAccountId) void loadStatements(selectedAccountId);
         else setStatements([]);
     }, [selectedAccountId, loadStatements]);
 
@@ -303,9 +307,9 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                 title="Cuentas Bancarias"
                 subtitle="Gestión de cuentas bancarias y carga de extractos"
                 actions={
-                    <button onClick={() => setShowNewAccount(true)} className="btn-md btn-primary gap-2">
-                        <Plus className="w-4 h-4" /> Nueva cuenta
-                    </button>
+                    <Button onClick={() => setShowNewAccount(true)} icon={Plus}>
+                        Nueva cuenta
+                    </Button>
                 }
             />
 
@@ -315,9 +319,9 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                     title="Sin cuentas registradas"
                     description="Comienza agregando las cuentas bancarias de la empresa para poder conciliar sus movimientos."
                     action={
-                        <button onClick={() => setShowNewAccount(true)} className="btn-md btn-primary gap-2">
-                            <Plus className="w-4 h-4" /> Agregar mi primera cuenta
-                        </button>
+                        <Button onClick={() => setShowNewAccount(true)} icon={Plus}>
+                            Agregar mi primera cuenta
+                        </Button>
                     }
                 />
             ) : (
@@ -335,45 +339,45 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
             )}
 
             {selectedAccountId && (
-                <div className="card overflow-hidden animate-slide-up">
-                    <div className="px-6 py-4 border-b border-zinc-100 bg-zinc-50/50 flex items-center justify-between">
+                <Card className="p-0 overflow-hidden animate-slide-up">
+                    <div className="px-6 py-4 border-b border-tremor-border bg-tremor-background-subtle flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white border border-zinc-200 rounded-lg flex items-center justify-center">
-                                <Upload className="w-4 h-4 text-zinc-500" />
+                            <div className="w-8 h-8 bg-white border border-tremor-border rounded-lg flex items-center justify-center">
+                                <Upload className="w-4 h-4 text-tremor-content" />
                             </div>
-                            <h4 className="text-sm font-semibold text-zinc-900">Historial de extractos</h4>
+                            <h4 className="text-sm font-semibold text-tremor-content-strong">Historial de extractos</h4>
                         </div>
-                        <p className="text-xs text-zinc-400">{statements.length} archivos cargados</p>
+                        <Text className="text-xs">{statements.length} archivos cargados</Text>
                     </div>
                     {statements.length === 0 ? (
                         <div className="py-16 text-center">
-                            <p className="text-sm text-zinc-400 font-medium">No se han importado extractos para esta cuenta</p>
-                            <button onClick={() => setUploadModalAccountId(selectedAccountId)} className="mt-4 text-zinc-900 text-sm font-semibold hover:underline">Importar ahora</button>
+                            <Text className="font-medium mb-4">No se han importado extractos para esta cuenta</Text>
+                            <Button variant="secondary" onClick={() => setUploadModalAccountId(selectedAccountId)}>Importar ahora</Button>
                         </div>
                     ) : (
-                        <div className="divide-y divide-zinc-50">
+                        <div className="divide-y divide-tremor-border">
                             {statements.map((s) => (
-                                <div key={s.id} className="px-6 py-4 flex items-center gap-6 hover:bg-zinc-50/50 transition-colors">
+                                <div key={s.id} className="px-6 py-4 flex items-center gap-6 hover:bg-tremor-background-subtle transition-colors">
                                     <div className="flex-1">
-                                        <p className="text-sm font-medium text-zinc-900">{s.archivo_nombre ?? 'Extracto Bancario'}</p>
-                                        <p className="text-xs text-zinc-400 mt-1">{fmtDate(s.periodo_desde)} – {fmtDate(s.periodo_hasta)}</p>
+                                        <Text className="font-medium text-tremor-content-strong">{s.archivo_nombre ?? 'Extracto Bancario'}</Text>
+                                        <Text className="text-xs mt-1">{fmtDate(s.periodo_desde)} – {fmtDate(s.periodo_hasta)}</Text>
                                     </div>
                                     <Badge
-                                        variant={s.estado_procesamiento === 'PROCESADO' ? 'success' : s.estado_procesamiento === 'ERROR' ? 'danger' : 'warning'}
+                                        color={s.estado_procesamiento === 'PROCESADO' ? 'emerald' : s.estado_procesamiento === 'ERROR' ? 'rose' : 'amber'}
                                         size="sm"
                                     >
                                         {s.estado_procesamiento === 'PROCESADO' ? 'Procesado' : s.estado_procesamiento === 'ERROR' ? 'Error' : 'Pendiente'}
                                     </Badge>
                                     {s.r2_signed_url && (
-                                        <a href={s.r2_signed_url} target="_blank" rel="noopener noreferrer" className="btn-sm btn-secondary text-[11px] h-7">
-                                            Ver original
-                                        </a>
+                                        <Button variant="secondary" className="text-[11px] h-7 px-2">
+                                            <a href={s.r2_signed_url} target="_blank" rel="noopener noreferrer">Ver original</a>
+                                        </Button>
                                     )}
                                 </div>
                             ))}
                         </div>
                     )}
-                </div>
+                </Card>
             )}
 
             {/* Modals */}
@@ -385,7 +389,7 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                 onClose={() => setUploadModalAccountId(null)}
                 onSuccess={() => {
                     toastSuccess('Extracto subido correctamente');
-                    if (uploadModalAccountId === selectedAccountId) loadStatements(uploadModalAccountId!);
+                    if (uploadModalAccountId === selectedAccountId) void loadStatements(uploadModalAccountId!);
                 }}
             />
             <NewAccountModal
@@ -394,7 +398,7 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                 banks={banks}
                 toastError={toastError}
                 onClose={() => setShowNewAccount(false)}
-                onSuccess={() => { loadAll(); }}
+                onSuccess={() => { void loadAll(); }}
             />
         </div>
     );
