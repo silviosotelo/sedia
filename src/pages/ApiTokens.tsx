@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Key, Plus, Trash2, Copy, CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
-import { Spinner } from '../components/ui/Spinner';
+import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { NoTenantState } from '../components/ui/NoTenantState';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -102,25 +103,17 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
 
   const isExpired = (expiraAt: string | null) => expiraAt ? new Date(expiraAt) < new Date() : false;
 
-  if (!tenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="API Tokens" subtitle="Tokens para acceso programático a tus comprobantes" />
-        <div className="flex flex-col items-center justify-center py-20">
-          <Key className="w-12 h-12 text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para gestionar sus tokens</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in">
       <Header title="API Tokens" subtitle="Tokens para acceso programático a tus comprobantes"
-        onRefresh={load} refreshing={loading}
-        actions={<button onClick={() => setShowForm(true)} className="btn-md btn-primary gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo token</button>}
+        onRefresh={tenantId ? load : undefined} refreshing={loading}
+        actions={tenantId ? <button onClick={() => setShowForm(true)} className="btn-md btn-primary gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo token</button> : undefined}
       />
 
+      {!tenantId ? (
+        <NoTenantState message="Seleccioná una empresa para gestionar sus API tokens." />
+      ) : (
+      <>
       <div className="mb-5 p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-600 space-y-1.5">
         <p className="font-semibold text-zinc-700 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Autenticación</p>
         <p>Incluí el token en el header <code className="font-mono bg-zinc-200 px-1 py-0.5 rounded">Authorization: Bearer &lt;token&gt;</code></p>
@@ -128,7 +121,7 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
       </div>
 
       {loading && !tokens.length ? (
-        <div className="flex justify-center py-16"><Spinner /></div>
+        <PageLoader />
       ) : !tokens.length ? (
         <EmptyState icon={<Key className="w-5 h-5" />} title="Sin tokens de API"
           description="Crea un token para que sistemas externos consuman los comprobantes via REST API."
@@ -220,6 +213,8 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
         description="¿Eliminar este token? Los sistemas que lo usen perderán acceso inmediatamente."
         confirmLabel="Eliminar" variant="danger"
         onConfirm={() => void handleDelete()} onClose={() => setDeletingId(null)} />
+      </>
+      )}
     </div>
   );
 }

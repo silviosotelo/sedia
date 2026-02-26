@@ -3,7 +3,9 @@ import { ShieldCheck, Download, ChevronDown, ChevronRight } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 import { Pagination } from '../components/ui/Pagination';
+import { NoTenantState } from '../components/ui/NoTenantState';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatDateTime } from '../lib/utils';
@@ -118,35 +120,26 @@ export function Auditoria({ toastError }: AuditoriaProps) {
   };
 
 
-  if (!tenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="Auditoría" subtitle="Registro de acciones del sistema" />
-        <div className="flex flex-col items-center justify-center py-20">
-          <ShieldCheck className="w-12 h-12 text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su auditoría</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading && entries.length === 0) return <PageLoader />;
 
   return (
     <div className="animate-fade-in">
       <Header
         title="Auditoría"
         subtitle="Registro de acciones del sistema"
-        onRefresh={load}
+        onRefresh={tenantId ? load : undefined}
         refreshing={loading}
-        actions={
+        actions={tenantId ? (
           <button onClick={handleExport} className="btn-sm btn-secondary flex items-center gap-1.5">
             <Download className="w-3.5 h-3.5" />
             Exportar CSV
           </button>
-        }
+        ) : undefined}
       />
 
+      {!tenantId ? <NoTenantState message="Seleccioná una empresa para ver su registro de auditoría." /> : (
+      <>
+      {loading && entries.length === 0 ? <PageLoader /> : (
+      <>
       <div className="card p-4 mb-4 flex gap-3 items-end flex-wrap">
         <div>
           <label className="label-sm">Acción</label>
@@ -177,10 +170,11 @@ export function Auditoria({ toastError }: AuditoriaProps) {
 
       <div className="card overflow-hidden">
         {entries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <ShieldCheck className="w-10 h-10 text-zinc-300 mb-3" />
-            <p className="text-sm text-zinc-500">No hay registros de auditoría</p>
-          </div>
+          <EmptyState
+            icon={<ShieldCheck className="w-5 h-5" />}
+            title="Sin registros de auditoría"
+            description="No hay acciones registradas para esta empresa con los filtros seleccionados."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -213,6 +207,10 @@ export function Auditoria({ toastError }: AuditoriaProps) {
           />
         )}
       </div>
+      </>
+      )}
+      </>
+      )}
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { Modal } from '../components/ui/Modal';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { Spinner } from '../components/ui/Spinner';
+import { PageLoader } from '../components/ui/Spinner';
+import { NoTenantState } from '../components/ui/NoTenantState';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { TenantAlerta, AlertaLog, TenantWebhook } from '../types';
@@ -157,7 +158,7 @@ function AlertaLogPanel({ tenantId }: { tenantId: string }) {
     api.alertas.log(tenantId).then((r) => setLogs(r.data)).catch(() => { }).finally(() => setLoading(false));
   }, [tenantId]);
 
-  if (loading) return <div className="flex justify-center py-6"><Spinner size="sm" /></div>;
+  if (loading) return <PageLoader />;
   if (!logs.length) return <p className="text-sm text-zinc-400 text-center py-6">Sin disparos recientes</p>;
 
   return (
@@ -255,26 +256,14 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
     } catch (e) { toastError((e as Error).message); }
   };
 
-  if (!tenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="Alertas" subtitle="Notificaciones automáticas configurables" />
-        <div className="flex flex-col items-center justify-center py-20">
-          <Bell className="w-12 h-12 text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para gestionar sus alertas</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in">
       <Header
         title="Alertas"
         subtitle="Notificaciones automáticas por condiciones configurables"
-        onRefresh={load}
+        onRefresh={tenantId ? load : undefined}
         refreshing={loading}
-        actions={
+        actions={tenantId ? (
           <div className="flex items-center gap-2">
             <button onClick={() => setShowLogModal(true)} className="btn-md btn-secondary gap-1.5">
               <Bell className="w-3.5 h-3.5" /> Historial
@@ -283,11 +272,13 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
               <Plus className="w-3.5 h-3.5" /> Nueva alerta
             </button>
           </div>
-        }
+        ) : undefined}
       />
 
-      {loading && alertas.length === 0 ? (
-        <div className="flex justify-center py-16"><Spinner /></div>
+      {!tenantId ? (
+        <NoTenantState message="Seleccioná una empresa para gestionar sus alertas." />
+      ) : loading && alertas.length === 0 ? (
+        <PageLoader />
       ) : alertas.length === 0 ? (
         <EmptyState
           icon={<AlertTriangle className="w-5 h-5" />}

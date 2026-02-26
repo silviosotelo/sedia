@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
-import { Spinner } from '../components/ui/Spinner';
+import { Spinner, PageLoader } from '../components/ui/Spinner';
+import { NoTenantState } from '../components/ui/NoTenantState';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -137,7 +138,7 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
     setLoading(true);
     api.webhooks.deliveries(tenantId, webhookId).then((r) => setDeliveries(r.data)).catch(() => { }).finally(() => setLoading(false));
   }, [tenantId, webhookId]);
-  if (loading) return <div className="flex justify-center py-4"><Spinner size="sm" /></div>;
+  if (loading) return <PageLoader />;
   if (!deliveries.length) return <p className="text-sm text-zinc-400 text-center py-4">Sin entregas registradas</p>;
   return (
     <table className="w-full text-xs">
@@ -221,27 +222,17 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
     catch (e) { toastError((e as Error).message); } finally { setTestingId(null); }
   };
 
-  if (!tenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="Webhooks" subtitle="Notifica sistemas externos cuando llegan comprobantes" />
-        <div className="flex flex-col items-center justify-center py-20">
-          <Webhook className="w-12 h-12 text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para gestionar sus webhooks</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in">
       <Header title="Webhooks" subtitle="Notifica sistemas externos cuando llegan comprobantes"
-        onRefresh={load} refreshing={loading}
-        actions={<button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo webhook</button>}
+        onRefresh={tenantId ? load : undefined} refreshing={loading}
+        actions={tenantId ? <button onClick={() => setShowCreateModal(true)} className="btn-md btn-primary gap-1.5"><Plus className="w-3.5 h-3.5" /> Nuevo webhook</button> : undefined}
       />
 
-      {loading && !webhooks.length ? (
-        <div className="flex justify-center py-16"><Spinner /></div>
+      {!tenantId ? (
+        <NoTenantState message="Seleccioná una empresa para gestionar sus webhooks." />
+      ) : loading && !webhooks.length ? (
+        <PageLoader />
       ) : !webhooks.length ? (
         <EmptyState icon={<Webhook className="w-5 h-5" />} title="Sin webhooks"
           description="Crea tu primer webhook para notificar a tu ERP cuando lleguen comprobantes."

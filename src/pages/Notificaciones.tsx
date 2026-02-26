@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, Send, CheckCircle, XCircle, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bell, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { api } from '../lib/api';
 import { Header } from '../components/layout/Header';
-import { Spinner } from '../components/ui/Spinner';
+import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { Pagination } from '../components/ui/Pagination';
+import { NoTenantState } from '../components/ui/NoTenantState';
 import { useTenant } from '../contexts/TenantContext';
 import { cn, formatDateTime } from '../lib/utils';
 
@@ -86,26 +88,14 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
 
   const totalPages = Math.ceil(total / LIMIT);
 
-  if (!activeTenantId) {
-    return (
-      <div className="animate-fade-in">
-        <Header title="Notificaciones" subtitle="Historial de emails enviados por el sistema" />
-        <div className="flex flex-col items-center justify-center py-20">
-          <Bell className="w-12 h-12 text-zinc-300 mb-3" />
-          <p className="text-sm text-zinc-500">Seleccioná una empresa en el menú lateral para ver su historial de notificaciones</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="animate-fade-in">
       <Header
         title="Notificaciones"
         subtitle="Historial de emails enviados por el sistema"
-        onRefresh={loadLogs}
+        onRefresh={activeTenantId ? loadLogs : undefined}
         refreshing={loading}
-        actions={
+        actions={activeTenantId ? (
           <button
             onClick={handleTest}
             disabled={sendingTest}
@@ -114,14 +104,15 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
             {sendingTest ? <Spinner size="xs" /> : <Send className="w-3.5 h-3.5" />}
             Enviar prueba
           </button>
-        }
+        ) : undefined}
       />
 
+      {!activeTenantId ? (
+        <NoTenantState message="Seleccioná una empresa para ver su historial de notificaciones." />
+      ) : (
       <div className="card overflow-hidden">
         {loading && logs.length === 0 ? (
-          <div className="flex items-center justify-center py-16">
-            <Spinner />
-          </div>
+          <PageLoader />
         ) : logs.length === 0 ? (
           <EmptyState
             icon={<Bell className="w-8 h-8 text-zinc-300" />}
@@ -183,32 +174,11 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
               </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-3 border-t border-zinc-100 bg-zinc-50/30">
-                <span className="text-[10px] text-zinc-400 font-medium">
-                  {total} notificaciones &mdash; pag. {page} de {totalPages}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="p-1.5 rounded-lg hover:bg-zinc-100 disabled:opacity-40 transition-colors"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="p-1.5 rounded-lg hover:bg-zinc-100 disabled:opacity-40 transition-colors"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={setPage} />
           </>
         )}
       </div>
+      )}
     </div>
   );
 }
