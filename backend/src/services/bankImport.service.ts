@@ -13,6 +13,7 @@ import { logger } from '../config/logger';
 
 import { CsvParserEngine } from './csvParser.engine';
 import { CsvSchema } from './csv-schemas/types';
+import { findSchemaForBankCode } from '../db/repositories/csv-schema.repository';
 
 export type RawTransaction = Omit<BankTransaction, 'id' | 'tenant_id' | 'bank_account_id' | 'created_at'>;
 
@@ -293,14 +294,23 @@ export async function processUploadedFile(params: {
     throw new Error('Por favor descargue el extracto en formato CSV o Excel desde el portal del banco');
   }
 
+  // Resolver schema: 1) override explícito (bank.csv_mapping), 2) template en DB por código de banco, 3) genérico
+  let resolvedSchema: CsvSchema = GENERIC_CSV_SCHEMA;
+  if (params.schema) {
+    resolvedSchema = { ...(params.schema as unknown as CsvSchema), type: 'BANK' };
+  } else if (params.bankCode) {
+    const dbTemplate = await findSchemaForBankCode(params.bankCode);
+    if (dbTemplate) resolvedSchema = { ...dbTemplate, type: 'BANK' };
+  }
+
   let txs: RawTransaction[];
 
   if (ext === 'xlsx' || ext === 'xls') {
     txs = await parseExcel(params.buffer);
   } else if (ext === 'csv') {
-    txs = parseCSV(params.buffer, params.schema ? (params.schema as unknown as CsvSchema) : GENERIC_CSV_SCHEMA);
+    txs = parseCSV(params.buffer, resolvedSchema);
   } else if (ext === 'txt') {
-    // Detectar si es formato Itaú
+    // Detectar si es formato Itaú (fixed-width posicional — se procesa aparte)
     const sample = params.buffer.toString('utf-8', 0, 200);
     if (params.bankCode === 'ITAU_PY' || /^\d{2}\/\d{2}\/\d{4}\s{5,}/.test(sample)) {
       txs = parseItauTXT(params.buffer);
@@ -308,7 +318,7 @@ export async function processUploadedFile(params: {
       txs = parseGenericoTXT(params.buffer);
     }
   } else {
-    txs = parseCSV(params.buffer, params.schema ? (params.schema as unknown as CsvSchema) : GENERIC_CSV_SCHEMA);
+    txs = parseCSV(params.buffer, resolvedSchema);
   }
 
   if (txs.length === 0) {

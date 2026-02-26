@@ -445,6 +445,14 @@ export const api = {
         method: 'POST', body: JSON.stringify(body),
       }).then((r) => r.data),
 
+    getAccountConnection: (tenantId: string, accountId: string): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/banks/accounts/${accountId}/connection`).then((r) => r.data),
+
+    updateAccountConnection: (tenantId: string, accountId: string, body: { tipo_conexion?: string; url_portal?: string; usuario?: string; password?: string; auto_descargar?: boolean; formato_preferido?: string; activo?: boolean }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/banks/accounts/${accountId}/connection`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
+
     listStatements: (tenantId: string, accountId: string): Promise<BankStatement[]> =>
       request<{ data: BankStatement[] }>(`/tenants/${tenantId}/banks/accounts/${accountId}/statements`).then((r) => r.data ?? []),
 
@@ -496,13 +504,13 @@ export const api = {
       }),
 
     listProcessors: (tenantId: string): Promise<PaymentProcessor[]> =>
-      request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/banks/processors`).then((r) => r.data ?? []),
+      request<{ data: PaymentProcessor[] }>(`/tenants/${tenantId}/processors`).then((r) => r.data ?? []),
 
     uploadProcessorFile: async (tenantId: string, processorId: string, file: File): Promise<void> => {
       const fd = new FormData();
       fd.append('file', file);
       const t = getToken();
-      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/banks/processors/${processorId}/transactions/upload`, {
+      const res = await fetch(`${BASE_URL}/tenants/${tenantId}/processors/${processorId}/transactions/upload`, {
         method: 'POST',
         headers: t ? { Authorization: `Bearer ${t}` } : {},
         body: fd,
@@ -518,12 +526,12 @@ export const api = {
       request<{ data: any[] }>(`/tenants/${tenantId}/processors`).then((r) => r.data ?? []),
 
     create: (tenantId: string, body: { nombre: string; tipo?: string; csv_mapping?: Record<string, unknown> | null }): Promise<any> =>
-      request<{ data: any }>(`/tenants/${tenantId}/banks/processors`, {
+      request<{ data: any }>(`/tenants/${tenantId}/processors`, {
         method: 'POST', body: JSON.stringify(body),
       }).then((r) => r.data),
 
     update: (tenantId: string, processorId: string, body: { nombre?: string; tipo?: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null }): Promise<any> =>
-      request<{ data: any }>(`/tenants/${tenantId}/banks/processors/${processorId}`, {
+      request<{ data: any }>(`/tenants/${tenantId}/processors/${processorId}`, {
         method: 'PUT', body: JSON.stringify(body),
       }).then((r) => r.data),
 

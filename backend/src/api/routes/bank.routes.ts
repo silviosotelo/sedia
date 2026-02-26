@@ -15,10 +15,8 @@ import {
   findMatchesByRun,
   updateMatch,
   createRun,
-  findProcessorsByTenant,
-  createProcessor,
-  updateProcessor,
-  upsertProcessorTransactions,
+  getBankConnection,
+  upsertBankConnection,
 } from '../../db/repositories/bank.repository';
 import {
   findAllCsvSchemaTemplates,
@@ -30,8 +28,6 @@ import {
 import { processUploadedFile } from '../../services/bankImport.service';
 import { createJob } from '../../db/repositories/job.repository';
 import { storageService } from '../../services/storage.service';
-import { normalizeProcessorCSV } from '../../services/processors/processor.normalizer';
-import { CsvSchema } from '../../services/csv-schemas/types';
 import { logAudit } from '../../services/audit.service';
 import { checkFeature } from '../../services/billing.service';
 import { query } from '../../db/connection';
@@ -353,65 +349,32 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send({ success: true, data: { match_id: matchId } });
   });
 
-  // ─── Payment Processors ─────────────────────────────────────────────────────
-  app.get<{ Params: { id: string } }>('/tenants/:id/banks/processors', async (req, reply) => {
-    if (!assertTenantAccess(req, reply, req.params.id)) return;
-    const processors = await findProcessorsByTenant(req.params.id);
-    return reply.send({ success: true, data: processors });
-  });
+  // ─── Bank Connections ────────────────────────────────────────────────────────
 
-  app.post<{
-    Params: { id: string };
-    Body: { nombre: string; tipo?: string; csv_mapping?: Record<string, unknown> | null };
-  }>('/tenants/:id/banks/processors', async (req, reply) => {
-    if (!assertTenantAccess(req, reply, req.params.id)) return;
-    const processor = await createProcessor({
-      tenantId: req.params.id,
-      nombre: req.body.nombre,
-      tipo: req.body.tipo,
-      csv_mapping: req.body.csv_mapping
-    });
-    return reply.status(201).send({ success: true, data: processor });
-  });
+  /** Obtiene la configuración de conexión de una cuenta bancaria */
+  app.get<{ Params: { id: string; aid: string } }>(
+    '/tenants/:id/banks/accounts/:aid/connection',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.id)) return;
+      const connection = await getBankConnection(req.params.id, req.params.aid);
+      return reply.send({ success: true, data: connection });
+    }
+  );
 
+  /** Crea o actualiza la configuración de conexión de una cuenta bancaria */
   app.put<{
-    Params: { id: string, pid: string };
-    Body: Partial<{ nombre: string; tipo: string; activo: boolean; csv_mapping: Record<string, unknown> | null }>;
-  }>('/tenants/:id/banks/processors/:pid', async (req, reply) => {
-    if (!assertTenantAccess(req, reply, req.params.id)) return;
-    const processor = await updateProcessor(req.params.id, req.params.pid, req.body);
-    if (!processor) throw new ApiError(404, 'API_ERROR', 'Procesadora no encontrada');
-    return reply.send({ success: true, data: processor });
-  });
-
-  app.post<{ Params: { id: string; pid: string } }>(
-    '/tenants/:id/banks/processors/:pid/transactions/upload',
+    Params: { id: string; aid: string };
+    Body: { tipo_conexion?: string; url_portal?: string; usuario?: string; password?: string; auto_descargar?: boolean; formato_preferido?: string; activo?: boolean; params?: Record<string, unknown> };
+  }>(
+    '/tenants/:id/banks/accounts/:aid/connection',
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
 
-      const data = await (req as FastifyRequest & { file: () => Promise<{ filename: string; toBuffer: () => Promise<Buffer> }> }).file();
-      if (!data) throw new ApiError(400, 'API_ERROR', 'No se encontró archivo');
+      const hasFeature = await checkFeature(req.params.id, 'conciliacion');
+      if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye automatización bancaria');
 
-      const buffer = await data.toBuffer();
-      const filename = data.filename;
-
-      // Retrieve processor to get its dynamic schema
-      const processors = await findProcessorsByTenant(req.params.id);
-      const processor = processors.find((p) => p.id === req.params.pid);
-      const schema = processor && (processor as any).csv_mapping ? ((processor as any).csv_mapping as CsvSchema) : undefined;
-
-      const txs = normalizeProcessorCSV(buffer, schema).filter((t) => t.fecha);
-
-      // Upload CSV to R2
-      let r2Key: string | null = null;
-      if (storageService.isEnabled()) {
-        r2Key = `tenants/${req.params.id}/processors/${req.params.pid}/${Date.now()}_${filename}`;
-        await storageService.upload({ key: r2Key, buffer, contentType: 'text/csv' });
-        txs.forEach((t) => { t.statement_r2_key = r2Key as string; });
-      }
-
-      const inserted = await upsertProcessorTransactions(req.params.id, req.params.pid, txs);
-      return reply.send({ success: true, data: { filas_importadas: inserted } });
+      const connection = await upsertBankConnection(req.params.id, req.params.aid, req.body);
+      return reply.send({ success: true, data: connection });
     }
   );
 

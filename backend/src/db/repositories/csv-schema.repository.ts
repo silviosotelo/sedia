@@ -1,4 +1,5 @@
 import { query } from '../connection';
+import { CsvSchema } from '../../services/csv-schemas/types';
 
 // ─── CSV Schema Templates ─────────────────────────────────────────────────────
 
@@ -75,4 +76,38 @@ export async function updateCsvSchemaTemplate(
 
 export async function deleteCsvSchemaTemplate(id: string): Promise<void> {
     await query(`UPDATE csv_schema_templates SET activo = false WHERE id = $1 AND es_sistema = false`, [id]);
+}
+
+/**
+ * Busca el schema CSV para un banco dado su código (ej: 'CONTINENTAL' → CONTINENTAL_CSV_1).
+ * Retorna el schema JSONB del template más reciente que coincida, o null si no hay.
+ */
+export async function findSchemaForBankCode(bankCode: string): Promise<CsvSchema | null> {
+    if (!bankCode) return null;
+    const rows = await query<CsvSchemaTemplate>(
+        `SELECT * FROM csv_schema_templates
+         WHERE type = 'BANK' AND activo = true AND nombre ILIKE $1
+         ORDER BY es_sistema DESC, nombre
+         LIMIT 1`,
+        [`%${bankCode}%`]
+    );
+    if (!rows[0]) return null;
+    return rows[0].schema as unknown as CsvSchema;
+}
+
+/**
+ * Busca el schema CSV para una procesadora dado su tipo o nombre (ej: 'BANCARD' → BANCARD_VPOS_1).
+ * Retorna el schema JSONB del template más reciente que coincida, o null si no hay.
+ */
+export async function findSchemaForProcessorType(processorTypeOrName: string): Promise<CsvSchema | null> {
+    if (!processorTypeOrName) return null;
+    const rows = await query<CsvSchemaTemplate>(
+        `SELECT * FROM csv_schema_templates
+         WHERE type = 'PROCESSOR' AND activo = true AND nombre ILIKE $1
+         ORDER BY es_sistema DESC, nombre
+         LIMIT 1`,
+        [`%${processorTypeOrName}%`]
+    );
+    if (!rows[0]) return null;
+    return rows[0].schema as unknown as CsvSchema;
 }
