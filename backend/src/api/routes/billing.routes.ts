@@ -10,8 +10,39 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
 
   // Listar planes disponibles
   app.get('/plans', async (_req, reply) => {
+    const { findAllPlans } = require('../../services/billing.service');
     const plans = await findAllPlans();
     return reply.send({ data: plans });
+  });
+
+  // Crear plan (Solo Super Admin)
+  app.post<{ Body: Partial<any> }>('/plans', async (req, reply) => {
+    if (req.currentUser?.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo Super Admin puede crear planes' });
+    }
+    const { createPlan } = require('../../services/billing.service');
+    const newPlan = await createPlan(req.body);
+    return reply.status(201).send({ data: newPlan });
+  });
+
+  // Editar plan (Solo Super Admin)
+  app.put<{ Params: { id: string }; Body: Partial<any> }>('/plans/:id', async (req, reply) => {
+    if (req.currentUser?.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo Super Admin puede editar planes' });
+    }
+    const { updatePlan } = require('../../services/billing.service');
+    const plan = await updatePlan(req.params.id, req.body);
+    return reply.send({ data: plan });
+  });
+
+  // Eliminar plan (Solo Super Admin)
+  app.delete<{ Params: { id: string } }>('/plans/:id', async (req, reply) => {
+    if (req.currentUser?.rol.nombre !== 'super_admin') {
+      return reply.status(403).send({ error: 'Solo Super Admin puede eliminar planes' });
+    }
+    const { deletePlan } = require('../../services/billing.service');
+    await deletePlan(req.params.id);
+    return reply.status(204).send();
   });
 
   // Obtener uso actual del tenant

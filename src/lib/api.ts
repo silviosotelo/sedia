@@ -44,6 +44,30 @@ function authHeaders(): Record<string, string> {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 
+async function handleApiError(res: Response): Promise<never> {
+  let msg = `HTTP ${res.status}`;
+  try {
+    const text = await res.text();
+    if (text) {
+      try {
+        const body = JSON.parse(text);
+        if (body.message && body.error && typeof body.error === 'string') {
+          msg = body.message;
+        } else if (body.error && typeof body.error === 'string') {
+          msg = body.error;
+        } else if (body.error && body.error.message) {
+          msg = body.error.message;
+        } else if (body.message) {
+          msg = body.message;
+        }
+      } catch {
+        msg = text;
+      }
+    }
+  } catch (_) { }
+  throw new Error(msg);
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
   const res = await fetch(url, {
@@ -52,12 +76,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const body = await res.json();
-      msg = body.message || body.error || msg;
-    } catch (_) { }
-    throw new Error(msg);
+    return handleApiError(res);
   }
 
   const text = await res.text();
@@ -432,9 +451,7 @@ export const api = {
         body: fd,
       });
       if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
-        throw new Error(msg);
+        return handleApiError(res);
       }
       const data = await res.json() as { data: BankStatement };
       return data.data;
@@ -482,9 +499,7 @@ export const api = {
         body: fd,
       });
       if (!res.ok) {
-        let msg = `HTTP ${res.status}`;
-        try { const b = await res.json(); msg = (b as { message?: string }).message ?? msg; } catch (_) { }
-        throw new Error(msg);
+        return handleApiError(res);
       }
     },
   },
