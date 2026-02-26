@@ -329,7 +329,14 @@ export async function processUploadedFile(params: {
     throw new Error('No se encontraron transacciones en el archivo');
   }
 
-  // Fechas para el período
+  // Filtrar filas sin fecha válida (filas de totales, encabezados extra, etc.)
+  txs = txs.filter((t) => t.fecha_operacion && t.fecha_operacion.trim() !== '');
+
+  if (txs.length === 0) {
+    throw new Error('Las transacciones del archivo no tienen fechas reconocibles. Verifique el formato de fecha del extracto.');
+  }
+
+  // Fechas para el período (sólo a partir de filas con fecha válida)
   const fechas = txs.map((t) => t.fecha_operacion).sort();
   const periodoDesdé = fechas[0];
   const periodoHasta = fechas[fechas.length - 1];
