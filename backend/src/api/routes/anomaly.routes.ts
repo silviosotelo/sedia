@@ -44,8 +44,9 @@ export async function anomalyRoutes(app: FastifyInstance): Promise<void> {
     ]);
 
     return reply.send({
+      success: true,
       data,
-      meta: { total: parseInt(countRow?.count ?? '0'), page: pageNum, limit: limitNum },
+      meta: { total: parseInt(countRow?.count ?? '0'), page: pageNum, limit: limitNum, total_pages: Math.ceil(parseInt(countRow?.count ?? '0') / limitNum) },
     });
   });
 

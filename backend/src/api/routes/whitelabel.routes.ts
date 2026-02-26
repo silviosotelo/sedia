@@ -55,7 +55,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
     };
 
     domainCache.set(domain, { data, cachedAt: Date.now() });
-    return reply.send({ data });
+    return reply.send({ success: true, data });
   });
 
   // Protected routes
@@ -169,6 +169,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
       };
 
       return reply.send({
+        success: true,
         data: row,
         global: globalSettings
       });

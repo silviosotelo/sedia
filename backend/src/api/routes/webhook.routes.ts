@@ -42,7 +42,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
          RETURNING id, nombre, url, eventos, activo, intentos_max, timeout_ms, created_at`,
         [req.params.tenantId, nombre, url, secret ?? null, eventos, activo, intentos_max, timeout_ms]
       );
-      return reply.status(201).send({ data: row });
+      return reply.status(201).send({ success: true, data: row });
     }
   );
 
@@ -137,8 +137,9 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
       ]);
 
       return reply.send({
+        success: true,
         data: rows,
-        pagination: { page, limit, total: Number(countRow?.count ?? 0), total_pages: Math.ceil(Number(countRow?.count ?? 0) / limit) },
+        meta: { total: Number(countRow?.count ?? 0), page, limit, total_pages: Math.ceil(Number(countRow?.count ?? 0) / limit) },
       });
     }
   );

@@ -56,7 +56,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede crear bancos');
       }
       const bank = await createBank(req.body);
-      return reply.status(201).send({ data: bank });
+      return reply.status(201).send({ success: true, data: bank });
     }
   );
 
@@ -106,7 +106,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     if (!bank_id || !alias) throw new ApiError(400, 'BAD_REQUEST', 'bank_id y alias son requeridos');
 
     const account = await createAccount({ tenantId: req.params.id, bankId: bank_id, alias, numeroCuenta: numero_cuenta, moneda, tipo });
-    return reply.status(201).send({ data: account });
+    return reply.status(201).send({ success: true, data: account });
   });
 
   app.put<{
@@ -162,6 +162,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         });
 
         return reply.send({
+          success: true,
           data: {
             statement_id: result.statementId,
             filas_importadas: result.filas,
@@ -170,7 +171,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (err) {
         const error = err as Error & { statusCode?: number };
-        return reply.status(error.statusCode ?? 400).send({ error: { code: 'API_ERROR', message: error.message } });
+        throw new ApiError(error.statusCode ?? 400, 'API_ERROR', error.message);
       }
     }
   );
@@ -208,7 +209,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       fecha_desde, fecha_hasta, tipo_movimiento,
       page: parseInt(page), limit: parseInt(limit),
     });
-    return reply.send({ data, meta: { total, page: parseInt(page), limit: parseInt(limit) } });
+    return reply.send({ success: true, data, meta: { total, page: parseInt(page), limit: parseInt(limit) } });
   });
 
   // ─── Reconciliation Runs ────────────────────────────────────────────────────
@@ -252,7 +253,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       detalles: { periodo_desde, periodo_hasta, bank_account_id },
     });
 
-    return reply.status(201).send({ data: { run_id: run.id, estado: 'PENDING' } });
+    return reply.status(201).send({ success: true, data: { run_id: run.id, estado: 'PENDING' } });
   });
 
   app.get<{ Params: { id: string } }>('/tenants/:id/reconciliation-runs', async (req, reply) => {
@@ -279,7 +280,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
     const page = parseInt(req.query.page ?? '1');
     const limit = parseInt(req.query.limit ?? '50');
     const { data, total } = await findMatchesByRun(req.params.rid, page, limit);
-    return reply.send({ data, meta: { total, page, limit } });
+    return reply.send({ success: true, data, meta: { total, page, limit } });
   });
 
   app.patch<{
@@ -349,7 +350,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       detalles: { bank_transaction_id, total_asignado, count: allocations.length },
     });
 
-    return reply.status(201).send({ success: true, match_id: matchId });
+    return reply.status(201).send({ success: true, data: { match_id: matchId } });
   });
 
   // ─── Payment Processors ─────────────────────────────────────────────────────
@@ -370,7 +371,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       tipo: req.body.tipo,
       csv_mapping: req.body.csv_mapping
     });
-    return reply.status(201).send({ data: processor });
+    return reply.status(201).send({ success: true, data: processor });
   });
 
   app.put<{
@@ -436,7 +437,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
         throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para crear templates');
       }
       const template = await createCsvSchemaTemplate({ ...req.body, es_sistema: false });
-      return reply.status(201).send({ data: template });
+      return reply.status(201).send({ success: true, data: template });
     }
   );
 

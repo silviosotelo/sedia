@@ -33,22 +33,21 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
   request.currentUser = usuario;
 }
 
-export function requireSuperAdmin(request: FastifyRequest, reply: FastifyReply): void {
+export function requireSuperAdmin(request: FastifyRequest, _reply: FastifyReply): void {
   if (request.currentUser?.rol.nombre !== 'super_admin') {
-    reply.status(403).send({ error: { code: 'FORBIDDEN', message: 'Solo el super administrador puede realizar esta acción' } });
+    throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede realizar esta acción');
   }
 }
 
 export function requirePermiso(permiso: string) {
-  return function (request: FastifyRequest, reply: FastifyReply): void {
+  return function (request: FastifyRequest, _reply: FastifyReply): void {
     const u = request.currentUser;
     if (!u) {
-      reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'No autenticado' } });
-      return;
+      throw new ApiError(401, 'UNAUTHORIZED', 'No autenticado');
     }
     if (u.rol.nombre === 'super_admin') return;
     if (!u.permisos.includes(permiso)) {
-      reply.status(403).send({ error: { code: 'FORBIDDEN', message: `Sin permiso: ${permiso}` } });
+      throw new ApiError(403, 'FORBIDDEN', `Sin permiso: ${permiso}`);
     }
   };
 }
@@ -57,17 +56,14 @@ export function requirePermiso(permiso: string) {
  * Verifica que el tenant_id del parámetro de ruta coincida con el tenant del usuario autenticado,
  * a menos que sea super_admin.
  */
-export function assertTenantAccess(request: FastifyRequest, reply: FastifyReply, tenantId: string): boolean {
+export function assertTenantAccess(request: FastifyRequest, _reply: FastifyReply, tenantId: string): boolean {
   const u = request.currentUser;
   if (!u) {
-    reply.status(401).send({ error: { code: 'UNAUTHORIZED', message: 'No autenticado' } });
-    return false;
+    throw new ApiError(401, 'UNAUTHORIZED', 'No autenticado');
   }
   if (u.rol.nombre === 'super_admin') return true;
   if (u.tenant_id !== tenantId) {
-    console.log(`assertTenantAccess failed: u.tenant_id = ${u.tenant_id}, tenantId = ${tenantId}`);
-    reply.status(403).send({ error: { code: 'API_ERROR', message: 'Acceso denegado: este recurso no pertenece a tu empresa' } });
-    return false;
+    throw new ApiError(403, 'FORBIDDEN', 'Acceso denegado: este recurso no pertenece a tu empresa');
   }
   return true;
 }

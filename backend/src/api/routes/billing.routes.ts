@@ -23,7 +23,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
     }
     const { createPlan } = require('../../services/billing.service');
     const newPlan = await createPlan(req.body);
-    return reply.status(201).send({ data: newPlan });
+    return reply.status(201).send({ success: true, data: newPlan });
   });
 
   // Editar plan (Solo Super Admin)
@@ -130,7 +130,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         return_url: `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/billing?success=true`,
         cancel_url: `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/billing?cancel=true`
       });
-      return reply.send({ data: { ...result, public_key: config.public_key } });
+      return reply.send({ success: true, data: { ...result, public_key: config.public_key } });
     }
   });
 
@@ -148,7 +148,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
       .digest('hex');
 
     if (token !== verifyToken) {
-      return reply.status(403).send({ status: 'error', message: 'Token de seguridad inválido' });
+      throw new ApiError(403, 'FORBIDDEN', 'Token de seguridad inválido');
     }
 
     // Buscar factura por shop_process_id
@@ -157,7 +157,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
       [shop_process_id]
     );
 
-    if (!invoice) return reply.status(404).send({ status: 'error', message: 'Factura no encontrada' });
+    if (!invoice) throw new ApiError(404, 'NOT_FOUND', 'Factura no encontrada');
 
     if (response === 'S') {
       // Pago exitoso
@@ -202,6 +202,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.send({ status: 'success' });
+    return reply.send({ success: true });
   });
 }

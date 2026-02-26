@@ -20,11 +20,12 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
 
       const result = await getNotificationLog(req.params.tenantId, limit, offset);
       return reply.send({
+        success: true,
         data: result.data,
-        pagination: {
+        meta: {
+          total: result.total,
           page,
           limit,
-          total: result.total,
           total_pages: Math.ceil(result.total / limit),
         },
       });

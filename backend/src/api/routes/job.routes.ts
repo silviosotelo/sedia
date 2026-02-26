@@ -55,6 +55,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
           parsed.data
         );
         return reply.status(202).send({
+          success: true,
           message: 'Job de sincronización encolado',
           data: { job_id: jobId },
         });
@@ -99,6 +100,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
 
       if (enqueuedCount === 0) {
         return reply.status(200).send({
+          success: true,
           message: 'No hay XMLs pendientes de descarga para esta empresa',
           data: { job_id: null },
         });
@@ -112,6 +114,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
       });
 
       return reply.status(202).send({
+        success: true,
         message: `Job de descarga XML encolado (${enqueuedCount} pendientes)`,
         data: { job_id: job.id },
       });
@@ -145,6 +148,7 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
           parsed.data
         );
         return reply.status(202).send({
+          success: true,
           message: 'Job de sincronizacion de facturas virtuales encolado',
           data: { job_id: jobId },
         });

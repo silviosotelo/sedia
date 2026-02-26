@@ -71,7 +71,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     }
     const tenant = await findTenantById(u.tenant_id);
     const data = tenant ? [tenant] : [];
-    return reply.send({ data, total: data.length });
+    return reply.send({ success: true, data, meta: { total: data.length } });
   });
 
   app.get<{ Params: { id: string } }>('/tenants/:id', async (req, reply) => {
@@ -88,7 +88,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       ords_password_encrypted: undefined,
       ords_token_encrypted: undefined,
     } : null;
-    return reply.send({ data: { ...tenantData, config: safeConfig } });
+    return reply.send({ success: true, data: { ...tenantData, config: safeConfig } });
   });
 
   app.post('/tenants', async (req, reply) => {
@@ -136,7 +136,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.status(201).send({ data: tenant });
+    return reply.status(201).send({ success: true, data: tenant });
   });
 
   app.put<{ Params: { id: string } }>('/tenants/:id', async (req, reply) => {
@@ -215,6 +215,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
     ]);
 
     return reply.send({
+      success: true,
       data: {
         habilitado: configRow?.scheduler_habilitado ?? true,
         proximo_run: configRow?.scheduler_proximo_run,

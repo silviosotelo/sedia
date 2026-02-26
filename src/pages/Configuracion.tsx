@@ -1,9 +1,9 @@
 import {
-  Settings, CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
-  Edit2, Trash2, Check
+  CreditCard, BarChart3, CheckCircle2, AlertCircle, Plus,
+  Edit2, Trash2, Check, Cloud, Bell, Shield, Eye, EyeOff,
+  HardDrive, Mail, Save, Database
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
-import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { useState, useEffect, useCallback } from 'react';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
@@ -11,6 +11,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { cn } from '../lib/utils';
 import { api } from '../lib/api';
 import type { Plan, MetricsOverview, MetricsSaas } from '../types';
+
+/* ── Types ──────────────────────────────────────────────────────────────────── */
 
 interface SystemSetting {
   key: string;
@@ -24,12 +26,16 @@ interface ConfiguracionProps {
   toastError: (msg: string) => void;
 }
 
-type Tab = 'overview' | 'planes' | 'sistema';
+type Tab = 'overview' | 'planes' | 'almacenamiento' | 'pagos' | 'notificaciones';
+
+/* ── Helpers ─────────────────────────────────────────────────────────────────── */
 
 function fmtGs(n: number) {
   if (n === 0) return 'Gratis';
   return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(n);
 }
+
+/* ── Plan Form Types ──────────────────────────────────────────────────────── */
 
 interface PlanFormData {
   nombre: string;
@@ -50,16 +56,55 @@ const EMPTY_FORM: PlanFormData = {
 };
 
 const AVAILABLE_FEATURES = [
+  { id: 'comprobantes', label: 'Comprobantes', desc: 'Gestión de comprobantes fiscales' },
+  { id: 'marangatu_sync', label: 'Sincronización Marangatú', desc: 'Sincronización automática con el portal SET' },
+  { id: 'clasificacion', label: 'Clasificación', desc: 'Reglas automáticas de etiquetado' },
   { id: 'metricas', label: 'Métricas Avanzadas', desc: 'Análisis y tableros estadísticos' },
-  { id: 'webhooks', label: 'Webhooks API', desc: 'Envío de notificaciones a sistemas externos' },
-  { id: 'api_tokens', label: 'API Externa', desc: 'Generación de tokens API para integración' },
+  { id: 'webhooks', label: 'Webhooks API', desc: 'Notificaciones a sistemas externos' },
+  { id: 'api_tokens', label: 'API Externa', desc: 'Tokens API para integración' },
   { id: 'alertas', label: 'Alertas Personalizadas', desc: 'Avisos proactivos por correo/webhook' },
-  { id: 'conciliacion', label: 'Conciliación Automática', desc: 'Matching automático de comprobantes e ITI' },
+  { id: 'conciliacion', label: 'Conciliación Bancaria', desc: 'Matching automático bancario' },
   { id: 'auditoria', label: 'Panel de Auditoría', desc: 'Historial inmutable de acciones' },
-  { id: 'anomalias', label: 'Detección de Anomalías', desc: 'Notifica desvíos agresivos en la facturación' },
-  { id: 'whitelabel', label: 'Marca Blanca', desc: 'Posibilidad de cambiar logos y colores' },
-  { id: 'facturacion_electronica', label: 'Emisión e-Kuatia', desc: 'Generar y timbrar facturas electrónicas' }
+  { id: 'anomalias', label: 'Detección de Anomalías', desc: 'Detección de desvíos en facturación' },
+  { id: 'whitelabel', label: 'Marca Blanca', desc: 'Personalización de logos y colores' },
+  { id: 'facturacion_electronica', label: 'Emisión e-Kuatia', desc: 'Generar y timbrar facturas electrónicas' },
+  { id: 'exportacion_xlsx', label: 'Exportación XLSX', desc: 'Exportar comprobantes en Excel' },
+  { id: 'exportacion_pdf', label: 'Exportación PDF', desc: 'Exportar comprobantes en PDF' },
+  { id: 'exportacion_csv', label: 'Exportación CSV', desc: 'Exportar comprobantes en CSV' },
+  { id: 'notificaciones', label: 'Notificaciones Email', desc: 'Envío de emails automáticos' },
+  { id: 'forecast', label: 'Pronóstico', desc: 'Proyección de tendencias' },
+  { id: 'roles_custom', label: 'Roles Personalizados', desc: 'Crear roles con permisos específicos' },
+  { id: 'virtual_invoices', label: 'Facturas Virtuales', desc: 'Sincronización de facturas virtuales' },
 ];
+
+/* ── Password Input Component ─────────────────────────────────────────────── */
+
+function PasswordInput({ value, onChange, placeholder, className }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; className?: string;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        className={cn('input pr-10', className)}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600"
+      >
+        {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+      </button>
+    </div>
+  );
+}
+
+/* ── Plan Modal ────────────────────────────────────────────────────────────── */
 
 function PlanModal({
   plan, onClose, onSave,
@@ -74,13 +119,7 @@ function PlanModal({
   const [saving, setSaving] = useState(false);
 
   const toggleFeature = (id: string) => {
-    setForm(f => ({
-      ...f,
-      features: {
-        ...f.features,
-        [id]: !f.features[id]
-      }
-    }));
+    setForm(f => ({ ...f, features: { ...f.features, [id]: !f.features[id] } }));
   };
 
   const handleSave = async () => {
@@ -113,8 +152,8 @@ function PlanModal({
           <label className="label">Límite comprobantes/mes (vacío = ilimitado)</label>
           <input type="number" className="input" value={form.limite_comprobantes_mes ?? ''} onChange={(e) => setForm((f) => ({ ...f, limite_comprobantes_mes: e.target.value ? Number(e.target.value) : null }))} placeholder="Dejar vacío para ilimitado" />
         </div>
-        <label className="label mb-3">Módulos Exclusivos (Add-ons)</label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
+        <label className="label mb-3">Módulos y Features del Plan</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[240px] overflow-y-auto pr-2">
           {AVAILABLE_FEATURES.map(f => {
             const isChecked = !!form.features[f.id];
             return (
@@ -128,7 +167,7 @@ function PlanModal({
                   {isChecked && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
                 </div>
                 <div>
-                  <p className={cn("text-xs font-bold capitalize", isChecked ? "text-emerald-900" : "text-zinc-700")}>{f.label}</p>
+                  <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-zinc-700")}>{f.label}</p>
                   <p className="text-[10px] text-zinc-500 leading-tight mt-0.5">{f.desc}</p>
                 </div>
               </button>
@@ -146,6 +185,276 @@ function PlanModal({
   );
 }
 
+/* ── Storage Config Form ──────────────────────────────────────────────────── */
+
+function StorageConfigForm({ config, onSave, saving }: {
+  config: Record<string, any>; onSave: (val: Record<string, any>) => void; saving: boolean;
+}) {
+  const [form, setForm] = useState({
+    enabled: config.enabled ?? false,
+    account_id: config.account_id || config.r2_account_id || '',
+    access_key_id: config.access_key_id || config.r2_access_key || '',
+    secret_access_key: config.secret_access_key || config.r2_secret_key || '',
+    bucket: config.bucket || config.r2_bucket || 'sedia-storage',
+    public_url: config.public_url || config.r2_public_url || '',
+  });
+
+  const handleSave = () => {
+    onSave({
+      enabled: form.enabled,
+      account_id: form.account_id,
+      access_key_id: form.access_key_id,
+      secret_access_key: form.secret_access_key,
+      bucket: form.bucket,
+      public_url: form.public_url,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-xl border border-zinc-100">
+        <div className="flex items-center gap-3">
+          <Cloud className="w-5 h-5 text-sky-500" />
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">Cloudflare R2</p>
+            <p className="text-xs text-zinc-500">Almacenamiento de archivos (extractos, XMLs, exports)</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setForm(f => ({ ...f, enabled: !f.enabled }))}
+          className={cn(
+            'relative w-11 h-6 rounded-full transition-colors',
+            form.enabled ? 'bg-emerald-500' : 'bg-zinc-300'
+          )}
+        >
+          <span className={cn(
+            'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform',
+            form.enabled ? 'left-[22px]' : 'left-0.5'
+          )} />
+        </button>
+      </div>
+
+      {form.enabled && (
+        <div className="space-y-4">
+          <div>
+            <label className="label">Account ID</label>
+            <input
+              className="input font-mono text-sm"
+              value={form.account_id}
+              onChange={(e) => setForm(f => ({ ...f, account_id: e.target.value }))}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            />
+            <p className="text-[10px] text-zinc-400 mt-1">Encontralo en Cloudflare Dashboard &rarr; R2 &rarr; Overview</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Access Key ID</label>
+              <PasswordInput
+                value={form.access_key_id}
+                onChange={(v) => setForm(f => ({ ...f, access_key_id: v }))}
+                placeholder="R2 Access Key ID"
+              />
+            </div>
+            <div>
+              <label className="label">Secret Access Key</label>
+              <PasswordInput
+                value={form.secret_access_key}
+                onChange={(v) => setForm(f => ({ ...f, secret_access_key: v }))}
+                placeholder="R2 Secret Access Key"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Nombre del Bucket</label>
+              <input
+                className="input"
+                value={form.bucket}
+                onChange={(e) => setForm(f => ({ ...f, bucket: e.target.value }))}
+                placeholder="sedia-storage"
+              />
+            </div>
+            <div>
+              <label className="label">URL Pública (opcional)</label>
+              <input
+                className="input"
+                value={form.public_url}
+                onChange={(e) => setForm(f => ({ ...f, public_url: e.target.value }))}
+                placeholder="https://files.tusitio.com"
+              />
+              <p className="text-[10px] text-zinc-400 mt-1">Si usás un dominio custom para acceso público a R2</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-end pt-2">
+        <button onClick={handleSave} disabled={saving} className="btn-md btn-primary gap-1.5">
+          {saving ? <Spinner size="xs" /> : <Save className="w-3.5 h-3.5" />} Guardar configuración
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Bancard Config Form ──────────────────────────────────────────────────── */
+
+function BancardConfigForm({ config, onSave, saving }: {
+  config: Record<string, any>; onSave: (val: Record<string, any>) => void; saving: boolean;
+}) {
+  const [form, setForm] = useState({
+    public_key: config.public_key || '',
+    private_key: config.private_key || '',
+    mode: config.mode || 'staging',
+  });
+
+  const handleSave = () => {
+    onSave({
+      public_key: form.public_key,
+      private_key: form.private_key,
+      mode: form.mode,
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
+        <CreditCard className="w-5 h-5 text-violet-500" />
+        <div>
+          <p className="text-sm font-semibold text-zinc-900">Bancard VPOS / QR</p>
+          <p className="text-xs text-zinc-500">Pasarela de pagos para cobro de suscripciones</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Modo</label>
+        <div className="flex gap-2">
+          {(['staging', 'production'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => setForm(f => ({ ...f, mode }))}
+              className={cn(
+                'px-4 py-2 text-xs font-semibold rounded-lg border transition-all',
+                form.mode === mode
+                  ? mode === 'production'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700'
+                    : 'bg-amber-50 border-amber-500 text-amber-700'
+                  : 'border-zinc-200 text-zinc-500 hover:border-zinc-300'
+              )}
+            >
+              {mode === 'staging' ? 'Staging (Pruebas)' : 'Producción'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Public Key (Commerce Code)</label>
+        <PasswordInput
+          value={form.public_key}
+          onChange={(v) => setForm(f => ({ ...f, public_key: v }))}
+          placeholder="Tu Public Key de Bancard"
+        />
+      </div>
+
+      <div>
+        <label className="label">Private Key</label>
+        <PasswordInput
+          value={form.private_key}
+          onChange={(v) => setForm(f => ({ ...f, private_key: v }))}
+          placeholder="Tu Private Key de Bancard"
+        />
+        <p className="text-[10px] text-zinc-400 mt-1">Usado para validar webhooks de confirmación de pago</p>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button onClick={handleSave} disabled={saving} className="btn-md btn-primary gap-1.5">
+          {saving ? <Spinner size="xs" /> : <Save className="w-3.5 h-3.5" />} Guardar configuración
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Notification Config Form ─────────────────────────────────────────────── */
+
+function NotificationConfigForm({ config, onSave, saving }: {
+  config: Record<string, any>; onSave: (val: Record<string, any>) => void; saving: boolean;
+}) {
+  const [form, setForm] = useState({
+    welcome_email: config.welcome_email || '',
+    invoice_paid: config.invoice_paid || '',
+    alert_email: config.alert_email || '',
+    report_email: config.report_email || '',
+  });
+
+  const handleSave = () => {
+    onSave(form);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3 p-4 bg-zinc-50 rounded-xl border border-zinc-100">
+        <Mail className="w-5 h-5 text-blue-500" />
+        <div>
+          <p className="text-sm font-semibold text-zinc-900">Templates de Notificaciones</p>
+          <p className="text-xs text-zinc-500">Plantillas de emails automáticos del sistema</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Email de Bienvenida</label>
+        <textarea
+          className="input h-24 resize-y text-sm"
+          value={form.welcome_email}
+          onChange={(e) => setForm(f => ({ ...f, welcome_email: e.target.value }))}
+          placeholder="Template HTML para el email de bienvenida a nuevos usuarios..."
+        />
+        <p className="text-[10px] text-zinc-400 mt-1">Variables: {'{{nombre}}'}, {'{{email}}'}, {'{{empresa}}'}</p>
+      </div>
+
+      <div>
+        <label className="label">Confirmación de Pago</label>
+        <textarea
+          className="input h-24 resize-y text-sm"
+          value={form.invoice_paid}
+          onChange={(e) => setForm(f => ({ ...f, invoice_paid: e.target.value }))}
+          placeholder="Template para confirmación de pago de suscripción..."
+        />
+        <p className="text-[10px] text-zinc-400 mt-1">Variables: {'{{monto}}'}, {'{{plan}}'}, {'{{fecha}}'}</p>
+      </div>
+
+      <div>
+        <label className="label">Email de Alerta</label>
+        <textarea
+          className="input h-24 resize-y text-sm"
+          value={form.alert_email}
+          onChange={(e) => setForm(f => ({ ...f, alert_email: e.target.value }))}
+          placeholder="Template para alertas y notificaciones..."
+        />
+      </div>
+
+      <div>
+        <label className="label">Email de Reporte</label>
+        <textarea
+          className="input h-24 resize-y text-sm"
+          value={form.report_email}
+          onChange={(e) => setForm(f => ({ ...f, report_email: e.target.value }))}
+          placeholder="Template para reportes periódicos..."
+        />
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button onClick={handleSave} disabled={saving} className="btn-md btn-primary gap-1.5">
+          {saving ? <Spinner size="xs" /> : <Save className="w-3.5 h-3.5" />} Guardar templates
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Component ───────────────────────────────────────────────────────── */
+
 export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) {
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
@@ -156,8 +465,12 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
   const [editingPlan, setEditingPlan] = useState<Plan | undefined>(undefined);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemSetting[]>([]);
-  const [editingConfig, setEditingConfig] = useState<SystemSetting | null>(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  const getConfigValue = (key: string): Record<string, any> => {
+    const setting = systemConfig.find(s => s.key === key);
+    return (setting?.value && typeof setting.value === 'object') ? setting.value : {};
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -171,7 +484,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
       setOverview(ov);
       setSaasMetrics(sm);
       setPlans(pl);
-      setSystemConfig(sc.data);
+      setSystemConfig(sc.data ?? []);
     } catch (err) {
       toastError((err as Error).message);
     } finally {
@@ -181,20 +494,16 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
 
   useEffect(() => { void loadData(); }, [loadData]);
 
-  const handleEditConfig = (config: SystemSetting) => {
-    setEditingConfig(config);
-    setShowConfigModal(true);
-  };
-
-  const handleSaveSystemConfig = async (value: any) => {
-    if (!editingConfig) return;
+  const handleSaveSystemConfig = async (key: string, value: any) => {
+    setSavingConfig(true);
     try {
-      await api.patch(`/system/config/${editingConfig.key}`, { value });
+      await api.patch(`/system/config/${key}`, { value });
       toastSuccess('Configuración actualizada');
-      setShowConfigModal(false);
       void loadData();
     } catch (err) {
       toastError('Error al actualizar configuración');
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -222,10 +531,6 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
     }
   };
 
-  const handleDeletePlan = async (id: string) => {
-    setDeletingId(id);
-  };
-
   const confirmDeletePlan = async () => {
     if (!deletingId) return;
     try {
@@ -241,27 +546,33 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
 
   if (loading && !overview) return <PageLoader />;
 
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'overview', label: 'Resumen', icon: <BarChart3 className="w-3.5 h-3.5" /> },
+    { id: 'planes', label: 'Planes', icon: <CreditCard className="w-3.5 h-3.5" /> },
+    { id: 'almacenamiento', label: 'Almacenamiento', icon: <HardDrive className="w-3.5 h-3.5" /> },
+    { id: 'pagos', label: 'Pasarela de Pagos', icon: <Shield className="w-3.5 h-3.5" /> },
+    { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-3.5 h-3.5" /> },
+  ];
+
   return (
-    <div className="animate-fade-in">
+    <div className="animate-pop-in">
       <Header
         title="Configuración del sistema"
-        subtitle="Administración y métricas globales"
+        subtitle="Administración de planes, integraciones y parámetros globales"
         onRefresh={loadData}
         refreshing={loading}
       />
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm">
-        {([
-          { id: 'overview', label: 'Resumen del sistema', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-          { id: 'planes', label: 'Planes de suscripción', icon: <CreditCard className="w-3.5 h-3.5" /> },
-          { id: 'sistema', label: 'Configuración Global', icon: <Settings className="w-3.5 h-3.5" /> },
-        ] as { id: Tab; label: string; icon: React.ReactNode }[]).map(({ id, label, icon }) => (
+      <div className="flex gap-1 bg-white border border-zinc-200 p-1.5 rounded-2xl mb-8 w-fit shadow-sm overflow-x-auto">
+        {tabs.map(({ id, label, icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`px-5 flex items-center gap-1.5 py-2 text-xs font-semibold rounded-xl transition-all ${tab === id ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
-              }`}
+            className={cn(
+              'px-4 flex items-center gap-1.5 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap',
+              tab === id ? 'bg-zinc-900 text-white shadow-md' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+            )}
           >
             {icon}{label}
           </button>
@@ -299,7 +610,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
               {saasMetrics.xml_stats && (
                 <div className="card p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <Settings className="w-4 h-4 text-zinc-400" />
+                    <Database className="w-4 h-4 text-zinc-400" />
                     <h3 className="section-title mb-0">Estadísticas de XMLs</h3>
                   </div>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -368,85 +679,101 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {plans.map((plan) => (
-                <div key={plan.id} className="card p-5 flex flex-col gap-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-zinc-900">{plan.nombre}</h3>
-                      {plan.descripcion && <p className="text-xs text-zinc-400 mt-0.5">{plan.descripcion}</p>}
+              {plans.map((plan) => {
+                const features = (plan.features as Record<string, boolean>) || {};
+                const enabledFeatures = Object.entries(features).filter(([, v]) => v === true).map(([k]) => k);
+                return (
+                  <div key={plan.id} className="card p-5 flex flex-col gap-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-bold text-zinc-900">{plan.nombre}</h3>
+                        {plan.descripcion && <p className="text-xs text-zinc-400 mt-0.5">{plan.descripcion}</p>}
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => { setEditingPlan(plan); setShowPlanModal(true); }}
+                          className="p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-500"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeletingId(plan.id)}
+                          disabled={deletingId === plan.id}
+                          className="p-1.5 hover:bg-rose-50 rounded-lg text-zinc-400 hover:text-rose-500"
+                        >
+                          {deletingId === plan.id ? <Spinner size="xs" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => { setEditingPlan(plan); setShowPlanModal(true); }}
-                        className="p-1.5 hover:bg-zinc-100 rounded-lg text-zinc-500"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => void handleDeletePlan(plan.id)}
-                        disabled={deletingId === plan.id}
-                        className="p-1.5 hover:bg-rose-50 rounded-lg text-zinc-400 hover:text-rose-500"
-                      >
-                        {deletingId === plan.id ? <Spinner size="xs" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-xl font-bold text-zinc-900">{fmtGs(plan.precio_mensual_pyg)}<span className="text-xs font-normal text-zinc-400">/mes</span></p>
-                  <div className="space-y-1.5 text-xs text-zinc-600">
-                    <div className="flex items-center gap-1.5">
-                      {plan.limite_comprobantes_mes != null ? (
-                        <AlertCircle className="w-3 h-3 text-amber-500" />
-                      ) : (
+                    <p className="text-xl font-bold text-zinc-900">{fmtGs(plan.precio_mensual_pyg)}<span className="text-xs font-normal text-zinc-400">/mes</span></p>
+                    <div className="space-y-1.5 text-xs text-zinc-600">
+                      <div className="flex items-center gap-1.5">
+                        {plan.limite_comprobantes_mes != null ? (
+                          <AlertCircle className="w-3 h-3 text-amber-500" />
+                        ) : (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        )}
+                        {plan.limite_comprobantes_mes != null
+                          ? `${plan.limite_comprobantes_mes.toLocaleString('es-PY')} cpte/mes`
+                          : 'Cptes. ilimitados'}
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                      )}
-                      {plan.limite_comprobantes_mes != null
-                        ? `${plan.limite_comprobantes_mes.toLocaleString('es-PY')} cpte/mes`
-                        : 'Cptes. ilimitados'}
+                        Hasta {plan.limite_usuarios} usuarios
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                      Hasta {plan.limite_usuarios} usuarios
-                    </div>
+                    {enabledFeatures.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-2 border-t border-zinc-100">
+                        {enabledFeatures.slice(0, 6).map(f => (
+                          <span key={f} className="text-[10px] px-1.5 py-0.5 bg-zinc-100 text-zinc-600 rounded font-medium">
+                            {f.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                        {enabledFeatures.length > 6 && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-zinc-100 text-zinc-500 rounded font-medium">
+                            +{enabledFeatures.length - 6} más
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <Badge variant="neutral" size="sm">{plan.id.slice(0, 8)}</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* ── Tab: Sistema ──────────────────────────────────────────────── */}
-      {tab === 'sistema' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4">
-            {systemConfig.map((item) => (
-              <div key={item.key} className="card p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider">{item.key.replace(/_/g, ' ')}</h3>
-                    <p className="text-xs text-zinc-500">{item.description}</p>
-                  </div>
-                  <Badge variant={item.is_secret ? 'warning' : 'neutral'} size="sm">
-                    {item.is_secret ? 'Sensible' : 'Público'}
-                  </Badge>
-                </div>
-                <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-100">
-                  <pre className="text-[11px] font-mono text-zinc-600 overflow-x-auto">
-                    {JSON.stringify(item.value, null, 2)}
-                  </pre>
-                </div>
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={() => handleEditConfig(item)}
-                    className="btn-sm btn-secondary gap-1.5 text-xs"
-                  >
-                    <Edit2 className="w-3 h-3" /> Editar valores
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ── Tab: Almacenamiento ─────────────────────────────────────────── */}
+      {tab === 'almacenamiento' && (
+        <div className="card p-6">
+          <StorageConfigForm
+            config={getConfigValue('storage_config')}
+            onSave={(val) => void handleSaveSystemConfig('storage_config', val)}
+            saving={savingConfig}
+          />
+        </div>
+      )}
+
+      {/* ── Tab: Pagos ─────────────────────────────────────────────────── */}
+      {tab === 'pagos' && (
+        <div className="card p-6">
+          <BancardConfigForm
+            config={getConfigValue('bancard_config')}
+            onSave={(val) => void handleSaveSystemConfig('bancard_config', val)}
+            saving={savingConfig}
+          />
+        </div>
+      )}
+
+      {/* ── Tab: Notificaciones ─────────────────────────────────────────── */}
+      {tab === 'notificaciones' && (
+        <div className="card p-6">
+          <NotificationConfigForm
+            config={getConfigValue('notification_templates')}
+            onSave={(val) => void handleSaveSystemConfig('notification_templates', val)}
+            saving={savingConfig}
+          />
         </div>
       )}
 
@@ -467,48 +794,6 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
         onConfirm={() => void confirmDeletePlan()}
         onClose={() => setDeletingId(null)}
       />
-
-      {showConfigModal && editingConfig && (
-        <SystemConfigModal
-          config={editingConfig}
-          onClose={() => setShowConfigModal(false)}
-          onSave={handleSaveSystemConfig}
-        />
-      )}
     </div>
-  );
-}
-
-function SystemConfigModal({ config, onClose, onSave }: { config: SystemSetting; onClose: () => void; onSave: (val: any) => void }) {
-  const [val, setVal] = useState(JSON.stringify(config.value, null, 2));
-
-  return (
-    <Modal open title={`Editar ${config.key}`} onClose={onClose} size="md">
-      <div className="space-y-4 py-4">
-        <div>
-          <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Valor (JSON)</label>
-          <textarea
-            value={val}
-            onChange={(e) => setVal(e.target.value)}
-            className="input h-48 font-mono text-xs"
-          />
-        </div>
-        <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="btn-md btn-secondary">Cancelar</button>
-          <button
-            onClick={() => {
-              try {
-                onSave(JSON.parse(val));
-              } catch (e) {
-                alert('JSON inválido');
-              }
-            }}
-            className="btn-md btn-primary"
-          >
-            Guardar cambios
-          </button>
-        </div>
-      </div>
-    </Modal>
   );
 }

@@ -52,6 +52,6 @@ export async function webhookBillingRoutes(app: FastifyInstance): Promise<void> 
             }
         }
 
-        return reply.send({ status: 'ok' });
+        return reply.send({ success: true });
     });
 }

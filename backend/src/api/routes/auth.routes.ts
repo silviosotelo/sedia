@@ -90,7 +90,7 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     const usuario = await createUsuario(body);
-    return reply.status(201).send({ data: usuario });
+    return reply.status(201).send({ success: true, data: usuario });
   });
 
   fastify.put('/usuarios/:id', async (request, reply) => {

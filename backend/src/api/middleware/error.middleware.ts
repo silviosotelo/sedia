@@ -1,42 +1,49 @@
 import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../config/logger';
+import { ApiError } from '../../utils/errors';
 
 export function errorHandler(
-  error: FastifyError | any,
+  error: FastifyError | ApiError | Error,
   request: FastifyRequest,
   reply: FastifyReply
 ): void {
+  const isApiError = error instanceof ApiError || ('statusCode' in error && 'code' in error);
+
   logger.error('Request error', {
     method: request.method,
     url: request.url,
     error: error.message,
-    statusCode: error.statusCode,
+    statusCode: (error as any).statusCode,
+    code: (error as any).code,
   });
 
-  if (error.validation) {
+  // Fastify validation errors
+  if ('validation' in error && (error as FastifyError).validation) {
     void reply.status(400).send({
       success: false,
       error: {
         code: 'VALIDATION_ERROR',
         message: 'Datos de entrada inválidos',
-        details: error.validation,
+        details: (error as FastifyError).validation,
       },
     });
     return;
   }
 
-  if (error.statusCode) {
+  // ApiError or Fastify errors with statusCode
+  if (isApiError && 'statusCode' in error && typeof error.statusCode === 'number') {
     void reply.status(error.statusCode).send({
       success: false,
       error: {
-        code: error.code || 'API_ERROR',
-        message: error.message || error.name,
-        details: error.details,
+        code: (error as any).code || 'API_ERROR',
+        message: error.message || 'Error del servidor',
+        details: (error as any).details,
       },
     });
     return;
   }
 
+  // Catch-all for unexpected errors
   void reply.status(500).send({
     success: false,
     error: {

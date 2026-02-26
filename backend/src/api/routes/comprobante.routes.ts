@@ -170,6 +170,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
     );
 
     return reply.send({
+      success: true,
       data,
       meta: {
         total,
@@ -361,7 +362,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
           filtros: filtrosObj, filas: data.length, buffer, filename: xlsxFilename,
         });
         if (storageService.isEnabled() && signedUrl) {
-          return reply.send({ download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length });
+          return reply.send({ success: true, data: { download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length } });
         }
         return reply
           .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -377,7 +378,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
           filtros: filtrosObj, filas: data.length, buffer, filename: pdfFilename,
         });
         if (storageService.isEnabled() && signedUrl) {
-          return reply.send({ download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length });
+          return reply.send({ success: true, data: { download_url: signedUrl, expires_at: new Date(Date.now() + 3600000).toISOString(), filas: data.length } });
         }
         return reply
           .header('Content-Type', 'application/pdf')

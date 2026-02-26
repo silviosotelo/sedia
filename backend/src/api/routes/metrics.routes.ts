@@ -88,6 +88,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     ]);
 
     return reply.send({
+      success: true,
       data: {
         tenants: {
           total: parseInt(tenantsRow?.total ?? '0'),
@@ -185,6 +186,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     ]);
 
     return reply.send({
+      success: true,
       data: {
         comprobantes: {
           total: parseInt(comprobantesRow?.total ?? '0'),
@@ -319,6 +321,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     const totalComp = parseInt(xmlRow?.total ?? '0');
 
     return reply.send({
+      success: true,
       data: {
         periodo: { mes, anio, desde, hasta: hastaStr },
         resumen: {
@@ -450,6 +453,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
     ]);
 
     return reply.send({
+      success: true,
       data: {
         tenants_por_mes: tenantsPorMes,
         top_tenants: topTenants.map((r) => ({

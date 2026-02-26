@@ -23,11 +23,16 @@ export class StorageService {
     this.client = null;
 
     if (this.enabled) {
-      this.initClient({
-        accountId: process.env.R2_ACCOUNT_ID!,
-        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-      });
+      const accountId = process.env.R2_ACCOUNT_ID;
+      const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+      const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+
+      if (accountId && accessKeyId && secretAccessKey) {
+        this.initClient({ accountId, accessKeyId, secretAccessKey });
+      } else {
+        logger.warn('StorageService: R2_ENABLED=true pero faltan credenciales en ENV');
+        this.enabled = false;
+      }
     } else {
       logger.warn('StorageService: R2 deshabilitado inicialmente (usando ENV)');
     }
@@ -45,22 +50,38 @@ export class StorageService {
   }
 
   /**
-   * Reconfigura el servicio usando valores de la base de datos (system_settings)
+   * Reconfigura el servicio usando valores de la base de datos (system_settings).
+   * Soporta tanto el formato viejo de la migración 011 (r2_access_key, r2_secret_key)
+   * como el formato normalizado (access_key_id, secret_access_key, account_id).
    */
   async reconfigureFromDB() {
     const { systemService } = require('./system.service');
     const config = await systemService.getSetting('storage_config');
 
-    if (config && config.enabled) {
+    if (!config) return;
+
+    // Normalizar campos: soportar ambos formatos de config de la DB
+    const accountId = config.account_id || config.r2_account_id || process.env.R2_ACCOUNT_ID;
+    const accessKeyId = config.access_key_id || config.r2_access_key || process.env.R2_ACCESS_KEY_ID;
+    const secretAccessKey = config.secret_access_key || config.r2_secret_key || process.env.R2_SECRET_ACCESS_KEY;
+    const bucket = config.bucket || config.r2_bucket || this.bucket;
+    const publicUrl = config.public_url || config.r2_public_url || this.publicUrl;
+
+    // Determinar si está habilitado
+    const isEnabled = config.enabled !== undefined
+      ? config.enabled
+      : !!(accountId && accessKeyId && secretAccessKey);
+
+    if (isEnabled && accountId && accessKeyId && secretAccessKey) {
       this.enabled = true;
-      this.bucket = config.bucket || this.bucket;
-      this.publicUrl = config.public_url || this.publicUrl;
-      this.initClient({
-        accountId: config.account_id,
-        accessKeyId: config.access_key_id,
-        secretAccessKey: config.secret_access_key,
-      });
+      this.bucket = bucket;
+      this.publicUrl = publicUrl;
+      this.initClient({ accountId, accessKeyId, secretAccessKey });
       logger.info('StorageService: R2 configurado desde la base de datos');
+    } else if (config.enabled === false) {
+      this.enabled = false;
+      this.client = null;
+      logger.info('StorageService: R2 deshabilitado desde la base de datos');
     }
   }
 
@@ -71,7 +92,7 @@ export class StorageService {
     metadata?: Record<string, string>;
   }): Promise<UploadResult> {
     if (!this.enabled || !this.client) {
-      // Modo local: no persistir, solo retornar metadata
+      logger.warn(`StorageService.upload: R2 no disponible, archivo "${params.key}" no persistido`);
       return {
         key: params.key,
         url: '',
@@ -90,7 +111,13 @@ export class StorageService {
 
     await this.client.send(cmd);
 
-    const url = this.publicUrl ? `${this.publicUrl}/${params.key}` : '';
+    // Generar signed URL si no hay publicUrl configurado
+    let url = '';
+    if (this.publicUrl) {
+      url = `${this.publicUrl}/${params.key}`;
+    } else {
+      url = await this.getSignedDownloadUrl(params.key, 3600);
+    }
 
     return {
       key: params.key,
@@ -102,6 +129,7 @@ export class StorageService {
 
   async getSignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
     if (!this.enabled || !this.client) {
+      logger.warn(`StorageService.getSignedDownloadUrl: R2 no disponible para key "${key}"`);
       return '';
     }
 

@@ -66,7 +66,7 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
             next_run_at: new Date(),
         });
 
-        return reply.status(202).send({ data: { job_id: job.id, status: 'PENDING' } });
+        return reply.status(202).send({ success: true, message: 'Job de importación encolado', data: { job_id: job.id, status: 'PENDING' } });
     });
 
     app.get<{
@@ -80,7 +80,7 @@ export async function processorRoutes(app: FastifyInstance): Promise<void> {
             fecha_desde, fecha_hasta, processor_id,
             page: parseInt(page), limit: parseInt(limit),
         });
-        return reply.send({ data, meta: { total, page: parseInt(page), limit: parseInt(limit) } });
+        return reply.send({ success: true, data, meta: { total, page: parseInt(page), limit: parseInt(limit), total_pages: Math.ceil(total / parseInt(limit)) } });
     });
 
     app.get<{

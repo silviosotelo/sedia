@@ -1,10 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { ApiError } from '../../utils/errors';
 
 export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
+  app.addHook('preHandler', checkFeature('clasificacion'));
 
   app.get<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/clasificacion/reglas',
@@ -36,7 +38,7 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
          RETURNING id, nombre, descripcion, campo, operador, valor, etiqueta, color, prioridad, activo, created_at`,
         [req.params.tenantId, nombre, descripcion ?? null, campo, operador, valor, etiqueta, color, prioridad, activo]
       );
-      return reply.status(201).send({ data: row });
+      return reply.status(201).send({ success: true, data: row });
     }
   );
 
@@ -133,7 +135,7 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
         aplicadas += Array.isArray(result) ? result.length : 0;
       }
 
-      return reply.send({ message: `Clasificacion aplicada`, etiquetas_aplicadas: aplicadas });
+      return reply.send({ success: true, data: { message: 'Clasificación aplicada', etiquetas_aplicadas: aplicadas } });
     }
   );
 }

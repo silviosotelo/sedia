@@ -1,13 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
-// import { checkFeature } from '../middleware/plan.middleware';
+import { checkFeature } from '../middleware/plan.middleware';
 import { sifenConfigService } from '../../services/sifenConfig.service';
 import { query, queryOne } from '../../db/connection';
 import { ApiError } from '../../utils/errors';
 
 export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     app.addHook('preHandler', requireAuth);
-    // app.addHook('preHandler', checkFeature('facturacion_electronica'));
+    app.addHook('preHandler', checkFeature('facturacion_electronica'));
 
     // --- CONFIG ---
     app.get<{ Params: { id: string } }>('/tenants/:id/sifen/config', async (req, reply) => {
@@ -46,7 +46,7 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         params.push(limit, offset);
 
         const data = await query(sql, params);
-        return reply.send({ data });
+        return reply.send({ success: true, data });
     });
 
     app.post<{ Params: { id: string } }>('/tenants/:id/sifen/de', async (req, reply) => {
@@ -115,7 +115,7 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         if (!lote) throw new ApiError(404, 'NOT_FOUND', 'Lote no encontrado');
 
         const items = await query(`SELECT * FROM sifen_lote_items WHERE tenant_id = $1 AND lote_id = $2 ORDER BY orden`, [req.params.id, req.params.loteId]);
-        return reply.send({ data: { ...lote, items } });
+        return reply.send({ success: true, data: { ...lote, items } });
     });
 
     app.post<{ Params: { id: string; loteId: string } }>('/tenants/:id/sifen/lotes/:loteId/send', async (req, reply) => {
