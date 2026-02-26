@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Callout } from '@tremor/react';
 import { Sidebar, type Page } from './Sidebar';
 import { useAuth } from '../../contexts/AuthContext';
-import { AlertCircle } from 'lucide-react';
 
 interface ShellProps {
   current: Page;
@@ -44,16 +44,14 @@ export function Shell({ current, onNavigate, apiStatus, mockMode, children }: Sh
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <main className="flex-1 overflow-y-auto p-6 lg:px-8 lg:py-8">
           {billingStatus === 'PAST_DUE' && (
-            <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start">
-              <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 mr-3 flex-shrink-0" />
-              <div>
-                <h3 className="text-sm font-bold text-red-800">Problemas con tu método de pago</h3>
-                <p className="text-sm text-red-700 mt-1">
-                  No pudimos procesar el cobro de tu suscripción. Hemos iniciado un período de gracia extra para que actualices tu tarjeta
-                  en la sección "Suscripción y Pagos". Evitá la suspensión de tu cuenta.
-                </p>
-              </div>
-            </div>
+            <Callout
+              className="mb-6"
+              title="Problemas con tu método de pago"
+              color="rose"
+            >
+              No pudimos procesar el cobro de tu suscripción. Hemos iniciado un período de gracia extra para que actualices tu tarjeta
+              en la sección "Suscripción y Pagos". Evitá la suspensión de tu cuenta.
+            </Callout>
           )}
           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
