@@ -26,3 +26,8 @@ build_err.txt
 backend/package-lock.json
 package-lock.json
 backend/tsc_output.txt
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
