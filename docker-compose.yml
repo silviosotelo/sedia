@@ -5,17 +5,18 @@ services:
     image: postgres:15-alpine
     container_name: set-comprobantes-db
     environment:
-      POSTGRES_DB: set_comprobantes
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - set-network
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,15 +27,15 @@ services:
       target: runner
     container_name: set-comprobantes-api
     environment:
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-changeme}@postgres:5432/set_comprobantes
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change_me_32_chars_minimum_please!}
-      PORT: 4000
-      NODE_ENV: ${NODE_ENV:-production}
-      DEBUG: ${DEBUG:-false}
-      PUPPETEER_HEADLESS: "true"
-      MARANGATU_BASE_URL: https://marangatu.set.gov.py
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      PORT: ${PORT}
+      NODE_ENV: ${NODE_ENV}
+      DEBUG: ${DEBUG}
+      PUPPETEER_HEADLESS: ${PUPPETEER_HEADLESS}
+      MARANGATU_BASE_URL: ${MARANGATU_BASE_URL}
     expose:
-      - "4000"
+      - "${PORT}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -49,14 +50,14 @@ services:
       target: runner
     container_name: set-comprobantes-worker
     environment:
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-changeme}@postgres:5432/set_comprobantes
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change_me_32_chars_minimum_please!}
-      NODE_ENV: ${NODE_ENV:-production}
-      DEBUG: ${DEBUG:-false}
-      PUPPETEER_HEADLESS: "true"
-      MARANGATU_BASE_URL: https://marangatu.set.gov.py
-      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
-      WORKER_MAX_CONCURRENT_JOBS: ${WORKER_MAX_CONCURRENT_JOBS:-2}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      NODE_ENV: ${NODE_ENV}
+      DEBUG: ${DEBUG}
+      PUPPETEER_HEADLESS: ${PUPPETEER_HEADLESS}
+      MARANGATU_BASE_URL: ${MARANGATU_BASE_URL}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS}
+      WORKER_MAX_CONCURRENT_JOBS: ${WORKER_MAX_CONCURRENT_JOBS}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,8 +77,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://saas.rohekawebservices.online/api}
-        VITE_MOCK_MODE: ${VITE_MOCK_MODE:-false}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_MOCK_MODE: ${VITE_MOCK_MODE}
     container_name: set-comprobantes-frontend
     expose:
       - "80"
@@ -124,8 +125,8 @@ services:
       target: build
     container_name: set-comprobantes-migrate
     environment:
-      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-changeme}@postgres:5432/set_comprobantes
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change_me_32_chars_minimum_please!}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
     depends_on:
       postgres:
         condition: service_healthy
