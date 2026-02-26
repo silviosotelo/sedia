@@ -111,14 +111,14 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
           <NumberInput min={1000} max={30000} step={1000} value={form.timeout_ms}
             onChange={(e) => setForm((f) => ({ ...f, timeout_ms: parseInt(e.target.value) || 10000 }))} />
         </div>
-        <div className="flex items-end pb-1">
-          <div className="flex items-center gap-3">
+        <div>
+          <Text className="mb-1 font-medium">Activo</Text>
+          <div className="flex items-center h-10">
             <Switch
               id="activo-webhook"
               checked={form.activo}
               onChange={(enabled) => setForm(f => ({ ...f, activo: enabled }))}
             />
-            <label htmlFor="activo-webhook" className="text-sm text-tremor-content-strong cursor-pointer">Activo</label>
           </div>
         </div>
       </div>

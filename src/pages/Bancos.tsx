@@ -327,16 +327,14 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                                 onChange={(e) => setForm({ ...form, pais: e.target.value.toUpperCase().slice(0, 3) })}
                             />
                         </div>
-                        <div className="flex flex-col justify-end pb-1">
-                            <div className="flex items-center gap-3">
+                        <div>
+                            <Text className="mb-1 font-medium">Banco activo</Text>
+                            <div className="flex items-center h-10">
                                 <Switch
                                     id="bank-active"
                                     checked={form.activo}
                                     onChange={(checked) => setForm({ ...form, activo: checked })}
                                 />
-                                <label htmlFor="bank-active" className="text-sm text-tremor-content cursor-pointer">
-                                    Banco activo
-                                </label>
                             </div>
                         </div>
                     </div>
