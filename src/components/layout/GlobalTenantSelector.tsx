@@ -23,9 +23,9 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
     if (!isSuperAdmin && tenants.length <= 1) {
         if (collapsed) return null;
         return (
-            <div className="px-5 py-4 border-b border-zinc-200/80 bg-zinc-50/50">
-                <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-tr from-zinc-800 to-zinc-700 shadow-sm border border-zinc-600 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="px-3 py-3 border-b border-tremor-border">
+                <div className="flex items-center gap-3 bg-white border border-tremor-border rounded-xl shadow-sm p-2.5">
+                    <div className="w-9 h-9 bg-gradient-to-tr from-zinc-800 to-zinc-700 shadow-sm border border-zinc-600 rounded-lg flex items-center justify-center flex-shrink-0">
                         {activeTenant ? (
                             <span className="text-[11px] font-bold text-white uppercase tracking-wider">
                                 {activeTenant.nombre_fantasia.slice(0, 2)}
@@ -46,7 +46,7 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
     }
 
     return (
-        <div className={cn("border-b border-zinc-200/80 bg-zinc-50/50 relative", collapsed ? "p-3 flex justify-center" : "px-4 py-4")} ref={dropdownRef}>
+        <div className={cn("px-3 py-3 border-b border-tremor-border relative", collapsed ? "flex justify-center" : "")} ref={dropdownRef}>
             {loading && tenants.length === 0 ? (
                 <div className={cn("animate-pulse bg-zinc-200/80 rounded-xl", collapsed ? "w-9 h-9" : "h-[42px] w-full")} />
             ) : (
@@ -55,7 +55,7 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
                         onClick={() => setIsOpen(!isOpen)}
                         title={collapsed ? activeTenant?.nombre_fantasia : undefined}
                         className={cn(
-                            "flex items-center text-left bg-white border border-zinc-200/80 rounded-xl shadow-sm hover:shadow hover:border-zinc-300 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 active:scale-[0.98] group",
+                            "flex items-center text-left bg-white border border-tremor-border rounded-xl shadow-sm hover:shadow hover:border-zinc-300 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 active:scale-[0.98] group",
                             collapsed ? "p-1.5 justify-center" : "w-full p-2.5 gap-3"
                         )}
                     >

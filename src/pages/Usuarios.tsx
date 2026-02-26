@@ -266,14 +266,16 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
               </Select>
             </div>
           )}
-          <div className="flex items-center gap-3">
-            <Switch
-              id="activo"
-              name="activo"
-              checked={form.activo}
-              onChange={(enabled) => setForm(p => ({ ...p, activo: enabled }))}
-            />
-            <label htmlFor="activo" className="text-sm text-tremor-content-strong cursor-pointer">Usuario activo</label>
+          <div>
+            <Text className="mb-1 font-medium">Usuario activo</Text>
+            <div className="flex items-center h-10">
+              <Switch
+                id="activo"
+                name="activo"
+                checked={form.activo}
+                onChange={(enabled) => setForm(p => ({ ...p, activo: enabled }))}
+              />
+            </div>
           </div>
           <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
             <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>

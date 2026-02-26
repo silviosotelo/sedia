@@ -124,14 +124,14 @@ function AlertaForm({
           <NumberInput min={1} max={10080} value={form.cooldown_minutos}
             onChange={(e) => setField('cooldown_minutos', parseInt(e.target.value) || 60)} />
         </div>
-        <div className="flex items-end pb-1">
-          <div className="flex items-center gap-3">
+        <div>
+          <Text className="mb-1 font-medium">Activa</Text>
+          <div className="flex items-center h-10">
             <Switch
               id="activa"
               checked={form.activo}
               onChange={(enabled) => setField('activo', enabled)}
             />
-            <label htmlFor="activa" className="text-sm text-tremor-content-strong cursor-pointer">Activa</label>
           </div>
         </div>
       </div>

@@ -98,10 +98,10 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
           )}
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
+      <div className="grid grid-cols-12 gap-4 items-end">
+        <div className="col-span-12 sm:col-span-5">
           <Text className="mb-1 font-medium">Color de etiqueta</Text>
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 h-10">
             <div className="flex gap-1.5 flex-wrap">
               {COLORES_PRESET.map((c) => (
                 <button key={c} type="button" onClick={() => setField('color', c)}
@@ -109,23 +109,21 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
                   style={{ backgroundColor: c }} />
               ))}
             </div>
-            <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-7 h-7 rounded cursor-pointer border border-tremor-border" />
+            <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-tremor-border flex-shrink-0" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Text className="mb-1 font-medium">Prioridad</Text>
-            <NumberInput min={0} max={999} value={form.prioridad} onValueChange={(v) => setField('prioridad', v || 0)} />
-          </div>
-          <div className="flex items-end pb-1">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="activa-regla"
-                checked={form.activo}
-                onChange={(enabled) => setField('activo', enabled)}
-              />
-              <label htmlFor="activa-regla" className="text-sm text-tremor-content-strong cursor-pointer">Activa</label>
-            </div>
+        <div className="col-span-7 sm:col-span-4">
+          <Text className="mb-1 font-medium">Prioridad</Text>
+          <NumberInput min={0} max={999} value={form.prioridad} onValueChange={(v) => setField('prioridad', v || 0)} className="w-full" />
+        </div>
+        <div className="col-span-5 sm:col-span-3">
+          <Text className="mb-1 font-medium">Activa</Text>
+          <div className="flex items-center h-10 pl-1">
+            <Switch
+              id="activa-regla"
+              checked={form.activo}
+              onChange={(enabled) => setField('activo', enabled)}
+            />
           </div>
         </div>
       </div>

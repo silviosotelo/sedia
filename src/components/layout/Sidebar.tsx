@@ -290,14 +290,14 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
       </div>
 
       <div className={cn(
-        "border-t border-zinc-100 bg-zinc-50/50 space-y-3",
+        "border-t border-tremor-border space-y-3",
         collapsed ? "p-2" : "p-3"
       )}>
         {!collapsed && <GlobalTenantSelector />}
 
         <div className={cn(
-          "flex items-center bg-white border border-zinc-100 shadow-sm",
-          collapsed ? "flex-col p-1.5 gap-2 rounded-2xl" : "gap-3 px-3 py-2 rounded-xl"
+          "flex items-center bg-white border border-tremor-border shadow-sm",
+          collapsed ? "flex-col p-1.5 gap-2 rounded-2xl" : "gap-3 px-2.5 py-2.5 rounded-xl mx-1"
         )}>
           <div className={cn(
             "rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600 font-bold border border-zinc-200 flex-shrink-0",

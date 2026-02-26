@@ -154,7 +154,7 @@ button[role="tab"][aria-selected="true"]:hover {
 }
 
 /* Strict Switch Overrides to match User's precise dimensions (h-5 w-9 with 3.5 thumb) */
-.tremor-Switch-root,
+.tremor-Switch-switch,
 button[role="switch"] {
   height: 1.25rem !important;
   /* h-5 */
@@ -170,8 +170,8 @@ button[role="switch"] {
   flex-shrink: 0 !important;
 }
 
-.tremor-Switch-root[data-headlessui-state*="checked"],
-.tremor-Switch-root[aria-checked="true"],
+.tremor-Switch-switch[data-headlessui-state*="checked"],
+.tremor-Switch-switch[aria-checked="true"],
 button[role="switch"][aria-checked="true"] {
   background-color: rgb(var(--brand-rgb)) !important;
   /* Maps to bg-zinc-900 if no brand is set */
@@ -179,8 +179,8 @@ button[role="switch"][aria-checked="true"] {
 }
 
 /* Switch thumb */
-.tremor-Switch-root .tremor-Switch-round,
-button[role="switch"] span:not(.sr-only):not([aria-hidden="true"]) {
+.tremor-Switch-switch .tremor-Switch-round,
+button[role="switch"] span:not(.sr-only) {
   height: 0.875rem !important;
   /* h-3.5 */
   width: 0.875rem !important;
@@ -188,21 +188,23 @@ button[role="switch"] span:not(.sr-only):not([aria-hidden="true"]) {
   background-color: white !important;
   border: none !important;
   border-radius: 9999px !important;
-  box-shadow: none !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
   --tw-translate-x: 0.125rem !important;
   /* Base unchecked translation */
+  transform: translateX(var(--tw-translate-x)) !important;
+  /* Re-apply transform using the variable so tailwind handles the rest */
 }
 
 /* Hide Tremor's extra background span that causes double bubbles */
-.tremor-Switch-root .tremor-Switch-background {
+.tremor-Switch-switch .tremor-Switch-background {
   display: none !important;
 }
 
 /* Checked state translation */
-.tremor-Switch-root[data-headlessui-state*="checked"] .tremor-Switch-round,
-.tremor-Switch-root[aria-checked="true"] .tremor-Switch-round,
-button[role="switch"][aria-checked="true"] span:not(.sr-only):not([aria-hidden="true"]) {
+.tremor-Switch-switch[data-headlessui-state*="checked"] .tremor-Switch-round,
+.tremor-Switch-switch[aria-checked="true"] .tremor-Switch-round,
+button[role="switch"][aria-checked="true"] span:not(.sr-only) {
   --tw-translate-x: 1.25rem !important;
   /* 20px translation */
 }
