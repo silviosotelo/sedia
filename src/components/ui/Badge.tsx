@@ -11,13 +11,13 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<Variant, string> = {
-  default: 'bg-zinc-100 text-zinc-700',
-  success: 'bg-emerald-50 text-emerald-700',
-  warning: 'bg-amber-50 text-amber-700',
-  danger: 'bg-rose-50 text-rose-600',
-  info: 'bg-sky-50 text-sky-700',
-  neutral: 'bg-zinc-100 text-zinc-500',
-  orange: 'bg-orange-50 text-orange-700',
+  default: 'bg-zinc-100 text-zinc-700 border-zinc-200',
+  success: 'bg-emerald-50 text-emerald-700 border-emerald-200/60',
+  warning: 'bg-amber-50 text-amber-700 border-amber-200/60',
+  danger: 'bg-rose-50 text-rose-600 border-rose-200/60',
+  info: 'bg-sky-50 text-sky-700 border-sky-200/60',
+  neutral: 'bg-zinc-50 text-zinc-500 border-zinc-200/60',
+  orange: 'bg-orange-50 text-orange-700 border-orange-200/60',
 };
 
 const dotClasses: Record<Variant, string> = {

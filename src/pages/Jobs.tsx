@@ -13,6 +13,7 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
+import { Card, Metric, Text, Grid } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -294,31 +295,36 @@ export function Jobs({ toastError }: JobsProps) {
         refreshing={refreshing}
       />
 
-      <div className="grid grid-cols-4 gap-3 mb-6">
+      <Grid numItemsSm={2} numItemsLg={4} className="gap-3 mb-6">
         {[
-          { key: 'PENDING', label: 'Pendientes', icon: <Clock className="w-4 h-4 text-amber-500" />, bg: 'bg-amber-50' },
-          { key: 'RUNNING', label: 'En ejecución', icon: <Loader2 className="w-4 h-4 text-sky-500 animate-spin" />, bg: 'bg-sky-50' },
-          { key: 'DONE', label: 'Completados', icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, bg: 'bg-emerald-50' },
-          { key: 'FAILED', label: 'Fallidos', icon: <XCircle className="w-4 h-4 text-rose-500" />, bg: 'bg-rose-50' },
-        ].map(({ key, label, icon, bg }) => (
+          { key: 'PENDING', label: 'Pendientes', icon: <Clock className="w-4 h-4 text-amber-500" />, iconBg: 'bg-amber-50', color: 'amber' as const },
+          { key: 'RUNNING', label: 'En ejecución', icon: <Loader2 className="w-4 h-4 text-sky-500 animate-spin" />, iconBg: 'bg-sky-50', color: 'sky' as const },
+          { key: 'DONE', label: 'Completados', icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" />, iconBg: 'bg-emerald-50', color: 'emerald' as const },
+          { key: 'FAILED', label: 'Fallidos', icon: <XCircle className="w-4 h-4 text-rose-500" />, iconBg: 'bg-rose-50', color: 'rose' as const },
+        ].map(({ key, label, icon, iconBg, color }) => (
           <button
             key={key}
             onClick={() => setStatusFilter(statusFilter === key ? '' : key)}
-            className={`card p-4 flex items-center gap-3 transition-all hover:shadow-sm text-left ${statusFilter === key ? 'ring-2 ring-zinc-900 ring-offset-1' : ''
-              }`}
+            className="text-left w-full"
           >
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bg}`}>
-              {icon}
-            </div>
-            <div>
-              <p className="text-lg font-bold text-zinc-900 tabular-nums">
-                {counts[key as keyof typeof counts]}
-              </p>
-              <p className="text-xs text-zinc-500">{label}</p>
-            </div>
+            <Card
+              decoration="top"
+              decorationColor={color}
+              className={`transition-all hover:shadow-md ${statusFilter === key ? 'ring-2 ring-zinc-900 ring-offset-1' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${iconBg}`}>
+                  {icon}
+                </div>
+                <div>
+                  <Metric className="text-xl">{counts[key as keyof typeof counts]}</Metric>
+                  <Text>{label}</Text>
+                </div>
+              </div>
+            </Card>
           </button>
         ))}
-      </div>
+      </Grid>
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">

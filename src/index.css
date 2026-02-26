@@ -78,11 +78,11 @@
 
   /* Cards */
   .card {
-    @apply bg-white border border-zinc-200/60 rounded-xl shadow-sm shadow-zinc-200/40;
+    @apply bg-white border border-zinc-200/60 rounded-2xl shadow-sm shadow-zinc-100/80 ring-1 ring-zinc-950/5;
   }
 
   .card-hover {
-    @apply card transition-all duration-300 hover:shadow-lg hover:shadow-zinc-200/60 hover:-translate-y-0.5 hover:border-zinc-300/80;
+    @apply card transition-all duration-300 hover:shadow-md hover:shadow-zinc-200/60 hover:-translate-y-0.5 hover:border-zinc-300/80;
   }
 
   /* Inputs */
@@ -108,12 +108,12 @@
 
   /* Badges */
   .badge {
-    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium tracking-tight border;
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium tracking-tight border;
   }
 
   /* Tables */
   .table-th {
-    @apply px-4 py-3.5 text-left text-xs font-bold text-zinc-500 uppercase tracking-wider bg-zinc-50/50 backdrop-blur-sm sticky top-0 z-10;
+    @apply px-4 py-3 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-50 sticky top-0 z-10 border-b border-zinc-200/60;
   }
 
   .table-td {
@@ -121,7 +121,7 @@
   }
 
   .table-tr {
-    @apply border-b border-zinc-100/80 last:border-0 hover:bg-zinc-50/80 transition-colors duration-200 cursor-default;
+    @apply border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors duration-150 cursor-default;
   }
 
   /* Layout */
@@ -130,12 +130,12 @@
   }
 
   .stat-card {
-    @apply card p-6 flex flex-col gap-4 relative overflow-hidden;
+    @apply card p-6 flex flex-col gap-4 relative overflow-hidden border-t-4 border-t-zinc-200;
   }
 
   /* Structural */
   .page-header {
-    @apply flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-zinc-200/80 mb-8;
+    @apply flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-zinc-200/60 mb-8;
   }
 
   .page-title {
@@ -143,11 +143,11 @@
   }
 
   .page-subtitle {
-    @apply text-sm font-medium text-zinc-500 mt-1;
+    @apply text-sm text-zinc-500 mt-0.5;
   }
 
   .section-title {
-    @apply text-sm font-bold text-zinc-900 tracking-tight uppercase;
+    @apply text-xs font-semibold text-zinc-500 tracking-widest uppercase;
   }
 
   /* Helpers */

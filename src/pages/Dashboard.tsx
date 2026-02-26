@@ -14,10 +14,20 @@ import {
   BarChart3,
 } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Area, AreaChart, Line,
+  Card,
+  Metric,
+  Text,
+  Title,
+  BarChart,
+  DonutChart,
+  AreaChart,
+  Badge as TremorBadge,
+  Flex,
+  Grid,
+  Col,
+  Callout,
   Legend,
-} from 'recharts';
+} from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { PageLoader } from '../components/ui/Spinner';
@@ -32,48 +42,10 @@ interface DashboardProps {
   onNavigate: (page: Page, params?: Record<string, string>) => void;
 }
 
-interface StatCardProps {
-  label: string;
-  value: number | string;
-  icon: React.ReactNode;
-  iconBg: string;
-  sub?: string;
-  trend?: { value: string; positive: boolean };
-}
-
-function StatCard({ label, value, icon, iconBg, sub, trend }: StatCardProps) {
-  return (
-    <div className="stat-card hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-zinc-50 border border-zinc-100 ${iconBg}`}>
-          {icon}
-        </div>
-        {trend && (
-          <span
-            className={`text-xs px-2 py-1 rounded-md font-bold tracking-tight ${trend.positive
-              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50'
-              : 'bg-rose-50 text-rose-600 border border-rose-100/50'
-              }`}
-          >
-            {trend.positive ? '↑' : '↓'} {trend.value}
-          </span>
-        )}
-      </div>
-      <div className="mt-2">
-        <p className="text-3xl font-bold text-zinc-900 tracking-tight tabular-nums leading-none mb-1">
-          {value}
-        </p>
-        <p className="text-sm font-medium text-zinc-500">{label}</p>
-        {sub && <p className="text-xs text-zinc-400 mt-2 font-medium">{sub}</p>}
-      </div>
-    </div>
-  );
-}
-
 function JobStatusBadge({ status }: { status: string }) {
   const map: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'orange'; label: string }> = {
     PENDING: { variant: 'warning', label: 'Pendiente' },
-    RUNNING: { variant: 'info', label: 'En ejecuci\u00f3n' },
+    RUNNING: { variant: 'info', label: 'En ejecución' },
     DONE: { variant: 'success', label: 'Completado' },
     FAILED: { variant: 'danger', label: 'Fallido' },
   };
@@ -85,15 +57,7 @@ function JobStatusBadge({ status }: { status: string }) {
   );
 }
 
-const TIPO_COLORS: Record<string, string> = {
-  FACTURA: '#3f3f46',
-  NOTA_CREDITO: '#f59e0b',
-  NOTA_DEBITO: '#ef4444',
-  AUTOFACTURA: '#6366f1',
-  OTRO: '#a1a1aa',
-};
-
-const PIE_COLORS = ['#3f3f46', '#f59e0b', '#ef4444', '#6366f1', '#a1a1aa'];
+const TIPO_COLORS: string[] = ['zinc', 'amber', 'red', 'violet', 'slate'];
 
 function fmtGs(n: number) {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -197,191 +161,211 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       />
 
       {failedJobs.length > 0 && (
-        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-rose-50 border border-rose-200 rounded-xl text-sm">
-          <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
-          <span className="text-rose-700 font-medium">
-            {failedJobs.length} job{failedJobs.length !== 1 ? 's' : ''} fallido
-            {failedJobs.length !== 1 ? 's' : ''}
-          </span>
+        <Callout
+          title={`${failedJobs.length} job${failedJobs.length !== 1 ? 's' : ''} fallido${failedJobs.length !== 1 ? 's' : ''}`}
+          color="rose"
+          className="mb-6"
+        >
           <button
             onClick={() => onNavigate('jobs')}
-            className="ml-auto text-rose-600 hover:text-rose-700 font-medium flex items-center gap-1"
+            className="mt-1 text-rose-700 hover:text-rose-900 font-medium flex items-center gap-1 text-sm"
           >
             Ver jobs <ArrowRight className="w-3.5 h-3.5" />
           </button>
-        </div>
+        </Callout>
       )}
 
       {runningJobs.length > 0 && (
-        <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-sky-50 border border-sky-200 rounded-xl text-sm">
-          <Loader2 className="w-4 h-4 text-sky-500 flex-shrink-0 animate-spin" />
-          <span className="text-sky-700 font-medium">
-            {runningJobs.length} job{runningJobs.length !== 1 ? 's' : ''} ejecut\u00e1ndose ahora
-          </span>
-        </div>
+        <Callout
+          title={`${runningJobs.length} job${runningJobs.length !== 1 ? 's' : ''} ejecutándose ahora`}
+          color="sky"
+          className="mb-6"
+        />
       )}
 
-      <div className={`grid gap-4 mb-8 ${isTenantUser ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 lg:grid-cols-4'}`}>
+      <Grid numItemsSm={2} numItemsLg={isTenantUser ? 3 : 4} className="gap-4 mb-6">
         {!isTenantUser && (
-          <StatCard
-            label="Empresas registradas"
-            value={stats?.totalTenants ?? 0}
-            icon={<Building2 className="w-4 h-4 text-zinc-700" />}
-            iconBg="bg-zinc-100"
-            sub={`${tenants.filter((t) => t.activo).length} activas`}
-          />
+          <Card decoration="top" decorationColor="zinc">
+            <Flex alignItems="start">
+              <div>
+                <Text>Empresas registradas</Text>
+                <Metric>{stats?.totalTenants ?? 0}</Metric>
+              </div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-zinc-100 border border-zinc-200">
+                <Building2 className="w-4 h-4 text-zinc-700" />
+              </div>
+            </Flex>
+            <Text className="mt-2">{tenants.filter((t) => t.activo).length} activas</Text>
+          </Card>
         )}
-        <StatCard
-          label="Jobs totales"
-          value={stats?.totalJobs ?? 0}
-          icon={<Briefcase className="w-4 h-4 text-sky-600" />}
-          iconBg="bg-sky-50"
-          sub={`${stats?.pendingJobs ?? 0} pendientes`}
-        />
-        <StatCard
-          label="Jobs completados"
-          value={stats?.doneJobs ?? 0}
-          icon={<CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-          iconBg="bg-emerald-50"
-        />
-        <StatCard
-          label="Jobs fallidos"
-          value={stats?.failedJobs ?? 0}
-          icon={<XCircle className="w-4 h-4 text-rose-500" />}
-          iconBg="bg-rose-50"
-        />
-      </div>
+        <Card decoration="top" decorationColor="sky">
+          <Flex alignItems="start">
+            <div>
+              <Text>Jobs totales</Text>
+              <Metric>{stats?.totalJobs ?? 0}</Metric>
+            </div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-sky-50 border border-sky-100">
+              <Briefcase className="w-4 h-4 text-sky-600" />
+            </div>
+          </Flex>
+          <Text className="mt-2">{stats?.pendingJobs ?? 0} pendientes</Text>
+        </Card>
+        <Card decoration="top" decorationColor="emerald">
+          <Flex alignItems="start">
+            <div>
+              <Text>Jobs completados</Text>
+              <Metric>{stats?.doneJobs ?? 0}</Metric>
+            </div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-50 border border-emerald-100">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            </div>
+          </Flex>
+        </Card>
+        <Card decoration="top" decorationColor="rose">
+          <Flex alignItems="start">
+            <div>
+              <Text>Jobs fallidos</Text>
+              <Metric>{stats?.failedJobs ?? 0}</Metric>
+            </div>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-rose-50 border border-rose-100">
+              <XCircle className="w-4 h-4 text-rose-500" />
+            </div>
+          </Flex>
+        </Card>
+      </Grid>
 
-      <div className={`grid grid-cols-1 gap-6 ${isTenantUser ? '' : 'lg:grid-cols-3'}`}>
-        <div className={`card overflow-hidden ${isTenantUser ? '' : 'lg:col-span-2'}`}>
-          <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="w-4 h-4 text-zinc-400" />
-              <h3 className="section-title mb-0">Jobs recientes</h3>
-            </div>
-            <button
-              onClick={() => onNavigate('jobs')}
-              className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 font-medium"
-            >
-              Ver todos <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          {recentJobs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Briefcase className="w-8 h-8 text-zinc-300 mb-3" />
-              <p className="text-sm text-zinc-500">No hay jobs registrados</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-zinc-50">
-              {recentJobs.map((job) => {
-                const tenant = tenants.find((t) => t.id === job.tenant_id);
-                return (
-                  <div
-                    key={job.id}
-                    className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${job.estado === 'DONE'
-                        ? 'bg-emerald-50'
-                        : job.estado === 'FAILED'
-                          ? 'bg-rose-50'
-                          : job.estado === 'RUNNING'
-                            ? 'bg-sky-50'
-                            : 'bg-amber-50'
-                        }`}
-                    >
-                      {job.estado === 'DONE' ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      ) : job.estado === 'FAILED' ? (
-                        <XCircle className="w-4 h-4 text-rose-500" />
-                      ) : job.estado === 'RUNNING' ? (
-                        <Loader2 className="w-4 h-4 text-sky-500 animate-spin" />
-                      ) : (
-                        <Clock className="w-4 h-4 text-amber-500" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 truncate">
-                        {JOB_TYPE_LABELS[job.tipo_job] || job.tipo_job}
-                      </p>
-                      {!isTenantUser && (
-                        <p className="text-xs text-zinc-400 truncate">
-                          {tenant?.nombre_fantasia || job.tenant_id.slice(0, 8)}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <JobStatusBadge status={job.estado} />
-                      <span className="text-xs text-zinc-400">{formatRelative(job.created_at)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {!isTenantUser && (
-          <div className="card overflow-hidden">
+      <Grid numItemsLg={isTenantUser ? 1 : 3} className="gap-6">
+        <Col numColSpanLg={isTenantUser ? 1 : 2}>
+          <Card className="overflow-hidden p-0">
             <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-zinc-400" />
-                <h3 className="section-title mb-0">Empresas</h3>
+                <Activity className="w-4 h-4 text-zinc-400" />
+                <span className="section-title">Jobs recientes</span>
               </div>
               <button
-                onClick={() => onNavigate('tenants')}
+                onClick={() => onNavigate('jobs')}
                 className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 font-medium"
               >
-                Ver todas <ArrowRight className="w-3 h-3" />
+                Ver todos <ArrowRight className="w-3 h-3" />
               </button>
             </div>
-            {tenants.length === 0 ? (
+            {recentJobs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
-                <Building2 className="w-8 h-8 text-zinc-300 mb-3" />
-                <p className="text-sm text-zinc-500">Sin empresas a\u00fan</p>
-                <button
-                  onClick={() => onNavigate('tenants')}
-                  className="mt-3 btn-sm btn-primary"
-                >
-                  Crear empresa
-                </button>
+                <Briefcase className="w-8 h-8 text-zinc-300 mb-3" />
+                <Text>No hay jobs registrados</Text>
               </div>
             ) : (
               <div className="divide-y divide-zinc-50">
-                {tenants.slice(0, 6).map((tenant) => (
-                  <button
-                    key={tenant.id}
-                    onClick={() => onNavigate('tenants', { tenant_id: tenant.id })}
-                    className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-bold text-zinc-600">
-                        {tenant.nombre_fantasia.slice(0, 2).toUpperCase()}
-                      </span>
+                {recentJobs.map((job) => {
+                  const tenant = tenants.find((t) => t.id === job.tenant_id);
+                  return (
+                    <div
+                      key={job.id}
+                      className="px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          job.estado === 'DONE' ? 'bg-emerald-50'
+                          : job.estado === 'FAILED' ? 'bg-rose-50'
+                          : job.estado === 'RUNNING' ? 'bg-sky-50'
+                          : 'bg-amber-50'
+                        }`}
+                      >
+                        {job.estado === 'DONE' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        ) : job.estado === 'FAILED' ? (
+                          <XCircle className="w-4 h-4 text-rose-500" />
+                        ) : job.estado === 'RUNNING' ? (
+                          <Loader2 className="w-4 h-4 text-sky-500 animate-spin" />
+                        ) : (
+                          <Clock className="w-4 h-4 text-amber-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 truncate">
+                          {JOB_TYPE_LABELS[job.tipo_job] || job.tipo_job}
+                        </p>
+                        {!isTenantUser && (
+                          <p className="text-xs text-zinc-400 truncate">
+                            {tenant?.nombre_fantasia || job.tenant_id.slice(0, 8)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <JobStatusBadge status={job.estado} />
+                        <span className="text-xs text-zinc-400">{formatRelative(job.created_at)}</span>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 truncate">
-                        {tenant.nombre_fantasia}
-                      </p>
-                      <p className="text-xs text-zinc-400 font-mono">{tenant.ruc}</p>
-                    </div>
-                    <Badge variant={tenant.activo ? 'success' : 'neutral'} dot>
-                      {tenant.activo ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </button>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </div>
+          </Card>
+        </Col>
+
+        {!isTenantUser && (
+          <Col numColSpanLg={1}>
+            <Card className="overflow-hidden p-0">
+              <div className="px-5 py-4 border-b border-zinc-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-zinc-400" />
+                  <span className="section-title">Empresas</span>
+                </div>
+                <button
+                  onClick={() => onNavigate('tenants')}
+                  className="text-xs text-zinc-500 hover:text-zinc-700 flex items-center gap-1 font-medium"
+                >
+                  Ver todas <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+              {tenants.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center p-5">
+                  <Building2 className="w-8 h-8 text-zinc-300 mb-3" />
+                  <Text>Sin empresas aún</Text>
+                  <button
+                    onClick={() => onNavigate('tenants')}
+                    className="mt-3 btn-sm btn-primary"
+                  >
+                    Crear empresa
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-50">
+                  {tenants.slice(0, 6).map((tenant) => (
+                    <button
+                      key={tenant.id}
+                      onClick={() => onNavigate('tenants', { tenant_id: tenant.id })}
+                      className="w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-zinc-50/60 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-zinc-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs font-bold text-zinc-600">
+                          {tenant.nombre_fantasia.slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-zinc-900 truncate">
+                          {tenant.nombre_fantasia}
+                        </p>
+                        <p className="text-xs text-zinc-400 font-mono">{tenant.ruc}</p>
+                      </div>
+                      <Badge variant={tenant.activo ? 'success' : 'neutral'} dot>
+                        {tenant.activo ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </Col>
         )}
-      </div>
+      </Grid>
 
       {!isTenantUser && tenants.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="card p-5">
+        <Grid numItemsLg={2} className="gap-4 mt-6">
+          <Card>
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-4 h-4 text-zinc-400" />
-              <h3 className="section-title mb-0">Acciones r\u00e1pidas</h3>
+              <span className="section-title">Acciones rápidas</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {tenants.slice(0, 4).map((tenant) => (
@@ -400,12 +384,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </button>
               ))}
             </div>
-          </div>
+          </Card>
 
-          <div className="card p-5">
+          <Card>
             <div className="flex items-center gap-2 mb-4">
               <FileText className="w-4 h-4 text-zinc-400" />
-              <h3 className="section-title mb-0">Comprobantes por empresa</h3>
+              <span className="section-title">Comprobantes por empresa</span>
             </div>
             <div className="space-y-2">
               {tenants.slice(0, 4).map((tenant) => (
@@ -426,8 +410,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
+          </Card>
+        </Grid>
       )}
 
       {/* ── Análisis Fiscal Avanzado ──────────────────────────────────── */}
@@ -442,81 +426,80 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </div>
 
           {!activeTid && (
-            <div className="card p-8 text-center text-sm text-zinc-400">
-              Seleccioná una empresa en el menú lateral para ver su análisis fiscal
-            </div>
+            <Card className="text-center py-8">
+              <Text>Seleccioná una empresa en el menú lateral para ver su análisis fiscal</Text>
+            </Card>
           )}
 
           {dashAvanzado && (
             <>
-              {/* IVA cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="stat-card">
-                  <p className="text-2xl font-bold text-zinc-900">{dashAvanzado.resumen.total_comprobantes.toLocaleString('es-PY')}</p>
-                  <p className="text-xs text-zinc-500">Comprobantes del mes</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-2xl font-bold text-zinc-900">{fmtGs(dashAvanzado.resumen.monto_total)}</p>
-                  <p className="text-xs text-zinc-500">Monto total (Gs.)</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-2xl font-bold text-amber-600">{fmtGs(dashAvanzado.resumen.iva_10_total)}</p>
-                  <p className="text-xs text-zinc-500">IVA 10%</p>
-                </div>
-                <div className="stat-card">
-                  <p className="text-2xl font-bold text-sky-600">{fmtGs(dashAvanzado.resumen.iva_5_total)}</p>
-                  <p className="text-xs text-zinc-500">IVA 5%</p>
-                </div>
-              </div>
+              {/* IVA summary cards */}
+              <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
+                <Card decoration="top" decorationColor="zinc">
+                  <Text>Comprobantes del mes</Text>
+                  <Metric>{dashAvanzado.resumen.total_comprobantes.toLocaleString('es-PY')}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor="blue">
+                  <Text>Monto total (Gs.)</Text>
+                  <Metric>{fmtGs(dashAvanzado.resumen.monto_total)}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor="amber">
+                  <Text>IVA 10%</Text>
+                  <Metric className="text-amber-600">{fmtGs(dashAvanzado.resumen.iva_10_total)}</Metric>
+                </Card>
+                <Card decoration="top" decorationColor="sky">
+                  <Text>IVA 5%</Text>
+                  <Metric className="text-sky-600">{fmtGs(dashAvanzado.resumen.iva_5_total)}</Metric>
+                </Card>
+              </Grid>
 
               {/* Evolución 12 meses + Distribución por tipo */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="card p-5 lg:col-span-2">
-                  <h3 className="section-title mb-4">Evolución 12 meses</h3>
-                  <ResponsiveContainer width="100%" height={200}>
+              <Grid numItemsLg={3} className="gap-4">
+                <Col numColSpanLg={2}>
+                  <Card>
+                    <Title>Evolución 12 meses</Title>
                     <BarChart
+                      className="mt-4"
                       data={dashAvanzado.evolucion_12_meses.map((e) => ({
                         name: `${e.mes}/${e.anio}`,
-                        monto: e.monto_total,
-                        iva: e.iva_estimado,
+                        Monto: e.monto_total,
+                        'IVA estimado': e.iva_estimado,
                       }))}
-                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-                    >
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                      <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                      <Tooltip formatter={(v: any) => fmtGs(Number(v))} labelStyle={{ fontSize: 11 }} />
-                      <Bar dataKey="monto" name="Monto" fill="#3f3f46" radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="iva" name="IVA estimado" fill="#f59e0b" radius={[3, 3, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="card p-5">
-                  <h3 className="section-title mb-4">Por tipo</h3>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={dashAvanzado.por_tipo.map((t) => ({ name: t.tipo, value: t.cantidad }))}
-                        cx="50%" cy="50%"
-                        outerRadius={70}
-                        dataKey="value"
-                        label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                        labelLine={false}
-                      >
-                        {dashAvanzado.por_tipo.map((t, i) => (
-                          <Cell key={t.tipo} fill={TIPO_COLORS[t.tipo] ?? PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+                      index="name"
+                      categories={['Monto', 'IVA estimado']}
+                      colors={['zinc', 'amber']}
+                      valueFormatter={fmtGs}
+                      yAxisWidth={55}
+                      showLegend
+                      showAnimation
+                    />
+                  </Card>
+                </Col>
+                <Col numColSpanLg={1}>
+                  <Card>
+                    <Title>Por tipo</Title>
+                    <DonutChart
+                      className="mt-4"
+                      data={dashAvanzado.por_tipo.map((t) => ({ name: t.tipo, value: t.cantidad }))}
+                      index="name"
+                      category="value"
+                      colors={TIPO_COLORS}
+                      valueFormatter={(v) => v.toLocaleString('es-PY')}
+                      showAnimation
+                    />
+                    <Legend
+                      className="mt-3"
+                      categories={dashAvanzado.por_tipo.map((t) => t.tipo)}
+                      colors={TIPO_COLORS}
+                    />
+                  </Card>
+                </Col>
+              </Grid>
 
               {/* Top vendedores */}
-              <div className="card overflow-hidden">
+              <Card className="overflow-hidden p-0">
                 <div className="px-5 py-4 border-b border-zinc-100">
-                  <h3 className="section-title mb-0">Top 10 proveedores</h3>
+                  <span className="section-title">Top 10 proveedores</span>
                 </div>
                 <div className="divide-y divide-zinc-50">
                   {dashAvanzado.top_vendedores.slice(0, 10).map((v, i) => (
@@ -533,63 +516,59 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                     </div>
                   ))}
                 </div>
-              </div>
+              </Card>
             </>
           )}
 
           {/* Forecast */}
           {forecast && !forecast.insuficiente_datos && (
-            <div className="card p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="section-title mb-0">Proyección de gastos (3 meses)</h3>
+            <Card>
+              <Flex>
+                <Title>Proyección de gastos (3 meses)</Title>
                 {forecast.tendencia && (
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${forecast.tendencia === 'CRECIENTE' ? 'bg-rose-50 text-rose-600'
-                    : forecast.tendencia === 'DECRECIENTE' ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-zinc-100 text-zinc-500'
-                    }`}>
+                  <TremorBadge color={
+                    forecast.tendencia === 'CRECIENTE' ? 'rose'
+                      : forecast.tendencia === 'DECRECIENTE' ? 'emerald'
+                        : 'zinc'
+                  }>
                     {forecast.tendencia}
-                  </span>
+                  </TremorBadge>
                 )}
-              </div>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart
-                  data={[...forecast.historial, ...forecast.proyeccion].map((p) => ({
-                    name: `${p.mes} ${p.anio}`,
-                    monto: p.monto_total,
-                    min: p.monto_min,
-                    max: p.monto_max,
-                    proyectado: p.proyectado,
-                  }))}
-                  margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-                >
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                  <YAxis tickFormatter={fmtGs} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={45} />
-                  <Tooltip formatter={(v: any) => fmtGs(Number(v))} labelStyle={{ fontSize: 11 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Area type="monotone" dataKey="max" stroke="transparent" fill="#fef3c7" name="Rango proyectado" />
-                  <Area type="monotone" dataKey="min" stroke="transparent" fill="#ffffff" />
-                  <Line type="monotone" dataKey="monto" stroke="#3f3f46" strokeWidth={2} dot={false} name="Monto" />
-                </AreaChart>
-              </ResponsiveContainer>
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-zinc-100">
+              </Flex>
+              <AreaChart
+                className="mt-4"
+                data={[...forecast.historial, ...forecast.proyeccion].map((p) => ({
+                  name: `${p.mes} ${p.anio}`,
+                  Monto: p.monto_total ?? 0,
+                  'Rango máx.': p.monto_max ?? 0,
+                }))}
+                index="name"
+                categories={['Monto', 'Rango máx.']}
+                colors={['zinc', 'amber']}
+                valueFormatter={fmtGs}
+                yAxisWidth={55}
+                showLegend
+                showAnimation
+              />
+              <Grid numItemsSm={2} className="gap-4 mt-4 pt-4 border-t border-zinc-100">
                 <div>
-                  <p className="text-xs text-zinc-500">Promedio mensual</p>
-                  <p className="text-lg font-bold text-zinc-900">{fmtGs(forecast.promedio_mensual)} Gs.</p>
+                  <Text>Promedio mensual</Text>
+                  <Metric className="mt-1">{fmtGs(forecast.promedio_mensual)} Gs.</Metric>
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">Variación mensual</p>
-                  <p className={`text-lg font-bold ${forecast.variacion_mensual_pct >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  <Text>Variación mensual</Text>
+                  <Metric className={`mt-1 ${forecast.variacion_mensual_pct >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                     {forecast.variacion_mensual_pct >= 0 ? '+' : ''}{forecast.variacion_mensual_pct.toFixed(1)}%
-                  </p>
+                  </Metric>
                 </div>
-              </div>
-            </div>
+              </Grid>
+            </Card>
           )}
 
           {forecast?.insuficiente_datos && (
-            <div className="card p-5 text-center text-sm text-zinc-400">
-              Se necesitan al menos 3 meses de historial para generar proyecciones.
-            </div>
+            <Card className="text-center py-6">
+              <Text>Se necesitan al menos 3 meses de historial para generar proyecciones.</Text>
+            </Card>
           )}
         </div>
       )}
