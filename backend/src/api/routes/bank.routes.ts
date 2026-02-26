@@ -373,7 +373,7 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
       const hasFeature = await checkFeature(req.params.id, 'conciliacion');
       if (!hasFeature) throw new ApiError(402, 'API_ERROR', 'Plan actual no incluye automatización bancaria');
 
-      const connection = await upsertBankConnection(req.params.id, req.params.aid, req.body);
+      const connection = await upsertBankConnection(req.params.id, req.params.aid, req.body as any);
       return reply.send({ success: true, data: connection });
     }
   );

@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../../db/connection';
 import { Comprobante } from '../../types';
 import { logger } from '../../config/logger';
-import { ApiError } from '../../utils/errors';
 
 export async function publicRoutes(app: FastifyInstance): Promise<void> {
     // Portal público: Descarga/Vista de Factura por Hash
