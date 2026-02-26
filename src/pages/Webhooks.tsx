@@ -12,7 +12,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { TenantWebhook, WebhookDelivery } from '../types';
-import { cn } from '../lib/utils';
+import { cn, formatDateTime } from '../lib/utils';
 
 interface WebhooksProps {
   toastSuccess: (msg: string) => void;
@@ -33,13 +33,6 @@ const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' 
   RETRYING: { label: 'Reintento', variant: 'warning', icon: Clock },
   PENDING: { label: 'Pendiente', variant: 'default', icon: Clock },
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('es-PY', {
-    timeZone: 'America/Asuncion', day: '2-digit', month: '2-digit',
-    year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
-}
 
 interface WebhookFormData {
   nombre: string; url: string; secret: string; eventos: string[];
@@ -166,7 +159,7 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
                 <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>
               </div></td>
               <td className="py-2 px-3">{d.http_status ? <span className={cn('font-mono font-semibold', d.http_status < 300 ? 'text-emerald-600' : 'text-rose-600')}>{d.http_status}</span> : <span className="text-zinc-300">—</span>}</td>
-              <td className="py-2 px-3 text-zinc-400">{formatDate(d.created_at)}</td>
+              <td className="py-2 px-3 text-zinc-400">{formatDateTime(d.created_at)}</td>
             </tr>
           );
         })}

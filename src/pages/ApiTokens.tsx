@@ -9,18 +9,11 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { ApiToken } from '../types';
-import { cn } from '../lib/utils';
+import { cn, formatDateTime } from '../lib/utils';
 
 interface ApiTokensProps {
   toastSuccess: (msg: string) => void;
   toastError: (msg: string, desc?: string) => void;
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('es-PY', {
-    timeZone: 'America/Asuncion', day: '2-digit', month: '2-digit',
-    year: '2-digit', hour: '2-digit', minute: '2-digit',
-  });
 }
 
 function TokenRevealModal({ token, onClose }: { token: string; onClose: () => void }) {
@@ -172,13 +165,13 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
                           : <div className="flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-zinc-400" /><Badge variant="default" size="sm">Revocado</Badge></div>}
                     </td>
                     <td className="table-td text-zinc-400 text-xs">
-                      {t.ultimo_uso_at ? formatDate(t.ultimo_uso_at) : <span className="text-zinc-300">Nunca</span>}
+                      {t.ultimo_uso_at ? formatDateTime(t.ultimo_uso_at) : <span className="text-zinc-300">Nunca</span>}
                     </td>
                     <td className="table-td text-xs">
                       {t.expira_at ? (
                         <div className="flex items-center gap-1.5">
                           <Clock className={cn('w-3 h-3', expired ? 'text-rose-400' : 'text-zinc-400')} />
-                          <span className={cn(expired ? 'text-rose-500' : 'text-zinc-500')}>{formatDate(t.expira_at)}</span>
+                          <span className={cn(expired ? 'text-rose-500' : 'text-zinc-500')}>{formatDateTime(t.expira_at)}</span>
                         </div>
                       ) : <span className="text-zinc-300">Sin expiración</span>}
                     </td>

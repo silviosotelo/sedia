@@ -18,6 +18,7 @@ import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageLoader } from '../components/ui/Spinner';
 import { api } from '../lib/api';
+import { formatDate } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import type { Usuario, Rol, Tenant } from '../types';
 
@@ -213,7 +214,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
                     </td>
                   )}
                   <td className="table-td text-xs text-zinc-500">
-                    {u.ultimo_login ? new Date(u.ultimo_login).toLocaleDateString('es-PY') : <span className="text-zinc-300">Nunca</span>}
+                    {u.ultimo_login ? formatDate(u.ultimo_login) : <span className="text-zinc-300">Nunca</span>}
                   </td>
                   <td className="table-td">
                     {u.activo

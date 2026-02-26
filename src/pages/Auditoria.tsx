@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
+import { formatDateTime } from '../lib/utils';
 import type { AuditLogEntry } from '../types';
 
 interface AuditoriaProps {
@@ -37,7 +38,7 @@ function AuditRow({ entry }: { entry: AuditLogEntry }) {
         onClick={() => setExpanded((v) => !v)}
       >
         <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
-          {new Date(entry.created_at).toLocaleString('es-PY')}
+          {formatDateTime(entry.created_at)}
         </td>
         <td className="table-td text-sm text-zinc-800">
           {entry.usuario_nombre ?? entry.usuario_id?.slice(0, 8) ?? '—'}

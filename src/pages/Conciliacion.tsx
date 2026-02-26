@@ -5,16 +5,13 @@ import { Badge } from '../components/ui/Badge';
 import { Spinner, PageLoader } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
+import { formatDate, formatCurrency } from '../lib/utils';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import type { BankAccount, ReconciliationRun, ReconciliationMatch, Comprobante } from '../types';
 
 function fmtGs(n: number) {
-  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(n);
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-PY');
+  return formatCurrency(n);
 }
 
 // ─── RunModal ────────────────────────────────────────────────────────────────
@@ -191,7 +188,7 @@ function ManualMatchModal({
                 <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="checkbox" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate text-zinc-900">{c.numero_comprobante || 'S/N'}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{fmtDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{formatDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</p>
                 </div>
                 {checked && (
                   <div className="w-32">
@@ -332,7 +329,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         <span className="text-base font-semibold text-zinc-900">
-                          {fmtDate(run.periodo_desde)} – {fmtDate(run.periodo_hasta)}
+                          {formatDate(run.periodo_desde)} – {formatDate(run.periodo_hasta)}
                         </span>
                         <Badge
                           variant={run.estado === 'DONE' ? 'success' : run.estado === 'FAILED' ? 'danger' : run.estado === 'RUNNING' ? 'info' : 'warning'}

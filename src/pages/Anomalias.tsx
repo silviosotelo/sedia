@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { Pagination } from '../components/ui/Pagination';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
+import { formatDate } from '../lib/utils';
 import type { AnomalyDetection } from '../types';
 
 interface AnomaliasSummary {
@@ -166,7 +167,7 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
                 {anomalias.map((a) => (
                   <tr key={a.id} className="table-tr">
                     <td className="table-td text-xs text-zinc-500 whitespace-nowrap">
-                      {new Date(a.created_at).toLocaleDateString('es-PY')}
+                      {formatDate(a.created_at)}
                     </td>
                     <td className="table-td">
                       <Badge variant="info" size="sm">{TIPO_LABELS[a.tipo] ?? a.tipo}</Badge>

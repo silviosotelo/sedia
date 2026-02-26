@@ -42,12 +42,12 @@ export function Roles({ toastSuccess, toastError }: { toastSuccess: (m: string) 
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const [r, p] = await Promise.all([
-                api.get('/roles'),
+            const [roles, p] = await Promise.all([
+                api.roles.list(),
                 api.get('/permisos')
             ]);
-            setRoles(r.data);
-            setPermisos(p.data);
+            setRoles(roles);
+            setPermisos(p.data ?? []);
         } catch (err) {
             toastError('Error al cargar roles globales');
         } finally {

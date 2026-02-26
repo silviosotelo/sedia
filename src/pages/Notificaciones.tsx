@@ -6,7 +6,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useTenant } from '../contexts/TenantContext';
-import { cn } from '../lib/utils';
+import { cn, formatDateTime } from '../lib/utils';
 
 interface NotificationLog {
   id: string;
@@ -40,14 +40,6 @@ const ESTADO_CONFIG = {
   FAILED: { label: 'Fallido', variant: 'danger' as const, icon: XCircle },
   PENDING: { label: 'Pendiente', variant: 'warning' as const, icon: Clock },
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('es-PY', {
-    timeZone: 'America/Asuncion',
-    day: '2-digit', month: '2-digit', year: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps) {
   const { activeTenantId } = useTenant();
@@ -182,7 +174,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                           </div>
                         </td>
                         <td className="table-td text-zinc-400 text-xs whitespace-nowrap">
-                          {formatDate(log.created_at)}
+                          {formatDateTime(log.created_at)}
                         </td>
                       </tr>
                     );

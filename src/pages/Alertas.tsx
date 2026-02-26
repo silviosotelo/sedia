@@ -12,7 +12,7 @@ import { Spinner } from '../components/ui/Spinner';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { TenantAlerta, AlertaLog, TenantWebhook } from '../types';
-import { cn } from '../lib/utils';
+import { cn, formatDateTime } from '../lib/utils';
 
 interface AlertasProps {
   toastSuccess: (msg: string) => void;
@@ -26,14 +26,6 @@ const TIPO_CFG: Record<string, { label: string; icon: typeof Bell; desc: string;
   factura_duplicada: { label: 'Factura duplicada', icon: Copy, desc: 'Notifica cuando se detecta un comprobante con número duplicado', fields: [] },
   job_fallido: { label: 'Job fallido', icon: Zap, desc: 'Notifica cuando un job de sincronización falla', fields: [] },
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString('es-PY', {
-    timeZone: 'America/Asuncion',
-    day: '2-digit', month: '2-digit', year: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-  });
-}
 
 interface AlertaFormData {
   nombre: string;
@@ -180,7 +172,7 @@ function AlertaLogPanel({ tenantId }: { tenantId: string }) {
             <p className="text-xs text-zinc-500 mt-0.5">{l.mensaje}</p>
           </div>
           <div className="flex-shrink-0 text-right">
-            <p className="text-xs text-zinc-400">{formatDate(l.created_at)}</p>
+            <p className="text-xs text-zinc-400">{formatDateTime(l.created_at)}</p>
             <Badge variant={l.notificado ? 'success' : 'warning'} size="sm">
               {l.notificado ? 'Notificado' : 'Pendiente'}
             </Badge>
@@ -330,7 +322,7 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
                     </span>
                     <span className="text-xs text-zinc-400">Cooldown: {a.cooldown_minutos}min</span>
                     {a.ultima_disparo && (
-                      <span className="text-xs text-zinc-400">Último: {formatDate(a.ultima_disparo)}</span>
+                      <span className="text-xs text-zinc-400">Último: {formatDateTime(a.ultima_disparo)}</span>
                     )}
                   </div>
                 </div>
