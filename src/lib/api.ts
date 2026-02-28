@@ -578,8 +578,23 @@ export const api = {
 
     changePlan: (tenantId: string, planId: string): Promise<void> =>
       request<void>(`/tenants/${tenantId}/billing/plan`, {
-        method: 'POST', body: JSON.stringify({ plan_id: planId }),
+        method: 'PUT', body: JSON.stringify({ plan_id: planId }),
       }),
+
+    listAddons: (): Promise<any[]> =>
+      request<{ data: any[] }>('/addons').then((r) => r.data ?? []),
+
+    getTenantAddons: (tenantId: string): Promise<any[]> =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/addons`).then((r) => r.data ?? []),
+
+    activateAddon: (tenantId: string, addonId: string, activoHasta?: string): Promise<void> =>
+      request<void>(`/tenants/${tenantId}/addons`, {
+        method: 'POST',
+        body: JSON.stringify({ addon_id: addonId, activo_hasta: activoHasta }),
+      }),
+
+    deactivateAddon: (tenantId: string, addonId: string): Promise<void> =>
+      request<void>(`/tenants/${tenantId}/addons/${addonId}`, { method: 'DELETE' }),
   },
 
   audit: {
@@ -661,6 +676,78 @@ export const api = {
       request<{ data: any }>(`/csv-schema-templates/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
     delete: (id: string): Promise<void> =>
       request<void>(`/csv-schema-templates/${id}`, { method: 'DELETE' }),
+  },
+
+  sifen: {
+    // Config
+    getConfig: (tenantId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/config`).then((r) => r.data),
+    updateConfig: (tenantId: string, body: any) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/config`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+
+    // Numeración
+    listNumeracion: (tenantId: string) =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/sifen/numeracion`).then((r) => r.data ?? []),
+    createNumeracion: (tenantId: string, body: any) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/numeracion`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+    deleteNumeracion: (tenantId: string, numId: string) =>
+      request<void>(`/tenants/${tenantId}/sifen/numeracion/${numId}`, { method: 'DELETE' }),
+
+    // Documentos Electrónicos
+    listDe: (tenantId: string, params?: { estado?: string; tipo?: string; desde?: string; hasta?: string; search?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.estado) q.set('estado', params.estado);
+      if (params?.tipo) q.set('tipo', params.tipo);
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      if (params?.search) q.set('search', params.search);
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      const qs = q.toString();
+      return request<{ data: any[]; total: number }>(`/tenants/${tenantId}/sifen/de${qs ? `?${qs}` : ''}`).then((r) => ({ data: r.data ?? [], total: r.total ?? 0 }));
+    },
+    createDe: (tenantId: string, body: any) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/de`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+    getDe: (tenantId: string, deId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/de/${deId}`).then((r) => r.data),
+    signDe: (tenantId: string, deId: string) =>
+      request<{ success: boolean; message: string }>(`/tenants/${tenantId}/sifen/de/${deId}/sign`, { method: 'POST' }),
+    anularDe: (tenantId: string, deId: string, motivo?: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/anular`, { method: 'POST', body: JSON.stringify({ motivo }) }),
+    downloadXmlUrl: (tenantId: string, deId: string): string => {
+      const t = localStorage.getItem('saas_token');
+      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/xml${t ? `?token=${t}` : ''}`;
+    },
+    downloadKudeUrl: (tenantId: string, deId: string): string => {
+      const t = localStorage.getItem('saas_token');
+      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/kude${t ? `?token=${t}` : ''}`;
+    },
+
+    // Lotes
+    listLotes: (tenantId: string, params?: { limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      const qs = q.toString();
+      return request<{ data: any[] }>(`/tenants/${tenantId}/sifen/lotes${qs ? `?${qs}` : ''}`).then((r) => r.data ?? []);
+    },
+    getLote: (tenantId: string, loteId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/lotes/${loteId}`).then((r) => r.data),
+    armarLote: (tenantId: string) =>
+      request<{ data: any; message?: string }>(`/tenants/${tenantId}/sifen/armar-lote`, { method: 'POST' }),
+    sendLote: (tenantId: string, loteId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/lotes/${loteId}/send`, { method: 'POST' }),
+    pollLote: (tenantId: string, loteId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/lotes/${loteId}/poll`, { method: 'POST' }),
+
+    // Métricas
+    getMetrics: (tenantId: string, params?: { desde?: string; hasta?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      const qs = q.toString();
+      return request<{ data: any }>(`/tenants/${tenantId}/sifen/metrics${qs ? `?${qs}` : ''}`).then((r) => r.data);
+    },
   },
 
   // Métodos genéricos para facilitar migraciones y nuevas rutas

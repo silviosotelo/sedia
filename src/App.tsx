@@ -32,7 +32,7 @@ import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
 import type { RolNombre } from './types';
 
-const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string }> = {
+const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; permiso?: string }> = {
   dashboard: { roles: null },
   tenants: { roles: ['super_admin', 'admin_empresa'] },
   jobs: { roles: null },
@@ -54,7 +54,8 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string }>
   configuracion: { roles: ['super_admin'] },
   'white-label': { roles: ['super_admin', 'admin_empresa'], feature: 'whitelabel' },
   procesadoras: { roles: ['super_admin', 'admin_empresa'] },
-  sifen: { roles: ['super_admin', 'admin_empresa'], feature: 'facturacion_electronica' },
+  // SIFEN: acceso basado en permiso de rol (sifen:ver), no en features del plan
+  sifen: { roles: null, permiso: 'sifen:ver' },
 };
 
 interface NavParams {
@@ -63,7 +64,7 @@ interface NavParams {
 }
 
 function AppInner() {
-  const { user, loading: authLoading, isSuperAdmin, userTenantId } = useAuth();
+  const { user, loading: authLoading, isSuperAdmin, userTenantId, hasPermission } = useAuth();
   const [page, setPage] = useState<Page>('dashboard');
   const [navParams, setNavParams] = useState<NavParams>({});
   const [apiStatus, setApiStatus] = useState<'ok' | 'error' | 'checking'>('checking');
@@ -92,7 +93,6 @@ function AppInner() {
     const access = PAGE_ACCESS[p];
     if (!access) return true;
 
-    // Super admin ignores plan restrictions but still follows role logic if needed
     if (user?.rol.nombre === 'super_admin') return true;
 
     // Check roles
@@ -101,15 +101,21 @@ function AppInner() {
       if (!rol || !access.roles.includes(rol)) return false;
     }
 
-    // Check plan features
+    // Check plan/addon feature flag
     if (access.feature) {
       if (!user?.plan_features || user.plan_features[access.feature] !== true) {
         return false;
       }
     }
 
+    // Check role permission (ej: sifen:ver)
+    if (access.permiso) {
+      const [recurso, accion] = access.permiso.split(':');
+      if (!hasPermission(recurso, accion)) return false;
+    }
+
     return true;
-  }, [user]);
+  }, [user, hasPermission]);
 
   const navigate = useCallback((p: Page, params?: Record<string, string>) => {
     if (!canAccessPage(p)) {

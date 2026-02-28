@@ -5,6 +5,7 @@ import { config } from '../config/env';
 import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.repository';
 import { createJob, countActiveJobsForTenant, resetStuckRunningJobs, findJobs } from '../db/repositories/job.repository';
 import { query } from '../db/connection';
+import { enviarNotificacionSifen } from '../services/notification.service';
 
 interface SchedulerTenantConfig {
   scheduler_habilitado: boolean | null;
@@ -140,6 +141,117 @@ async function enqueueScheduledSyncs(): Promise<void> {
   }
 }
 
+// ─── SIFEN auto-arm: cada 30 min ─────────────────────────────────────────────
+
+async function autoArmSifenLotes(): Promise<void> {
+  logger.debug('Scheduler SIFEN: auto-arm lotes');
+  try {
+    // Tenants con add-on SIFEN activo y DEs en estado ENQUEUED
+    const tenants = await query<{ tenant_id: string }>(
+      `SELECT DISTINCT sd.tenant_id
+       FROM sifen_de sd
+       JOIN tenant_addons ta ON ta.tenant_id = sd.tenant_id
+       JOIN addons a ON a.id = ta.addon_id
+       WHERE sd.estado = 'ENQUEUED'
+         AND sd.xml_signed IS NOT NULL
+         AND ta.activo = true
+         AND a.features->>'facturacion_electronica' = 'true'`,
+      []
+    );
+
+    for (const row of tenants) {
+      try {
+        // Verificar que no hay lote ya en proceso para este tenant
+        const activeLote = await query<{ id: string }>(
+          `SELECT id FROM sifen_lote WHERE tenant_id = $1 AND estado IN ('CREATED','SENT') LIMIT 1`,
+          [row.tenant_id]
+        );
+        if (activeLote.length > 0) continue;
+
+        // Armar lote
+        const { sifenLoteService } = require('../services/sifenLote.service');
+        const loteId = await sifenLoteService.armarLote(row.tenant_id);
+        if (loteId) {
+          await query(
+            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_ENVIAR_LOTE', $2)`,
+            [row.tenant_id, JSON.stringify({ lote_id: loteId })]
+          );
+          logger.info('Scheduler SIFEN: lote armado automáticamente', { tenant_id: row.tenant_id, loteId });
+        }
+      } catch (err) {
+        logger.error('Scheduler SIFEN: error armando lote para tenant', {
+          tenant_id: row.tenant_id,
+          error: (err as Error).message,
+        });
+      }
+    }
+  } catch (err) {
+    logger.error('Scheduler SIFEN: error en auto-arm', { error: (err as Error).message });
+  }
+}
+
+// ─── SIFEN auto-poll: cada 15 min ────────────────────────────────────────────
+
+async function autoPolLSifenLotes(): Promise<void> {
+  logger.debug('Scheduler SIFEN: auto-poll lotes SENT');
+  try {
+    const lotesSent = await query<{ id: string; tenant_id: string }>(
+      `SELECT id, tenant_id FROM sifen_lote
+       WHERE estado = 'SENT'
+         AND updated_at < NOW() - INTERVAL '2 minutes'
+       LIMIT 20`,
+      []
+    );
+
+    for (const lote of lotesSent) {
+      // Verificar que no hay job de consulta ya pendiente/activo
+      const existing = await query<{ id: string }>(
+        `SELECT id FROM jobs WHERE tenant_id = $1 AND tipo_job = 'SIFEN_CONSULTAR_LOTE'
+         AND payload->>'lote_id' = $2 AND estado IN ('PENDING','RUNNING') LIMIT 1`,
+        [lote.tenant_id, lote.id]
+      );
+      if (existing.length > 0) continue;
+
+      await query(
+        `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_CONSULTAR_LOTE', $2)`,
+        [lote.tenant_id, JSON.stringify({ lote_id: lote.id })]
+      );
+      logger.debug('Scheduler SIFEN: consulta de lote encolada', { lote_id: lote.id });
+    }
+  } catch (err) {
+    logger.error('Scheduler SIFEN: error en auto-poll', { error: (err as Error).message });
+  }
+}
+
+// ─── SIFEN cert expiry check: diario ─────────────────────────────────────────
+
+async function checkCertExpiry(): Promise<void> {
+  logger.debug('Scheduler SIFEN: verificando vencimiento de certificados');
+  try {
+    const expiring = await query<{ tenant_id: string; cert_not_after: Date }>(
+      `SELECT tenant_id, cert_not_after FROM sifen_config
+       WHERE cert_not_after IS NOT NULL
+         AND cert_not_after < NOW() + INTERVAL '30 days'
+         AND cert_not_after > NOW()`,
+      []
+    );
+
+    for (const row of expiring) {
+      await enviarNotificacionSifen(row.tenant_id, 'SIFEN_CERT_EXPIRANDO', {
+        cert_not_after: row.cert_not_after?.toISOString(),
+        dias_restantes: Math.ceil(
+          (new Date(row.cert_not_after).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        ),
+      }).catch(() => {});
+      logger.warn('Certificado SIFEN por vencer', { tenant_id: row.tenant_id, cert_not_after: row.cert_not_after });
+    }
+  } catch (err) {
+    logger.error('Scheduler SIFEN: error en cert expiry check', { error: (err as Error).message });
+  }
+}
+
+// ─── Cron principal ──────────────────────────────────────────────────────────
+
 export function startScheduler(): void {
   const schedule = config.worker.cronSchedule;
 
@@ -147,6 +259,7 @@ export function startScheduler(): void {
     throw new Error(`CRON_SCHEDULE inválido: "${schedule}". Ejemplo válido: "*/5 * * * *"`);
   }
 
+  // Sync principal (frecuencia configurable)
   cron.schedule(schedule, async () => {
     try {
       await enqueueScheduledSyncs();
@@ -154,6 +267,33 @@ export function startScheduler(): void {
       logger.error('Scheduler: error en tarea periódica', {
         error: (err as Error).message,
       });
+    }
+  });
+
+  // SIFEN auto-arm cada 30 minutos
+  cron.schedule('*/30 * * * *', async () => {
+    try {
+      await autoArmSifenLotes();
+    } catch (err) {
+      logger.error('Scheduler SIFEN auto-arm error', { error: (err as Error).message });
+    }
+  });
+
+  // SIFEN auto-poll cada 15 minutos
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      await autoPolLSifenLotes();
+    } catch (err) {
+      logger.error('Scheduler SIFEN auto-poll error', { error: (err as Error).message });
+    }
+  });
+
+  // SIFEN cert expiry check una vez al día (a las 8am)
+  cron.schedule('0 8 * * *', async () => {
+    try {
+      await checkCertExpiry();
+    } catch (err) {
+      logger.error('Scheduler SIFEN cert expiry error', { error: (err as Error).message });
     }
   });
 

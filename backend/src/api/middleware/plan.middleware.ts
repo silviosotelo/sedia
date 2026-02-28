@@ -1,9 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { UsuarioConRol } from '../../services/auth.service';
 import { ApiError } from '../../utils/errors';
+import { findAddonWithFeature } from '../../services/billing.service';
 
 /**
- * Middleware factory that checks if the user's plan includes a specific feature.
+ * Middleware factory that checks if the user's plan OR active add-ons include a specific feature.
  * Super admins bypass all plan restrictions.
  */
 export function checkFeature(featureName: string) {
@@ -19,14 +20,20 @@ export function checkFeature(featureName: string) {
       return;
     }
 
-    const hasFeature = user.plan_features && user.plan_features[featureName] === true;
+    // Check plan features first (cached in user session)
+    const hasPlanFeature = user.plan_features && user.plan_features[featureName] === true;
+    if (hasPlanFeature) return;
 
-    if (!hasFeature) {
-      throw new ApiError(
-        403,
-        'PLAN_FEATURE_REQUIRED',
-        `Tu plan actual no incluye acceso a "${featureName}". Por favor, actualiza tu plan.`
-      );
+    // Check add-ons (async DB check — covers SIFEN add-on and others)
+    if (user.tenant_id) {
+      const hasAddon = await findAddonWithFeature(user.tenant_id, featureName);
+      if (hasAddon) return;
     }
+
+    throw new ApiError(
+      403,
+      'PLAN_FEATURE_REQUIRED',
+      `Tu plan actual no incluye acceso a "${featureName}". Activa el módulo correspondiente.`
+    );
   };
 }

@@ -8,7 +8,13 @@ export type WebhookEvento =
   | 'sync_fail'
   | 'xml_descargado'
   | 'ords_enviado'
-  | 'test';
+  | 'test'
+  | 'sifen_de_encolado'
+  | 'sifen_de_aprobado'
+  | 'sifen_de_rechazado'
+  | 'sifen_lote_enviado'
+  | 'sifen_lote_completado'
+  | 'sifen_anulacion';
 
 interface WebhookRow {
   id: string;

@@ -43,6 +43,7 @@ interface NavItem {
   badge?: string;
   allowedRoles?: RolNombre[];
   requiredFeature?: string;
+  requiredPermission?: string; // "recurso:accion" — se verifica con hasPermission
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
@@ -58,7 +59,7 @@ const AUTOMATION_NAV_ITEMS: NavItem[] = [
   { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'alertas' },
   { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'anomalias' },
   { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'webhooks' },
-  { id: 'sifen', label: 'Facturación Electrónica', icon: <FileText className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'sifen' },
+  { id: 'sifen', label: 'Facturación Electrónica', icon: <FileText className="w-4 h-4" />, requiredPermission: 'sifen:ver' },
   { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'api_tokens' },
   { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'notificaciones' },
 ];
@@ -89,7 +90,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false, onClose }: SidebarProps) {
-  const { user, logout, branding, hasFeature } = useAuth();
+  const { user, logout, branding, hasFeature, hasPermission } = useAuth();
   const rolNombre = user?.rol.nombre as RolNombre | undefined;
 
   const [collapsed, setCollapsed] = useState(false);
@@ -111,9 +112,14 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
       if (item.allowedRoles && rolNombre) {
         if (!item.allowedRoles.includes(rolNombre)) return false;
       }
-      // Check features directly using auth context
+      // Check feature flags (plan + add-ons)
       if (item.requiredFeature) {
         if (!hasFeature(item.requiredFeature)) return false;
+      }
+      // Check role permissions — el item es visible si el usuario tiene ese permiso
+      if (item.requiredPermission) {
+        const [recurso, accion] = item.requiredPermission.split(':');
+        if (!hasPermission(recurso, accion)) return false;
       }
       return true;
     });

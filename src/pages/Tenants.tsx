@@ -12,6 +12,8 @@ import {
   Settings,
   CheckCircle2,
   FileText,
+  Package,
+  Trash2,
 } from 'lucide-react';
 import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Badge as TremorBadge } from '@tremor/react';
 import { Header } from '../components/layout/Header';
@@ -58,6 +60,9 @@ export function Tenants({
   const [selectedId, setSelectedId] = useState<string | null>(effectiveInitialId || null);
   const [selectedTenant, setSelectedTenant] = useState<TenantWithConfig | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [tenantAddons, setTenantAddons] = useState<any[]>([]);
+  const [allAddons, setAllAddons] = useState<any[]>([]);
+  const [addonsLoading, setAddonsLoading] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
@@ -84,14 +89,20 @@ export function Tenants({
   const loadDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
     try {
-      const data = await api.tenants.get(id);
+      const [data, addonsData, allAddonsData] = await Promise.all([
+        api.tenants.get(id),
+        isSuperAdmin ? api.billing.getTenantAddons(id).catch(() => []) : Promise.resolve([]),
+        isSuperAdmin ? api.billing.listAddons().catch(() => []) : Promise.resolve([]),
+      ]);
       setSelectedTenant(data);
+      setTenantAddons(addonsData);
+      setAllAddons(allAddonsData);
     } catch (e: unknown) {
       toastError('Error al cargar empresa', e instanceof Error ? e.message : undefined);
     } finally {
       setDetailLoading(false);
     }
-  }, [toastError]);
+  }, [toastError, isSuperAdmin]);
 
   useEffect(() => {
     if (isAdminEmpresaOnly) {
@@ -147,6 +158,37 @@ export function Tenants({
       toastError('Error al actualizar empresa', e instanceof Error ? e.message : undefined);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleActivateAddon = async (addonId: string) => {
+    if (!selectedId) return;
+    setAddonsLoading(true);
+    try {
+      await api.billing.activateAddon(selectedId, addonId);
+      toastSuccess('Add-on activado correctamente');
+      const [addonsData] = await Promise.all([api.billing.getTenantAddons(selectedId)]);
+      setTenantAddons(addonsData);
+    } catch (e: unknown) {
+      toastError('Error activando add-on', e instanceof Error ? e.message : undefined);
+    } finally {
+      setAddonsLoading(false);
+    }
+  };
+
+  const handleDeactivateAddon = async (addonId: string) => {
+    if (!selectedId) return;
+    if (!confirm('¿Desactivar este add-on? Los usuarios perderán acceso inmediatamente.')) return;
+    setAddonsLoading(true);
+    try {
+      await api.billing.deactivateAddon(selectedId, addonId);
+      toastSuccess('Add-on desactivado');
+      const addonsData = await api.billing.getTenantAddons(selectedId);
+      setTenantAddons(addonsData);
+    } catch (e: unknown) {
+      toastError('Error desactivando add-on', e instanceof Error ? e.message : undefined);
+    } finally {
+      setAddonsLoading(false);
     }
   };
 
@@ -541,6 +583,70 @@ export function Tenants({
                 </Card>
               )}
             </div>
+
+            {/* Add-ons del tenant — solo super_admin */}
+            {isSuperAdmin && (
+              <Card className="mt-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Text className="font-semibold text-tremor-content-strong flex items-center gap-2">
+                    <Package className="w-4 h-4" /> Módulos Add-on
+                  </Text>
+                </div>
+                {addonsLoading && <div className="text-xs text-zinc-400 py-2">Cargando...</div>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {allAddons.map((addon: any) => {
+                    const active = tenantAddons.find(
+                      (ta: any) => ta.addon_id === addon.id && ta.status === 'ACTIVE'
+                    );
+                    return (
+                      <div
+                        key={addon.id}
+                        className={`rounded-xl border p-3 flex items-start justify-between gap-3 transition-colors ${
+                          active ? 'border-emerald-300 bg-emerald-50' : 'border-zinc-200 bg-white'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-zinc-800 truncate">{addon.nombre}</div>
+                          <div className="text-[11px] text-zinc-500 mt-0.5 line-clamp-2">{addon.descripcion}</div>
+                          <div className="text-[11px] text-zinc-400 mt-1">
+                            {addon.precio_mensual_pyg
+                              ? `Gs. ${Number(addon.precio_mensual_pyg).toLocaleString('es-PY')}/mes`
+                              : 'Incluido'}
+                          </div>
+                          {active?.activo_hasta && (
+                            <div className="text-[11px] text-amber-600 mt-0.5">
+                              Vence: {new Date(active.activo_hasta).toLocaleDateString('es-PY')}
+                            </div>
+                          )}
+                        </div>
+                        {active ? (
+                          <button
+                            onClick={() => handleDeactivateAddon(addon.id)}
+                            disabled={addonsLoading}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 flex-shrink-0 transition-colors"
+                            title="Desactivar"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleActivateAddon(addon.id)}
+                            disabled={addonsLoading}
+                            className="p-1.5 rounded-lg hover:bg-emerald-50 text-zinc-400 hover:text-emerald-600 flex-shrink-0 transition-colors"
+                            title="Activar"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {allAddons.length === 0 && !addonsLoading && (
+                    <p className="text-xs text-zinc-400 col-span-3">No hay add-ons disponibles.</p>
+                  )}
+                </div>
+              </Card>
+            )}
           </div>
 
           <Modal

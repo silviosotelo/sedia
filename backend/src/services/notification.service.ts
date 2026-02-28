@@ -9,7 +9,12 @@ export type EventoNotificacion =
   | 'XML_FAIL'
   | 'JOB_STUCK'
   | 'ORDS_FAIL'
-  | 'TEST';
+  | 'TEST'
+  | 'SIFEN_DE_APROBADO'
+  | 'SIFEN_DE_RECHAZADO'
+  | 'SIFEN_LOTE_ERROR'
+  | 'SIFEN_CERT_EXPIRANDO'
+  | 'SIFEN_ANULACION_OK';
 
 interface NotifContext {
   tenantId: string;
@@ -72,6 +77,11 @@ function isEventoHabilitado(evento: EventoNotificacion, extra: ExtraConfig): boo
     case 'JOB_STUCK': return extra.notif_job_stuck ?? true;
     case 'ORDS_FAIL': return extra.notif_sync_fail ?? true;
     case 'TEST': return true;
+    case 'SIFEN_DE_APROBADO': return true;
+    case 'SIFEN_DE_RECHAZADO': return true;
+    case 'SIFEN_LOTE_ERROR': return true;
+    case 'SIFEN_CERT_EXPIRANDO': return true;
+    case 'SIFEN_ANULACION_OK': return true;
     default: return false;
   }
 }
@@ -84,8 +94,13 @@ function buildSubject(evento: EventoNotificacion, tenantNombre: string): string 
     JOB_STUCK: `[${tenantNombre}] Job bloqueado detectado`,
     ORDS_FAIL: `[${tenantNombre}] Error al enviar comprobantes a ORDS`,
     TEST: `[${tenantNombre}] Prueba de configuracion SMTP`,
+    SIFEN_DE_APROBADO: `[${tenantNombre}] Documento Electrónico aprobado por SIFEN`,
+    SIFEN_DE_RECHAZADO: `[${tenantNombre}] Documento Electrónico rechazado por SIFEN`,
+    SIFEN_LOTE_ERROR: `[${tenantNombre}] Error al enviar lote a SIFEN`,
+    SIFEN_CERT_EXPIRANDO: `[${tenantNombre}] Certificado digital próximo a vencer`,
+    SIFEN_ANULACION_OK: `[${tenantNombre}] Anulación de DE confirmada por SIFEN`,
   };
-  return subjects[evento];
+  return subjects[evento] ?? `[${tenantNombre}] Notificación SIFEN`;
 }
 
 function buildHtml(
@@ -102,6 +117,11 @@ function buildHtml(
     JOB_STUCK: { bg: '#fefce8', border: '#ca8a04', icon: '&#9679;', title: 'Job Bloqueado' },
     ORDS_FAIL: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Error al Enviar a ORDS' },
     TEST: { bg: '#eff6ff', border: '#2563eb', icon: '&#9993;', title: 'Prueba de Configuracion' },
+    SIFEN_DE_APROBADO: { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'DE Aprobado por SIFEN' },
+    SIFEN_DE_RECHAZADO: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'DE Rechazado por SIFEN' },
+    SIFEN_LOTE_ERROR: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Error en Lote SIFEN' },
+    SIFEN_CERT_EXPIRANDO: { bg: '#fefce8', border: '#ca8a04', icon: '&#9888;', title: 'Certificado por Vencer' },
+    SIFEN_ANULACION_OK: { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'Anulación Confirmada' },
   };
 
   const c = colorMap[evento];
@@ -467,5 +487,24 @@ export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<bool
     const msg = (err as Error).message;
     logger.error('Error enviando factura por email', { error: msg, ctx });
     return false;
+  }
+}
+
+/**
+ * Envía una notificación SIFEN al administrador del tenant.
+ * Usa el SMTP configurado por el tenant. No lanza errores — solo loguea.
+ */
+export async function enviarNotificacionSifen(
+  tenantId: string,
+  evento: EventoNotificacion,
+  metadata: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    const ctx: NotifContext = { tenantId, evento, metadata };
+    await enviarNotificacion(ctx);
+  } catch (err) {
+    logger.error('Error enviando notificación SIFEN', {
+      tenantId, evento, error: (err as Error).message
+    });
   }
 }

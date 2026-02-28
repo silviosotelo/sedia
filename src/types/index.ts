@@ -575,3 +575,193 @@ export interface DashboardAvanzado {
     variacion_cantidad_pct: number;
   };
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIFEN — Facturación Electrónica Paraguay
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type SifenAmbiente = 'HOMOLOGACION' | 'PRODUCCION';
+
+export type SifenDEEstado =
+  | 'DRAFT'
+  | 'GENERATED'
+  | 'SIGNED'
+  | 'ENQUEUED'
+  | 'IN_LOTE'
+  | 'SENT'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'CANCELLED'
+  | 'ERROR';
+
+export type SifenTipoDocumento = '1' | '4' | '5' | '6';
+export const SIFEN_TIPO_LABELS: Record<SifenTipoDocumento, string> = {
+  '1': 'Factura Electrónica',
+  '4': 'Autofactura Electrónica',
+  '5': 'Nota de Crédito Electrónica',
+  '6': 'Nota de Débito Electrónica',
+};
+
+export interface SifenConfig {
+  tenant_id: string;
+  ambiente: SifenAmbiente;
+  ruc: string;
+  dv: string;
+  razon_social: string;
+  timbrado: string | null;
+  inicio_vigencia: string | null;
+  fin_vigencia: string | null;
+  establecimiento: string;
+  punto_expedicion: string;
+  cert_subject: string | null;
+  cert_serial: string | null;
+  cert_not_before: string | null;
+  cert_not_after: string | null;
+  cert_pem: string | null;
+  has_private_key: boolean;
+  has_passphrase: boolean;
+  ws_url_recibe_lote: string;
+  ws_url_consulta_lote: string;
+  ws_url_consulta: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifenNumeracion {
+  id: string;
+  tenant_id: string;
+  tipo_documento: string;
+  establecimiento: string;
+  punto_expedicion: string;
+  timbrado: string;
+  ultimo_numero: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifenDE {
+  id: string;
+  tenant_id: string;
+  cdc: string;
+  tipo_documento: SifenTipoDocumento;
+  numero_documento: string | null;
+  fecha_emision: string;
+  moneda: string;
+  estado: SifenDEEstado;
+  datos_receptor: SifenReceptor | null;
+  datos_items: SifenItem[] | null;
+  datos_impuestos: SifenImpuestos | null;
+  datos_adicionales: Record<string, any> | null;
+  total_pago: number | null;
+  total_iva10: number | null;
+  total_iva5: number | null;
+  total_exento: number | null;
+  de_referenciado_cdc: string | null;
+  kude_pdf_key: string | null;
+  xml_unsigned: string | null;
+  xml_signed: string | null;
+  qr_text: string | null;
+  qr_png_base64: string | null;
+  sifen_respuesta: Record<string, any> | null;
+  sifen_codigo: string | null;
+  sifen_mensaje: string | null;
+  tiene_kude?: boolean;
+  receptor_nombre?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifenReceptor {
+  naturaleza: number;
+  tipo_operacion: number;
+  ruc?: string;
+  dv?: string;
+  razon_social: string;
+  nombre_fantasia?: string;
+  tipo_contribuyente?: number;
+  pais?: string;
+  documento_tipo?: number;
+  documento_numero?: string;
+  telefono?: string;
+  celular?: string;
+  email?: string;
+  direccion?: string;
+  numero_casa?: string;
+  departamento?: number;
+  departamento_descripcion?: string;
+  distrito?: number;
+  ciudad?: number;
+  ciudad_descripcion?: string;
+}
+
+export interface SifenItem {
+  codigo?: string;
+  descripcion: string;
+  cantidad: number;
+  precio_unitario: number;
+  unidad_medida?: number;
+  tasa_iva: number;
+  iva_tipo?: number;
+  subtotal?: number;
+}
+
+export interface SifenImpuestos {
+  total_iva10: number;
+  total_iva5: number;
+  total_exento: number;
+  total: number;
+}
+
+export interface SifenLoteItem {
+  id: string;
+  lote_id: string;
+  de_id: string;
+  orden: number;
+  estado_item: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'ERROR';
+  respuesta_item: Record<string, any> | null;
+  cdc?: string;
+  numero_documento?: string;
+  tipo_documento?: string;
+  receptor_nombre?: string;
+  total_pago?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifenLote {
+  id: string;
+  tenant_id: string;
+  numero_lote: string | null;
+  estado: 'CREATED' | 'SENT' | 'PROCESSING' | 'COMPLETED' | 'ERROR';
+  respuesta_recibe_lote: Record<string, any> | null;
+  cantidad_items?: number;
+  items?: SifenLoteItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SifenMetrics {
+  periodo: { desde: string; hasta: string };
+  totales: {
+    total: string;
+    aprobados: string;
+    rechazados: string;
+    pendientes: string;
+    anulados: string;
+    monto_total: string;
+  };
+  por_estado: Array<{ estado: string; cantidad: string }>;
+  por_tipo: Array<{ tipo_documento: string; cantidad: string; monto: string }>;
+  ultimos_de: SifenDE[];
+}
+
+export interface SifenDECreateInput {
+  tipo_documento: SifenTipoDocumento;
+  moneda?: string;
+  fecha_emision?: string;
+  datos_receptor: SifenReceptor;
+  datos_items: SifenItem[];
+  datos_adicionales?: Record<string, any>;
+  de_referenciado_cdc?: string;
+}

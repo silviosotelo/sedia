@@ -31,6 +31,8 @@ async function getTenantPlan(tenantId: string) {
   return findTenantPlanInfo(tenantId);
 }
 
+export { findAddonWithFeature };
+
 export async function checkFeature(tenantId: string, feature: string): Promise<boolean> {
   const hasAddon = await findAddonWithFeature(tenantId, feature);
   if (hasAddon) return true;
@@ -67,6 +69,31 @@ export async function incrementarUsage(
     await upsertUsageMetric(tenantId, now.getMonth() + 1, now.getFullYear(), campo, cantidad);
   } catch (err) {
     logger.error('Error incrementando usage metric', { error: (err as Error).message });
+  }
+}
+
+/**
+ * Incrementa contadores de DEs SIFEN en usage_metrics.
+ * Usa columnas agregadas por migración 025.
+ */
+export async function incrementarUsageSifen(
+  tenantId: string,
+  tipo: 'emitidos' | 'aprobados' | 'rechazados',
+  cantidad = 1
+): Promise<void> {
+  const now = new Date();
+  const campo = `sifen_des_${tipo}`;
+  try {
+    const { query } = await import('../db/connection');
+    await query(
+      `INSERT INTO usage_metrics (tenant_id, mes, anio, ${campo})
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (tenant_id, mes, anio)
+       DO UPDATE SET ${campo} = usage_metrics.${campo} + $4, updated_at = NOW()`,
+      [tenantId, now.getMonth() + 1, now.getFullYear(), cantidad]
+    );
+  } catch (err) {
+    logger.error('Error incrementando uso SIFEN', { error: (err as Error).message, tipo });
   }
 }
 

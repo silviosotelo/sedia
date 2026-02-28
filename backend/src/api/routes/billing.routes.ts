@@ -2,8 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { findAllPlans, getUsageActual, billingManager } from '../../services/billing.service';
 import { bancardService } from '../../services/bancard.service';
-import { sifenService } from '../../services/sifen.service';
-import { queryOne } from '../../db/connection';
+import { query, queryOne } from '../../db/connection';
 import { ApiError } from '../../utils/errors';
 
 export async function billingRoutes(app: FastifyInstance): Promise<void> {
@@ -173,28 +172,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      // Generar Factura Electrónica (SIFEN Async)
-      try {
-        const tenant = await queryOne<any>('SELECT nombre FROM tenants WHERE id = $1', [invoice.tenant_id]);
-
-        // Mapear datos al formato esperado por xmlgen (TIPS-SA)
-        const sifenData = {
-          // ... mapeo detallado de factura-a-sifen
-          monto_total: Number(invoice.amount),
-          razon_social: tenant?.nombre || 'Cliente SEDIA',
-          ruc: '44444401-7', // RUC del cliente
-        };
-
-        const result = await sifenService.processBillingAsync(invoice.id, sifenData);
-
-        await billingManager.updateInvoiceStatus(invoice.id, 'PAID', {
-          sifen_cdc: result.cdc,
-          sifen_lote: result.idLote,
-          sifen_status: result.status
-        });
-      } catch (sifenErr) {
-        console.error('Error iniciando facturación SIFEN', sifenErr);
-      }
+      // TODO: Generar Factura Electrónica SIFEN para el pago recibido
     } else {
       // Pago fallido o cancelado
       await billingManager.updateInvoiceStatus(invoice.id, 'FAILED', {
@@ -204,4 +182,107 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ success: true });
   });
+
+  // ═══════════════════════════════════════
+  // GESTIÓN DE ADD-ONS (Solo Super Admin)
+  // ═══════════════════════════════════════
+
+  // Listar todos los add-ons disponibles
+  app.get('/addons', async (_req, reply) => {
+    const addons = await query(
+      `SELECT id, codigo, nombre, descripcion, precio_mensual_pyg, features, activo
+       FROM addons WHERE activo = true ORDER BY nombre ASC`
+    );
+    return reply.send({ success: true, data: addons });
+  });
+
+  // Listar add-ons activos de un tenant
+  app.get<{ Params: { id: string } }>('/tenants/:id/addons', async (req, reply) => {
+    if (!assertTenantAccess(req, reply, req.params.id)) return;
+    const rows = await query(
+      `SELECT ta.id, ta.addon_id, ta.status, ta.activo_hasta, ta.created_at,
+              a.codigo, a.nombre, a.descripcion, a.precio_mensual_pyg, a.features
+       FROM tenant_addons ta
+       JOIN addons a ON a.id = ta.addon_id
+       WHERE ta.tenant_id = $1
+       ORDER BY a.nombre ASC`,
+      [req.params.id]
+    );
+    return reply.send({ success: true, data: rows });
+  });
+
+  // Activar un add-on para un tenant (Solo Super Admin)
+  app.post<{ Params: { id: string }; Body: { addon_id: string; activo_hasta?: string } }>(
+    '/tenants/:id/addons',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') {
+        throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede activar add-ons');
+      }
+      const { addon_id, activo_hasta } = req.body;
+      if (!addon_id) throw new ApiError(400, 'BAD_REQUEST', 'addon_id es requerido');
+
+      const addon = await queryOne<{ id: string; nombre: string }>(
+        'SELECT id, nombre FROM addons WHERE id = $1 AND activo = true',
+        [addon_id]
+      );
+      if (!addon) throw new ApiError(404, 'NOT_FOUND', 'Add-on no encontrado');
+
+      await query(
+        `INSERT INTO tenant_addons (tenant_id, addon_id, status, activo_hasta)
+         VALUES ($1, $2, 'ACTIVE', $3)
+         ON CONFLICT (tenant_id, addon_id)
+         DO UPDATE SET status = 'ACTIVE', activo_hasta = $3, updated_at = NOW()`,
+        [req.params.id, addon_id, activo_hasta || null]
+      );
+
+      const { logAudit } = require('../../services/audit.service');
+      logAudit({
+        tenant_id: req.params.id,
+        usuario_id: req.currentUser?.id,
+        accion: 'ADDON_ACTIVADO',
+        entidad_tipo: 'tenant_addon',
+        entidad_id: addon_id,
+        ip_address: req.ip,
+        detalles: { addon: addon.nombre },
+      });
+
+      return reply.status(201).send({ success: true, message: `Add-on "${addon.nombre}" activado` });
+    }
+  );
+
+  // Desactivar un add-on de un tenant (Solo Super Admin)
+  app.delete<{ Params: { id: string; addonId: string } }>(
+    '/tenants/:id/addons/:addonId',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') {
+        throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede desactivar add-ons');
+      }
+
+      const row = await queryOne<{ id: string; nombre: string }>(
+        `SELECT ta.id, a.nombre FROM tenant_addons ta JOIN addons a ON a.id = ta.addon_id
+         WHERE ta.tenant_id = $1 AND ta.addon_id = $2`,
+        [req.params.id, req.params.addonId]
+      );
+      if (!row) throw new ApiError(404, 'NOT_FOUND', 'Add-on no activado para este tenant');
+
+      await query(
+        `UPDATE tenant_addons SET status = 'CANCELED', updated_at = NOW()
+         WHERE tenant_id = $1 AND addon_id = $2`,
+        [req.params.id, req.params.addonId]
+      );
+
+      const { logAudit } = require('../../services/audit.service');
+      logAudit({
+        tenant_id: req.params.id,
+        usuario_id: req.currentUser?.id,
+        accion: 'ADDON_DESACTIVADO',
+        entidad_tipo: 'tenant_addon',
+        entidad_id: req.params.addonId,
+        ip_address: req.ip,
+        detalles: { addon: row.nombre },
+      });
+
+      return reply.send({ success: true, message: `Add-on "${row.nombre}" desactivado` });
+    }
+  );
 }

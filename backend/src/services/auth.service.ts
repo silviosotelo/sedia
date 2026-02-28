@@ -87,12 +87,30 @@ export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null
   );
   if (!row) return null;
 
-  const permisos = await query<{ recurso: string; accion: string }>(
-    `SELECT p.recurso, p.accion FROM rol_permisos rp
-     JOIN permisos p ON p.id = rp.permiso_id
-     WHERE rp.rol_id = $1`,
-    [row.rol_id]
-  );
+  const [permisos, addonRow] = await Promise.all([
+    query<{ recurso: string; accion: string }>(
+      `SELECT p.recurso, p.accion FROM rol_permisos rp
+       JOIN permisos p ON p.id = rp.permiso_id
+       WHERE rp.rol_id = $1`,
+      [row.rol_id]
+    ),
+    // Merge active add-on features into plan_features
+    row.tenant_id
+      ? queryOne<{ features: Record<string, any> }>(
+          `SELECT COALESCE(
+             jsonb_object_agg(f.key, f.value)
+           , '{}') as features
+           FROM tenant_addons ta
+           JOIN addons a ON a.id = ta.addon_id
+           CROSS JOIN LATERAL jsonb_each(a.features) f(key, value)
+           WHERE ta.tenant_id = $1 AND ta.status = 'ACTIVE'`,
+          [row.tenant_id]
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const planFeatures = (row as any).plan_features || {};
+  const addonFeatures = addonRow?.features || {};
 
   return {
     ...row,
@@ -105,7 +123,7 @@ export async function getUsuarioConRol(id: string): Promise<UsuarioConRol | null
     },
     permisos: permisos.map((p) => `${p.recurso}:${p.accion}`),
     tenant_nombre: row.tenant_nombre,
-    plan_features: (row as any).plan_features || {},
+    plan_features: { ...planFeatures, ...addonFeatures },
     billing_status: row.billing_status ?? undefined,
   };
 }

@@ -2,7 +2,7 @@ import { claimNextPendingJobTransaction, markJobDone, markJobFailed } from '../d
 import { SyncService } from '../services/sync.service';
 import { procesarImportacion } from '../services/processorImport.service';
 import { ejecutarConciliacion } from '../services/reconciliation.service';
-import { handleEmitirSifen } from './sifen.worker';
+import { handleEmitirSifen, handleEnviarLoteSifen, handleConsultarLoteSifen, handleAnularSifen, handleGenerarKude, handleReintentarFallidosSifen } from './sifen.worker';
 import { enviarFacturaEmail } from '../services/notification.service';
 import { logger } from '../config/logger';
 import { Job, SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload, ReconciliarCuentaJobPayload, ImportarProcesadorJobPayload } from '../types';
@@ -57,17 +57,22 @@ async function processJob(job: Job): Promise<void> {
       break;
     }
     case 'SIFEN_ENVIAR_LOTE': {
-      const { handleEnviarLoteSifen } = require('./sifen.worker');
       await handleEnviarLoteSifen(job.id, job.tenant_id, job.payload);
       break;
     }
     case 'SIFEN_CONSULTAR_LOTE': {
-      const { handleConsultarLoteSifen } = require('./sifen.worker');
       await handleConsultarLoteSifen(job.id, job.tenant_id, job.payload);
       break;
     }
+    case 'SIFEN_ANULAR': {
+      await handleAnularSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_GENERAR_KUDE': {
+      await handleGenerarKude(job.id, job.tenant_id, job.payload);
+      break;
+    }
     case 'SIFEN_REINTENTAR_FALLIDOS': {
-      const { handleReintentarFallidosSifen } = require('./sifen.worker');
       await handleReintentarFallidosSifen(job.id, job.tenant_id, job.payload);
       break;
     }
