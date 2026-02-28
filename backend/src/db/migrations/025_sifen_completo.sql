@@ -61,11 +61,19 @@ UPDATE plans
     jsonb_build_object('facturacion_electronica', COALESCE((features->>'sifen')::boolean, false))
   WHERE features ? 'sifen';
 
--- 5. Add-on SIFEN — corregir feature key
-UPDATE addons
-  SET features = (features - 'sifen') ||
-    jsonb_build_object('facturacion_electronica', true)
-  WHERE codigo = 'SIFEN' AND features ? 'sifen';
+-- 5. Add-on SIFEN — insertar o corregir feature key
+INSERT INTO addons (codigo, nombre, descripcion, precio_mensual_pyg, features, activo)
+VALUES (
+  'SIFEN',
+  'Facturación Electrónica (SIFEN)',
+  'Emisión de Documentos Electrónicos ante la SET — Facturas, Notas de Crédito/Débito, Autofacturas',
+  150000,
+  '{"facturacion_electronica": true}',
+  true
+)
+ON CONFLICT (codigo) DO UPDATE
+  SET features = (addons.features - 'sifen') ||
+    jsonb_build_object('facturacion_electronica', true);
 
 -- 6. Permisos SIFEN
 INSERT INTO permisos (recurso, accion, descripcion) VALUES
