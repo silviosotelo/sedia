@@ -23,6 +23,7 @@ import {
   TrendingUp,
   Settings,
   Palette,
+  Package,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,7 +35,7 @@ export type Page =
   | 'usuarios' | 'roles' | 'metricas' | 'notificaciones' | 'sifen'
   | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas'
   | 'conciliacion' | 'cuentas-bancarias' | 'bancos' | 'billing' | 'auditoria' | 'anomalias'
-  | 'configuracion' | 'white-label';
+  | 'configuracion' | 'white-label' | 'planes';
 
 interface NavItem {
   id: Page;
@@ -74,6 +75,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'roles', label: 'Roles y Permisos', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'roles_custom' },
   { id: 'bancos', label: 'Gestión Bancos', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin'] },
+  { id: 'planes', label: 'Planes y Add-ons', icon: <Package className="w-4 h-4" />, allowedRoles: ['super_admin'] },
   { id: 'billing', label: 'Suscripción y Pagos', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
   { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'auditoria' },
   { id: 'white-label', label: 'Personalización', icon: <Palette className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'whitelabel' },

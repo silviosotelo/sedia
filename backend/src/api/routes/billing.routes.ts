@@ -187,14 +187,67 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // GESTIÓN DE ADD-ONS (Solo Super Admin)
   // ═══════════════════════════════════════
 
-  // Listar todos los add-ons disponibles
-  app.get('/addons', async (_req, reply) => {
+  // Listar todos los add-ons disponibles (incluyendo inactivos para admin)
+  app.get('/addons', async (req, reply) => {
+    const isSuperAdmin = req.currentUser?.rol.nombre === 'super_admin';
     const addons = await query(
-      `SELECT id, codigo, nombre, descripcion, precio_mensual_pyg, features, activo
-       FROM addons WHERE activo = true ORDER BY nombre ASC`
+      isSuperAdmin
+        ? `SELECT id, codigo, nombre, descripcion, precio_mensual_pyg, features, activo FROM addons ORDER BY nombre ASC`
+        : `SELECT id, codigo, nombre, descripcion, precio_mensual_pyg, features, activo FROM addons WHERE activo = true ORDER BY nombre ASC`
     );
     return reply.send({ success: true, data: addons });
   });
+
+  // Crear add-on (Solo Super Admin)
+  app.post<{ Body: { codigo: string; nombre: string; descripcion?: string; precio_mensual_pyg?: number; features?: Record<string, unknown> } }>(
+    '/addons',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
+      const { codigo, nombre, descripcion, precio_mensual_pyg, features } = req.body;
+      if (!codigo || !nombre) throw new ApiError(400, 'BAD_REQUEST', 'codigo y nombre son requeridos');
+      const [addon] = await query<any>(
+        `INSERT INTO addons (codigo, nombre, descripcion, precio_mensual_pyg, features, activo)
+         VALUES ($1, $2, $3, $4, $5, true) RETURNING *`,
+        [codigo.toUpperCase(), nombre, descripcion || null, precio_mensual_pyg || 0, JSON.stringify(features || {})]
+      );
+      return reply.status(201).send({ success: true, data: addon });
+    }
+  );
+
+  // Actualizar add-on (Solo Super Admin)
+  app.put<{ Params: { addonId: string }; Body: Partial<any> }>(
+    '/addons/:addonId',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
+      const { nombre, descripcion, precio_mensual_pyg, features, activo } = req.body;
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      let i = 1;
+      if (nombre !== undefined) { sets.push(`nombre = $${i++}`); params.push(nombre); }
+      if (descripcion !== undefined) { sets.push(`descripcion = $${i++}`); params.push(descripcion); }
+      if (precio_mensual_pyg !== undefined) { sets.push(`precio_mensual_pyg = $${i++}`); params.push(precio_mensual_pyg); }
+      if (features !== undefined) { sets.push(`features = $${i++}`); params.push(JSON.stringify(features)); }
+      if (activo !== undefined) { sets.push(`activo = $${i++}`); params.push(activo); }
+      if (sets.length === 0) throw new ApiError(400, 'BAD_REQUEST', 'Sin campos a actualizar');
+      params.push(req.params.addonId);
+      const [addon] = await query<any>(
+        `UPDATE addons SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${i} RETURNING *`,
+        params
+      );
+      if (!addon) throw new ApiError(404, 'NOT_FOUND', 'Add-on no encontrado');
+      return reply.send({ success: true, data: addon });
+    }
+  );
+
+  // Eliminar add-on (Solo Super Admin)
+  app.delete<{ Params: { addonId: string } }>(
+    '/addons/:addonId',
+    async (req, reply) => {
+      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
+      await query(`UPDATE addons SET activo = false WHERE id = $1`, [req.params.addonId]);
+      return reply.status(204).send();
+    }
+  );
 
   // Listar add-ons activos de un tenant
   app.get<{ Params: { id: string } }>('/tenants/:id/addons', async (req, reply) => {

@@ -23,6 +23,7 @@ import { WhiteLabel } from './pages/WhiteLabel';
 import { Procesadoras } from './pages/Procesadoras';
 import { CuentasBancarias } from './pages/CuentasBancarias';
 import { Bancos } from './pages/Bancos';
+import { Planes } from './pages/Planes';
 import { Login } from './pages/Login';
 import { PublicInvoice } from './pages/PublicInvoice';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -56,6 +57,7 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; p
   procesadoras: { roles: ['super_admin', 'admin_empresa'] },
   // SIFEN: acceso basado en permiso de rol (sifen:ver), no en features del plan
   sifen: { roles: null, permiso: 'sifen:ver' },
+  planes: { roles: ['super_admin'] },
 };
 
 interface NavParams {
@@ -216,6 +218,9 @@ function AppInner() {
         )}
         {page === 'procesadoras' && canAccessPage('procesadoras') && (
           <Procesadoras toastSuccess={success} toastError={error} />
+        )}
+        {page === 'planes' && canAccessPage('planes') && (
+          <Planes toastSuccess={success} toastError={error} />
         )}
         {page === 'billing' && canAccessPage('billing') && (
           <Billing toastSuccess={success} toastError={error} />

@@ -595,6 +595,18 @@ export const api = {
 
     deactivateAddon: (tenantId: string, addonId: string): Promise<void> =>
       request<void>(`/tenants/${tenantId}/addons/${addonId}`, { method: 'DELETE' }),
+
+    createAddon: (body: { codigo: string; nombre: string; descripcion?: string; precio_mensual_pyg?: number; features?: Record<string, unknown> }): Promise<any> =>
+      request<{ data: any }>('/addons', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+
+    updateAddon: (addonId: string, body: Partial<{ nombre: string; descripcion: string; precio_mensual_pyg: number; features: Record<string, unknown>; activo: boolean }>): Promise<any> =>
+      request<{ data: any }>(`/addons/${addonId}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+
+    deleteAddon: (addonId: string): Promise<void> =>
+      request<void>(`/addons/${addonId}`, { method: 'DELETE' }),
+
+    getInvoiceHistory: (tenantId: string): Promise<any[]> =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/billing/history`).then((r) => r.data ?? []),
   },
 
   audit: {
