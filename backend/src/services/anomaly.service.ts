@@ -5,6 +5,39 @@ import { dispatchWebhookEvent } from './webhook.service';
 import { enviarNotificacion } from './notification.service';
 import { evaluarAlertasPorEvento } from './alert.service';
 
+interface AnomalyConfig {
+  sigma_factor: number;
+  precio_ratio_max: number;
+  precio_ratio_min: number;
+  precio_min_muestras: number;
+  frecuencia_max_dia: number;
+}
+
+const ANOMALY_CONFIG_DEFAULTS: AnomalyConfig = {
+  sigma_factor: 3,
+  precio_ratio_max: 2.5,
+  precio_ratio_min: 0.4,
+  precio_min_muestras: 5,
+  frecuencia_max_dia: 5,
+};
+
+let anomalyConfigCache: AnomalyConfig | null = null;
+let anomalyConfigCacheAt = 0;
+const CONFIG_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function getAnomalyConfig(): Promise<AnomalyConfig> {
+  const now = Date.now();
+  if (anomalyConfigCache && now - anomalyConfigCacheAt < CONFIG_TTL_MS) {
+    return anomalyConfigCache;
+  }
+  const row = await queryOne<{ value: AnomalyConfig }>(`
+    SELECT value FROM system_settings WHERE key = 'anomaly_config'
+  `, []);
+  anomalyConfigCache = { ...ANOMALY_CONFIG_DEFAULTS, ...(row?.value ?? {}) };
+  anomalyConfigCacheAt = now;
+  return anomalyConfigCache;
+}
+
 interface AnomalyToInsert {
   tipo: AnomalyTipo;
   severidad: AnomalySeveridad;
@@ -63,6 +96,7 @@ async function detectarDuplicado(c: Comprobante, tenantId: string): Promise<Anom
 
 async function detectarMontoInusual(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
   const total = parseFloat(c.total_operacion) || 0;
+  const cfg = await getAnomalyConfig();
 
   const row = await queryOne<{ avg: string; stddev: string; cnt: string }>(
     `SELECT AVG(total_operacion::numeric) as avg, STDDEV(total_operacion::numeric) as stddev, COUNT(*) as cnt
@@ -86,13 +120,14 @@ async function detectarMontoInusual(c: Comprobante, tenantId: string): Promise<A
 
   const avg = parseFloat(row?.avg ?? '0');
   const stddev = parseFloat(row?.stddev ?? '0');
+  const umbral = avg + cfg.sigma_factor * stddev;
 
-  if (stddev > 0 && total > avg + 3 * stddev) {
+  if (stddev > 0 && total > umbral) {
     return {
       tipo: 'MONTO_INUSUAL',
       severidad: 'MEDIA',
-      descripcion: `Monto inusualmente alto: ${total.toLocaleString('es-PY')} Gs. (promedio: ${avg.toFixed(0)} Gs.)`,
-      detalles: { total, promedio: avg, desviacion: stddev, umbral: avg + 3 * stddev },
+      descripcion: `Monto inusualmente alto: ${total.toLocaleString('es-PY')} Gs. (promedio: ${avg.toFixed(0)} Gs., ${cfg.sigma_factor}σ)`,
+      detalles: { total, promedio: avg, desviacion: stddev, umbral, sigma_factor: cfg.sigma_factor },
     };
   }
 
@@ -103,6 +138,7 @@ async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string): Prom
   const fecha = c.fecha_emision instanceof Date
     ? c.fecha_emision.toISOString().slice(0, 10)
     : String(c.fecha_emision).slice(0, 10);
+  const cfg = await getAnomalyConfig();
 
   const row = await queryOne<{ cnt: string }>(
     `SELECT COUNT(*) as cnt FROM comprobantes
@@ -111,12 +147,12 @@ async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string): Prom
     [tenantId, c.ruc_vendedor, fecha, c.id]
   );
 
-  if (parseInt(row?.cnt ?? '0') >= 5) {
+  if (parseInt(row?.cnt ?? '0') >= cfg.frecuencia_max_dia) {
     return {
       tipo: 'FRECUENCIA_INUSUAL',
       severidad: 'MEDIA',
-      descripcion: `Frecuencia inusual: más de 5 comprobantes del proveedor ${c.ruc_vendedor} en el mismo día`,
-      detalles: { ruc_vendedor: c.ruc_vendedor, fecha, cantidad: parseInt(row?.cnt ?? '0') + 1 },
+      descripcion: `Frecuencia inusual: más de ${cfg.frecuencia_max_dia} comprobantes del proveedor ${c.ruc_vendedor} en el mismo día`,
+      detalles: { ruc_vendedor: c.ruc_vendedor, fecha, cantidad: parseInt(row?.cnt ?? '0') + 1, umbral: cfg.frecuencia_max_dia },
     };
   }
 
@@ -164,14 +200,15 @@ async function detectarPriceAnomaly(c: Comprobante, tenantId: string): Promise<A
     [tenantId, c.ruc_vendedor, c.tipo_comprobante, c.id]
   );
 
+  const cfg = await getAnomalyConfig();
   const cnt = parseInt(row?.cnt ?? '0');
-  if (cnt < 5) return null; // Need enough data points
+  if (cnt < cfg.precio_min_muestras) return null; // Need enough data points
 
   const median = parseFloat(row?.median ?? '0');
   if (median <= 0) return null;
 
   const ratio = total / median;
-  if (ratio > 2.5 || ratio < 0.4) {
+  if (ratio > cfg.precio_ratio_max || ratio < cfg.precio_ratio_min) {
     return {
       tipo: 'PRICE_ANOMALY',
       severidad: 'BAJA',

@@ -199,6 +199,58 @@ export function Metricas({ toastError }: MetricasProps) {
         </Grid>
       )}
 
+      {/* Plan distribution + Addon usage */}
+      {(saas?.plan_distribucion?.length || saas?.addon_usage?.length) ? (
+        <Grid numItemsSm={1} numItemsLg={2} className="gap-6 mb-6">
+          {saas.plan_distribucion && saas.plan_distribucion.length > 0 && (
+            <Card>
+              <Title className="mb-4">Distribución por plan</Title>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Plan</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Empresas</TableHeaderCell>
+                    <TableHeaderCell className="text-right">MRR (Gs.)</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {saas.plan_distribucion.map((r) => (
+                    <TableRow key={r.plan}>
+                      <TableCell><Badge color="zinc">{r.plan}</Badge></TableCell>
+                      <TableCell className="text-right">{r.cantidad}</TableCell>
+                      <TableCell className="text-right font-medium">{r.mrr_plan.toLocaleString('es-PY')}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+          {saas.addon_usage && saas.addon_usage.length > 0 && (
+            <Card>
+              <Title className="mb-4">Uso de add-ons</Title>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeaderCell>Add-on</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Activos</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Cancelados</TableHeaderCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {saas.addon_usage.map((r) => (
+                    <TableRow key={r.addon}>
+                      <TableCell>{r.addon}</TableCell>
+                      <TableCell className="text-right"><Badge color="emerald">{r.activos}</Badge></TableCell>
+                      <TableCell className="text-right"><Badge color="zinc">{r.cancelados}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+        </Grid>
+      ) : null}
+
       <Grid numItemsLg={3} className="gap-6 mb-6">
         <Card>
           <div className="flex items-center gap-2 mb-4">
