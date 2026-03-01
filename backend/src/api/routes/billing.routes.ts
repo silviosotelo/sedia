@@ -1,46 +1,35 @@
+import { createHash } from 'crypto';
 import { FastifyInstance } from 'fastify';
-import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
-import { findAllPlans, getUsageActual, billingManager } from '../../services/billing.service';
+import { requireAuth, requireSuperAdmin, assertTenantAccess } from '../middleware/auth.middleware';
+import { findAllPlans, getUsageActual, billingManager, createPlan, updatePlan, deletePlan, changePlan } from '../../services/billing.service';
 import { bancardService } from '../../services/bancard.service';
 import { query, queryOne } from '../../db/connection';
 import { ApiError } from '../../utils/errors';
+import { logAudit } from '../../services/audit.service';
 
 export async function billingRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
 
   // Listar planes disponibles
   app.get('/plans', async (_req, reply) => {
-    const { findAllPlans } = require('../../services/billing.service');
     const plans = await findAllPlans();
     return reply.send({ success: true, data: plans });
   });
 
   // Crear plan (Solo Super Admin)
-  app.post<{ Body: Partial<any> }>('/plans', async (req, reply) => {
-    if (req.currentUser?.rol.nombre !== 'super_admin') {
-      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede crear planes');
-    }
-    const { createPlan } = require('../../services/billing.service');
+  app.post<{ Body: Partial<any> }>('/plans', { preHandler: requireSuperAdmin }, async (req, reply) => {
     const newPlan = await createPlan(req.body);
     return reply.status(201).send({ success: true, data: newPlan });
   });
 
   // Editar plan (Solo Super Admin)
-  app.put<{ Params: { id: string }; Body: Partial<any> }>('/plans/:id', async (req, reply) => {
-    if (req.currentUser?.rol.nombre !== 'super_admin') {
-      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede editar planes');
-    }
-    const { updatePlan } = require('../../services/billing.service');
+  app.put<{ Params: { id: string }; Body: Partial<any> }>('/plans/:id', { preHandler: requireSuperAdmin }, async (req, reply) => {
     const plan = await updatePlan(req.params.id, req.body);
     return reply.send({ success: true, data: plan });
   });
 
   // Eliminar plan (Solo Super Admin)
-  app.delete<{ Params: { id: string } }>('/plans/:id', async (req, reply) => {
-    if (req.currentUser?.rol.nombre !== 'super_admin') {
-      throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede eliminar planes');
-    }
-    const { deletePlan } = require('../../services/billing.service');
+  app.delete<{ Params: { id: string } }>('/plans/:id', { preHandler: requireSuperAdmin }, async (req, reply) => {
     await deletePlan(req.params.id);
     return reply.status(204).send();
   });
@@ -63,17 +52,11 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   app.put<{
     Params: { id: string };
     Body: { plan_id: string };
-  }>('/tenants/:id/billing/plan', async (req, reply) => {
-    if (req.currentUser!.rol.nombre !== 'super_admin') {
-      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede cambiar planes manualmente');
-    }
+  }>('/tenants/:id/billing/plan', { preHandler: requireSuperAdmin }, async (req, reply) => {
     const { plan_id } = req.body;
     if (!plan_id) throw new ApiError(400, 'BAD_REQUEST', 'plan_id es requerido');
 
-    const { changePlan } = require('../../services/billing.service');
     await changePlan(req.params.id, plan_id);
-
-    const { logAudit } = require('../../services/audit.service');
     logAudit({
       tenant_id: req.params.id,
       usuario_id: req.currentUser?.id,
@@ -142,7 +125,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
     const config = await bancardService.getConfig();
 
     // Validar token de confirmación (según documentación v1.22)
-    const verifyToken = require('crypto').createHash('md5')
+    const verifyToken = createHash('md5')
       .update(config.private_key + shop_process_id + "confirm" + bancardService.formatAmount(amount) + currency)
       .digest('hex');
 
@@ -201,8 +184,8 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Crear add-on (Solo Super Admin)
   app.post<{ Body: { codigo: string; nombre: string; descripcion?: string; precio_mensual_pyg?: number; features?: Record<string, unknown> } }>(
     '/addons',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
       const { codigo, nombre, descripcion, precio_mensual_pyg, features } = req.body;
       if (!codigo || !nombre) throw new ApiError(400, 'BAD_REQUEST', 'codigo y nombre son requeridos');
       const [addon] = await query<any>(
@@ -217,8 +200,8 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Actualizar add-on (Solo Super Admin)
   app.put<{ Params: { addonId: string }; Body: Partial<any> }>(
     '/addons/:addonId',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
       const { nombre, descripcion, precio_mensual_pyg, features, activo } = req.body;
       const sets: string[] = [];
       const params: unknown[] = [];
@@ -242,8 +225,8 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Eliminar add-on (Solo Super Admin)
   app.delete<{ Params: { addonId: string } }>(
     '/addons/:addonId',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') throw new ApiError(403, 'FORBIDDEN', 'Solo super_admin');
       await query(`UPDATE addons SET activo = false WHERE id = $1`, [req.params.addonId]);
       return reply.status(204).send();
     }
@@ -267,10 +250,8 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Activar un add-on para un tenant (Solo Super Admin)
   app.post<{ Params: { id: string }; Body: { addon_id: string; activo_hasta?: string } }>(
     '/tenants/:id/addons',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') {
-        throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede activar add-ons');
-      }
       const { addon_id, activo_hasta } = req.body;
       if (!addon_id) throw new ApiError(400, 'BAD_REQUEST', 'addon_id es requerido');
 
@@ -288,7 +269,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         [req.params.id, addon_id, activo_hasta || null]
       );
 
-      const { logAudit } = require('../../services/audit.service');
       logAudit({
         tenant_id: req.params.id,
         usuario_id: req.currentUser?.id,
@@ -306,11 +286,8 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // Desactivar un add-on de un tenant (Solo Super Admin)
   app.delete<{ Params: { id: string; addonId: string } }>(
     '/tenants/:id/addons/:addonId',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') {
-        throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede desactivar add-ons');
-      }
-
       const row = await queryOne<{ id: string; nombre: string }>(
         `SELECT ta.id, a.nombre FROM tenant_addons ta JOIN addons a ON a.id = ta.addon_id
          WHERE ta.tenant_id = $1 AND ta.addon_id = $2`,
@@ -324,7 +301,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         [req.params.id, req.params.addonId]
       );
 
-      const { logAudit } = require('../../services/audit.service');
       logAudit({
         tenant_id: req.params.id,
         usuario_id: req.currentUser?.id,

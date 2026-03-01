@@ -18,6 +18,9 @@ import {
   upsertBillingSubscription,
   findSubscriptionByProcessId
 } from '../db/repositories/billing.repository';
+import { enviarNotificacion } from './notification.service';
+import { dispatchWebhookEvent } from './webhook.service';
+import { evaluarAlertasPorEvento } from './alert.service';
 
 export class PlanLimitExceededError extends Error {
   code = 'PLAN_LIMIT_EXCEEDED';
@@ -67,8 +70,40 @@ export async function incrementarUsage(
   const now = new Date();
   try {
     await upsertUsageMetric(tenantId, now.getMonth() + 1, now.getFullYear(), campo, cantidad);
+
+    // Check plan limits and dispatch warnings (only for comprobantes)
+    if (campo === 'comprobantes_procesados') {
+      void checkAndNotifyUsageLimits(tenantId, now);
+    }
   } catch (err) {
     logger.error('Error incrementando usage metric', { error: (err as Error).message });
+  }
+}
+
+async function checkAndNotifyUsageLimits(tenantId: string, now: Date): Promise<void> {
+  try {
+    const { plan } = await getTenantPlan(tenantId);
+    if (!plan || plan.limite_comprobantes_mes === null) return;
+
+    const usage = await findUsageMetricsForMonth(tenantId, now.getMonth() + 1, now.getFullYear());
+    const procesados = usage?.comprobantes_procesados ?? 0;
+    const limite = plan.limite_comprobantes_mes;
+    const pct = procesados / limite;
+
+    if (procesados >= limite) {
+      const payload = { procesados, limite, plan: plan.nombre };
+      await enviarNotificacion({ tenantId, evento: 'PLAN_LIMITE_100', metadata: payload });
+      await dispatchWebhookEvent(tenantId, 'plan_limite_100', payload);
+      void evaluarAlertasPorEvento(tenantId, 'uso_plan_100', payload);
+    } else if (pct >= 0.8 && pct < 1) {
+      const restantes = limite - procesados;
+      const payload = { procesados, limite, restantes, pct: Math.round(pct * 100), plan: plan.nombre };
+      await enviarNotificacion({ tenantId, evento: 'PLAN_LIMITE_80', metadata: payload });
+      await dispatchWebhookEvent(tenantId, 'plan_limite_80', payload);
+      void evaluarAlertasPorEvento(tenantId, 'uso_plan_80', payload);
+    }
+  } catch (err) {
+    logger.error('Error checking usage limits for notification', { tenantId, error: (err as Error).message });
   }
 }
 

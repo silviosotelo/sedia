@@ -3,6 +3,7 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
 import { ApiError } from '../../utils/errors';
+import { dispatchWebhookEvent } from '../../services/webhook.service';
 
 export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
@@ -99,29 +100,42 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
         let whereClause = '';
         const vals: unknown[] = [req.params.tenantId, r.etiqueta, r.id, r.color];
 
-        if (r.campo === 'ruc_vendedor') {
-          if (r.operador === 'equals') whereClause = `ruc_vendedor = $5`;
-          else if (r.operador === 'contains') whereClause = `ruc_vendedor ILIKE $5`;
-          else if (r.operador === 'starts_with') whereClause = `ruc_vendedor ILIKE $5`;
-          else whereClause = `ruc_vendedor ILIKE $5`;
+        const sqlCampo: Record<string, string> = {
+          ruc_vendedor: 'ruc_vendedor',
+          razon_social_vendedor: 'razon_social_vendedor',
+          tipo_comprobante: 'tipo_comprobante',
+        };
 
-          const pattern = r.operador === 'equals' ? r.valor
-            : r.operador === 'contains' ? `%${r.valor}%`
-            : r.operador === 'starts_with' ? `${r.valor}%`
-            : `%${r.valor}`;
-          vals.push(pattern);
-        } else if (r.campo === 'razon_social_vendedor') {
-          whereClause = `razon_social_vendedor ILIKE $5`;
-          vals.push(`%${r.valor}%`);
-        } else if (r.campo === 'tipo_comprobante') {
-          whereClause = `tipo_comprobante = $5`;
-          vals.push(r.valor);
-        } else if (r.campo === 'monto_mayor') {
+        if (r.campo === 'monto_mayor') {
           whereClause = `total_operacion::numeric > $5`;
           vals.push(r.valor);
         } else if (r.campo === 'monto_menor') {
           whereClause = `total_operacion::numeric < $5`;
           vals.push(r.valor);
+        } else if (r.campo in sqlCampo) {
+          const col = sqlCampo[r.campo];
+          if (r.operador === 'equals') {
+            whereClause = `${col} = $5`;
+            vals.push(r.valor);
+          } else if (r.operador === 'contains') {
+            whereClause = `${col} ILIKE $5`;
+            vals.push(`%${r.valor}%`);
+          } else if (r.operador === 'not_contains') {
+            whereClause = `${col} NOT ILIKE $5`;
+            vals.push(`%${r.valor}%`);
+          } else if (r.operador === 'starts_with') {
+            whereClause = `${col} ILIKE $5`;
+            vals.push(`${r.valor}%`);
+          } else if (r.operador === 'ends_with') {
+            whereClause = `${col} ILIKE $5`;
+            vals.push(`%${r.valor}`);
+          } else if (r.operador === 'regex') {
+            whereClause = `${col} ~ $5`;
+            vals.push(r.valor);
+          } else {
+            whereClause = `${col} ILIKE $5`;
+            vals.push(`%${r.valor}%`);
+          }
         } else continue;
 
         const result = await query(
@@ -134,6 +148,11 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
         );
         aplicadas += Array.isArray(result) ? result.length : 0;
       }
+
+      void dispatchWebhookEvent(req.params.tenantId, 'clasificacion_aplicada', {
+        reglas: reglas.length,
+        etiquetas_aplicadas: aplicadas,
+      });
 
       return reply.send({ success: true, data: { message: 'Clasificación aplicada', etiquetas_aplicadas: aplicadas } });
     }

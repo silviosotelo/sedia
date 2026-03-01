@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { requireAuth } from '../middleware/auth.middleware';
 import { systemService } from '../../services/system.service';
+import { getSystemSmtp, buildTransporter } from '../../services/notification.service';
 import { ApiError } from '../../utils/errors';
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
@@ -33,5 +34,24 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
 
         await systemService.updateSetting(key, value, req.currentUser?.id);
         return { success: true };
+    });
+
+    // Probar SMTP global del sistema
+    app.post('/system/smtp/test', async (req, _reply) => {
+        const smtp = await getSystemSmtp();
+        if (!smtp) {
+            throw new ApiError(400, 'BAD_REQUEST', 'SMTP no configurado o deshabilitado');
+        }
+
+        const transporter = buildTransporter(smtp);
+        await transporter.verify();
+        await transporter.sendMail({
+            from: `"${smtp.fromName}" <${smtp.from}>`,
+            to: req.currentUser!.email ?? smtp.from,
+            subject: '[Sistema] Prueba de SMTP global',
+            html: '<p>Configuración SMTP del sistema verificada correctamente.</p>',
+        });
+
+        return { success: true, message: 'Email de prueba enviado' };
     });
 }

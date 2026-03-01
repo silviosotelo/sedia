@@ -1,6 +1,9 @@
 import { query, queryOne } from '../db/connection';
 import { Comprobante, AnomalyTipo, AnomalySeveridad } from '../types';
 import { logger } from '../config/logger';
+import { dispatchWebhookEvent } from './webhook.service';
+import { enviarNotificacion } from './notification.service';
+import { evaluarAlertasPorEvento } from './alert.service';
 
 interface AnomalyToInsert {
   tipo: AnomalyTipo;
@@ -13,13 +16,15 @@ async function insertAnomaly(
   tenantId: string,
   comprobanteId: string,
   anomaly: AnomalyToInsert
-): Promise<void> {
-  await query(
+): Promise<boolean> {
+  const row = await queryOne<{ id: string }>(
     `INSERT INTO anomaly_detections (tenant_id, comprobante_id, tipo, severidad, descripcion, detalles)
      VALUES ($1, $2, $3, $4, $5, $6)
-     ON CONFLICT (comprobante_id, tipo) WHERE estado = 'ACTIVA' DO NOTHING`,
+     ON CONFLICT (comprobante_id, tipo) WHERE estado = 'ACTIVA' DO NOTHING
+     RETURNING id`,
     [tenantId, comprobanteId, anomaly.tipo, anomaly.severidad, anomaly.descripcion, JSON.stringify(anomaly.detalles)]
   );
+  return !!row;
 }
 
 async function detectarDuplicado(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
@@ -128,7 +133,29 @@ export async function analizarComprobante(comprobante: Comprobante, tenantId: st
 
     for (const anomaly of results) {
       if (anomaly) {
-        await insertAnomaly(tenantId, comprobante.id, anomaly);
+        const inserted = await insertAnomaly(tenantId, comprobante.id, anomaly);
+        if (inserted) {
+          const anomalyPayload = {
+            comprobante_id: comprobante.id,
+            tipo: anomaly.tipo,
+            severidad: anomaly.severidad,
+            descripcion: anomaly.descripcion,
+            numero_comprobante: comprobante.numero_comprobante,
+            ruc_vendedor: comprobante.ruc_vendedor,
+            detalles: anomaly.detalles,
+          };
+          void dispatchWebhookEvent(tenantId, 'anomalia_detectada', anomalyPayload);
+          void enviarNotificacion({
+            tenantId,
+            evento: 'ANOMALIA_DETECTADA',
+            metadata: anomalyPayload,
+          });
+          // Evaluar alertas: batch tipos en una sola query
+          const alertTipos: string[] = ['anomalia_detectada'];
+          if (anomaly.tipo === 'DUPLICADO') alertTipos.push('factura_duplicada');
+          else if (anomaly.tipo === 'PROVEEDOR_NUEVO') alertTipos.push('proveedor_nuevo');
+          void evaluarAlertasPorEvento(tenantId, alertTipos, anomalyPayload);
+        }
       }
     }
   } catch (err) {

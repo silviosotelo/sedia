@@ -411,6 +411,12 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
       topTenants,
       jobsUltimos7Dias,
       xmlStats,
+      mrrRow,
+      planDistribucion,
+      addonUsage,
+      usageCurrentMonth,
+      anomaliasSummary,
+      webhookStats,
     ] = await Promise.all([
       query<{ mes: string; nuevos: string }>(
         `SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'YYYY-MM') as mes, COUNT(*) as nuevos
@@ -418,13 +424,17 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
          GROUP BY mes ORDER BY mes DESC LIMIT 12`
       ),
 
-      query<{ tenant_id: string; nombre: string; total_comprobantes: string; total_xml: string }>(
+      query<{ tenant_id: string; nombre: string; total_comprobantes: string; total_xml: string; plan: string | null; precio: string | null }>(
         `SELECT t.id as tenant_id, t.nombre_fantasia as nombre,
                 COUNT(c.id) as total_comprobantes,
-                COUNT(c.id) FILTER (WHERE c.xml_descargado_at IS NOT NULL) as total_xml
+                COUNT(c.id) FILTER (WHERE c.xml_descargado_at IS NOT NULL) as total_xml,
+                p.nombre as plan,
+                p.precio_mensual_pyg::text as precio
          FROM tenants t
          LEFT JOIN comprobantes c ON c.tenant_id = t.id
-         GROUP BY t.id, t.nombre_fantasia
+         LEFT JOIN plans p ON p.id = t.plan_id
+         WHERE t.activo = true
+         GROUP BY t.id, t.nombre_fantasia, p.nombre, p.precio_mensual_pyg
          ORDER BY total_comprobantes DESC
          LIMIT 10`
       ),
@@ -450,17 +460,135 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
             END as tasa
          FROM comprobantes`
       ),
+
+      // MRR: suma de precios de planes activos
+      queryOne<{ mrr: string; arpu: string; tenants_pagos: string }>(
+        `SELECT
+            COALESCE(SUM(p.precio_mensual_pyg), 0)::text as mrr,
+            CASE WHEN COUNT(t.id) FILTER (WHERE p.precio_mensual_pyg > 0) > 0
+                 THEN (SUM(p.precio_mensual_pyg) FILTER (WHERE p.precio_mensual_pyg > 0) /
+                       COUNT(t.id) FILTER (WHERE p.precio_mensual_pyg > 0))::text
+                 ELSE '0' END as arpu,
+            COUNT(t.id) FILTER (WHERE p.precio_mensual_pyg > 0)::text as tenants_pagos
+         FROM tenants t
+         LEFT JOIN plans p ON p.id = t.plan_id
+         WHERE t.activo = true`
+      ),
+
+      // Distribución por plan
+      query<{ plan: string; cantidad: string; mrr_plan: string }>(
+        `SELECT
+            COALESCE(p.nombre, 'Sin plan') as plan,
+            COUNT(t.id)::text as cantidad,
+            COALESCE(SUM(p.precio_mensual_pyg), 0)::text as mrr_plan
+         FROM tenants t
+         LEFT JOIN plans p ON p.id = t.plan_id
+         WHERE t.activo = true
+         GROUP BY p.nombre ORDER BY mrr_plan DESC`
+      ),
+
+      // Uso de add-ons activos
+      query<{ addon: string; tenants: string }>(
+        `SELECT a.nombre as addon, COUNT(ta.tenant_id)::text as tenants
+         FROM tenant_addons ta
+         JOIN addons a ON a.id = ta.addon_id
+         WHERE ta.status = 'ACTIVE' AND (ta.activo_hasta IS NULL OR ta.activo_hasta > NOW())
+         GROUP BY a.nombre ORDER BY tenants DESC LIMIT 10`
+      ),
+
+      // Uso del mes actual (top 10 por comprobantes)
+      query<{ tenant_id: string; nombre: string; procesados: string; limite: string | null; pct: string }>(
+        `SELECT u.tenant_id, t.nombre_fantasia as nombre,
+                u.comprobantes_procesados::text as procesados,
+                p.limite_comprobantes_mes::text as limite,
+                CASE WHEN p.limite_comprobantes_mes IS NOT NULL AND p.limite_comprobantes_mes > 0
+                     THEN ROUND(100.0 * u.comprobantes_procesados / p.limite_comprobantes_mes, 1)::text
+                     ELSE '0' END as pct
+         FROM usage_metrics u
+         JOIN tenants t ON t.id = u.tenant_id
+         LEFT JOIN plans p ON p.id = t.plan_id
+         WHERE u.mes = EXTRACT(MONTH FROM NOW())::int
+           AND u.anio = EXTRACT(YEAR FROM NOW())::int
+         ORDER BY u.comprobantes_procesados DESC
+         LIMIT 10`
+      ),
+
+      // Anomalías últimos 30 días
+      queryOne<{ total: string; alta: string; media: string; baja: string }>(
+        `SELECT COUNT(*)::text as total,
+                COUNT(*) FILTER (WHERE severidad = 'ALTA')::text as alta,
+                COUNT(*) FILTER (WHERE severidad = 'MEDIA')::text as media,
+                COUNT(*) FILTER (WHERE severidad = 'BAJA')::text as baja
+         FROM anomaly_detections
+         WHERE created_at >= NOW() - INTERVAL '30 days' AND estado = 'ACTIVA'`
+      ),
+
+      // Webhooks últimas 24h
+      queryOne<{ enviados: string; exitosos: string; fallidos: string; muertos: string }>(
+        `SELECT COUNT(*)::text as enviados,
+                COUNT(*) FILTER (WHERE estado = 'SUCCESS')::text as exitosos,
+                COUNT(*) FILTER (WHERE estado IN ('FAILED','RETRYING'))::text as fallidos,
+                COUNT(*) FILTER (WHERE estado = 'DEAD')::text as muertos
+         FROM webhook_deliveries
+         WHERE created_at >= NOW() - INTERVAL '24 hours'`
+      ),
     ]);
 
     return reply.send({
       success: true,
       data: {
+        // KPIs SaaS
+        mrr: parseFloat(mrrRow?.mrr ?? '0'),
+        arpu: parseFloat(mrrRow?.arpu ?? '0'),
+        tenants_pagos: parseInt(mrrRow?.tenants_pagos ?? '0'),
+
+        // Distribución de planes
+        plan_distribucion: planDistribucion.map((r) => ({
+          plan: r.plan,
+          cantidad: parseInt(r.cantidad),
+          mrr_plan: parseFloat(r.mrr_plan),
+        })),
+
+        // Add-ons activos
+        addon_usage: addonUsage.map((r) => ({
+          addon: r.addon,
+          tenants: parseInt(r.tenants),
+        })),
+
+        // Uso del mes actual
+        uso_mes_actual: usageCurrentMonth.map((r) => ({
+          tenant_id: r.tenant_id,
+          nombre: r.nombre,
+          procesados: parseInt(r.procesados),
+          limite: r.limite ? parseInt(r.limite) : null,
+          pct_uso: parseFloat(r.pct),
+        })),
+
+        // Anomalías
+        anomalias_30d: {
+          total: parseInt(anomaliasSummary?.total ?? '0'),
+          alta: parseInt(anomaliasSummary?.alta ?? '0'),
+          media: parseInt(anomaliasSummary?.media ?? '0'),
+          baja: parseInt(anomaliasSummary?.baja ?? '0'),
+        },
+
+        // Webhooks
+        webhooks_24h: {
+          enviados: parseInt(webhookStats?.enviados ?? '0'),
+          exitosos: parseInt(webhookStats?.exitosos ?? '0'),
+          fallidos: parseInt(webhookStats?.fallidos ?? '0'),
+          muertos: parseInt(webhookStats?.muertos ?? '0'),
+        },
+
+        // Datos existentes
         tenants_por_mes: tenantsPorMes,
         top_tenants: topTenants.map((r) => ({
           tenant_id: r.tenant_id,
           nombre: r.nombre,
           total_comprobantes: parseInt(r.total_comprobantes),
           total_xml: parseInt(r.total_xml),
+          plan: r.plan,
+          precio_mensual: r.precio ? parseFloat(r.precio) : 0,
         })),
         jobs_ultimos_7_dias: jobsUltimos7Dias,
         xml_stats: {

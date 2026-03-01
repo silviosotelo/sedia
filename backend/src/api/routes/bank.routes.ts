@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
-import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { requireAuth, requireSuperAdmin, assertTenantAccess } from '../middleware/auth.middleware';
 import {
   findBanks,
   createBank,
@@ -47,10 +47,8 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Body: { nombre: string; codigo: string; pais?: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null } }>(
     '/banks',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') {
-        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede crear bancos');
-      }
       const bank = await createBank(req.body);
       return reply.status(201).send({ success: true, data: bank });
     }
@@ -58,10 +56,8 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
 
   app.put<{ Params: { id: string }; Body: Partial<{ nombre: string; codigo: string; pais: string; activo: boolean; csv_mapping: Record<string, unknown> | null }> }>(
     '/banks/:id',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') {
-        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede editar bancos');
-      }
       const bank = await updateBank(req.params.id, req.body);
       if (!bank) throw new ApiError(404, 'NOT_FOUND', 'Banco no encontrado');
       return reply.send({ success: true, data: bank });
@@ -70,10 +66,8 @@ export async function bankRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete<{ Params: { id: string } }>(
     '/banks/:id',
+    { preHandler: requireSuperAdmin },
     async (req, reply) => {
-      if (req.currentUser?.rol.nombre !== 'super_admin') {
-        throw new ApiError(403, 'API_ERROR', 'Solo Super Admin puede eliminar bancos');
-      }
       await deleteBank(req.params.id);
       return reply.status(204).send();
     }

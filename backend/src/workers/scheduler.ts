@@ -6,6 +6,8 @@ import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.r
 import { createJob, countActiveJobsForTenant, resetStuckRunningJobs, findJobs } from '../db/repositories/job.repository';
 import { query } from '../db/connection';
 import { enviarNotificacionSifen } from '../services/notification.service';
+import { verificarSinSync } from '../services/alert.service';
+import { retryPendingDeliveries } from '../services/webhook.service';
 
 interface SchedulerTenantConfig {
   scheduler_habilitado: boolean | null;
@@ -294,6 +296,24 @@ export function startScheduler(): void {
       await checkCertExpiry();
     } catch (err) {
       logger.error('Scheduler SIFEN cert expiry error', { error: (err as Error).message });
+    }
+  });
+
+  // Alertas sin-sync: cada hora
+  cron.schedule('0 * * * *', async () => {
+    try {
+      await verificarSinSync();
+    } catch (err) {
+      logger.error('Scheduler alertas sin-sync error', { error: (err as Error).message });
+    }
+  });
+
+  // Webhook retry: cada minuto
+  cron.schedule('* * * * *', async () => {
+    try {
+      await retryPendingDeliveries();
+    } catch (err) {
+      logger.error('Scheduler webhook retry error', { error: (err as Error).message });
     }
   });
 

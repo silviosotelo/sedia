@@ -1,57 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit3, Trash2, Package, CreditCard, ChevronDown, ChevronUp, Save, X } from 'lucide-react';
-import { Card, Badge as TremorBadge, TabGroup, TabList, Tab } from '@tremor/react';
+import { Plus, Edit3, Trash2, Package, CreditCard, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { Card, Badge as TremorBadge, TabGroup, TabList, Tab, Button } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageLoader } from '../components/ui/Spinner';
 import { api } from '../lib/api';
 import type { Plan } from '../types';
+import { PLAN_FEATURES, FEATURE_LABEL } from '../lib/features';
+import { formatCurrency } from '../lib/utils';
 
 interface PlanesProps {
   toastSuccess: (title: string, desc?: string) => void;
   toastError: (title: string, desc?: string) => void;
 }
 
-const FEATURE_LABELS: Record<string, string> = {
-  comprobantes: 'Comprobantes',
-  marangatu_sync: 'Sync Marangatu',
-  ords_sync: 'Envío ORDS',
-  exportacion_csv: 'Exportar CSV',
-  exportacion_pdf: 'Exportar PDF',
-  exportacion_xlsx: 'Exportar XLSX',
-  exportacion_json: 'Exportar JSON',
-  exportacion_txt: 'Exportar TXT',
-  alertas: 'Alertas',
-  clasificacion: 'Clasificación',
-  conciliacion: 'Conciliación Bancaria',
-  webhooks: 'Webhooks',
-  api_tokens: 'API Tokens',
-  metricas: 'Métricas',
-  metricas_avanzadas: 'Métricas Avanzadas',
-  forecast: 'Forecast',
-  anomalias: 'Anomalías',
-  roles_custom: 'Roles Personalizados',
-  usuarios_ilimitados: 'Usuarios Ilimitados',
-  notificaciones: 'Notificaciones',
-  virtual_invoices: 'Facturas Virtuales',
-  auditoria: 'Auditoría',
-  whitelabel: 'White Label',
-  csv_schemas_custom: 'Esquemas CSV',
-  pdf: 'Descarga PDF',
-  xlsx: 'Descarga XLSX',
-  facturacion_electronica: 'Facturación Electrónica (SIFEN)',
-};
-
 function fmtGs(n: number) {
-  if (n === 0) return 'Gratis';
-  return new Intl.NumberFormat('es-PY', { style: 'currency', currency: 'PYG', maximumFractionDigits: 0 }).format(n);
+  return n === 0 ? 'Gratis' : formatCurrency(n);
 }
 
 function FeatureToggle({
   featureKey, value, onChange
 }: { featureKey: string; value: boolean | number | string; onChange: (key: string, val: boolean | number) => void }) {
-  const label = FEATURE_LABELS[featureKey] || featureKey;
+  const label = FEATURE_LABEL[featureKey] || featureKey;
   if (typeof value === 'boolean') {
     return (
       <label className="flex items-center gap-2 cursor-pointer">
@@ -59,7 +30,7 @@ function FeatureToggle({
           type="checkbox"
           checked={value}
           onChange={(e) => onChange(featureKey, e.target.checked)}
-          className="w-4 h-4 accent-violet-600"
+          className="w-4 h-4 accent-tremor-brand"
         />
         <span className="text-sm text-zinc-700">{label}</span>
       </label>
@@ -174,7 +145,7 @@ function PlanForm({ initial, onSave, onCancel, loading }: PlanFormProps) {
       <div>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Funcionalidades incluidas</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-          {Object.entries(FEATURE_LABELS).map(([key]) => {
+          {PLAN_FEATURES.map(({ id: key }) => {
             const val = features[key];
             const displayVal = val === undefined ? false : val;
             return (
@@ -190,17 +161,15 @@ function PlanForm({ initial, onSave, onCancel, loading }: PlanFormProps) {
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="px-4 py-2 text-sm rounded-xl border border-zinc-200 hover:bg-zinc-50">
-          Cancelar
-        </button>
-        <button
-          onClick={handleSubmit}
+        <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+        <Button
+          onClick={() => void handleSubmit()}
           disabled={loading || !nombre}
-          className="px-4 py-2 text-sm rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 flex items-center gap-1.5"
+          loading={loading}
+          icon={loading ? undefined : Save}
         >
-          <Save className="w-4 h-4" />
           {loading ? 'Guardando...' : 'Guardar plan'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -285,13 +254,13 @@ function AddonForm({ initial, onSave, onCancel, loading }: AddonFormProps) {
       <div>
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Features que activa</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-          {Object.entries(FEATURE_LABELS).map(([key, label]) => (
+          {PLAN_FEATURES.map(({ id: key, label }) => (
             <label key={key} className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={!!features[key]}
                 onChange={(e) => handleFeatureChange(key, e.target.checked)}
-                className="w-4 h-4 accent-violet-600"
+                className="w-4 h-4 accent-tremor-brand"
               />
               <span className="text-sm text-zinc-700">{label}</span>
             </label>
@@ -300,17 +269,15 @@ function AddonForm({ initial, onSave, onCancel, loading }: AddonFormProps) {
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <button onClick={onCancel} className="px-4 py-2 text-sm rounded-xl border border-zinc-200 hover:bg-zinc-50">
-          Cancelar
-        </button>
-        <button
-          onClick={handleSubmit}
+        <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+        <Button
+          onClick={() => void handleSubmit()}
           disabled={loading || !codigo || !nombre}
-          className="px-4 py-2 text-sm rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 disabled:opacity-50 flex items-center gap-1.5"
+          loading={loading}
+          icon={loading ? undefined : Save}
         >
-          <Save className="w-4 h-4" />
           {loading ? 'Guardando...' : 'Guardar add-on'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -466,12 +433,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
         {activeTab === 'plans' && (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button
-                onClick={() => setShowNewPlan(true)}
-                className="flex items-center gap-1.5 bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-700"
-              >
-                <Plus className="w-4 h-4" /> Nuevo plan
-              </button>
+              <Button icon={Plus} onClick={() => setShowNewPlan(true)}>Nuevo plan</Button>
             </div>
 
             {plans.map((plan) => {
@@ -486,7 +448,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
                         <div className="font-bold text-zinc-900">{plan.nombre}</div>
                         <div className="text-sm text-zinc-500">{fmtGs(plan.precio_mensual_pyg)}/mes</div>
                       </div>
-                      <TremorBadge color="violet" size="xs">{activeFeatures} features</TremorBadge>
+                      <TremorBadge color="zinc" size="xs">{activeFeatures} features</TremorBadge>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
@@ -498,7 +460,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
                       </button>
                       <button
                         onClick={() => setEditingPlan(plan)}
-                        className="p-2 rounded-lg hover:bg-violet-50 text-zinc-500 hover:text-violet-600"
+                        className="p-2 rounded-lg hover:bg-tremor-background-subtle text-zinc-500 hover:text-tremor-brand"
                         title="Editar"
                       >
                         <Edit3 className="w-4 h-4" />
@@ -517,7 +479,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
                     <div className="mt-4 pt-4 border-t border-zinc-100">
                       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-y-1.5 gap-x-4">
                         {Object.entries(features).map(([key, val]) => {
-                          const label = FEATURE_LABELS[key] || key;
+                          const label = FEATURE_LABEL[key] || key;
                           const active = val === true || (typeof val === 'number' && val > 0);
                           return (
                             <div key={key} className={`flex items-center gap-1.5 text-xs ${active ? 'text-emerald-700' : 'text-zinc-400'}`}>
@@ -547,12 +509,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
         {activeTab === 'addons' && (
           <div className="space-y-4">
             <div className="flex justify-end">
-              <button
-                onClick={() => setShowNewAddon(true)}
-                className="flex items-center gap-1.5 bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-violet-700"
-              >
-                <Plus className="w-4 h-4" /> Nuevo add-on
-              </button>
+              <Button icon={Plus} onClick={() => setShowNewAddon(true)}>Nuevo add-on</Button>
             </div>
 
             {addons.map((addon) => {
@@ -561,7 +518,7 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
               return (
                 <Card key={addon.id} className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Package className="w-5 h-5 text-violet-500 flex-shrink-0" />
+                    <Package className="w-5 h-5 text-tremor-brand flex-shrink-0" />
                     <div className="min-w-0">
                       <div className="font-bold text-zinc-900 flex items-center gap-2">
                         {addon.nombre}
@@ -570,13 +527,13 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
                       </div>
                       <div className="text-xs text-zinc-500 truncate">{addon.descripcion}</div>
                     </div>
-                    <TremorBadge color="violet" size="xs">{activeFeatures} features</TremorBadge>
+                    <TremorBadge color="zinc" size="xs">{activeFeatures} features</TremorBadge>
                     <span className="text-sm text-zinc-600 font-medium flex-shrink-0">{fmtGs(addon.precio_mensual_pyg)}/mes</span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => setEditingAddon(addon)}
-                      className="p-2 rounded-lg hover:bg-violet-50 text-zinc-500 hover:text-violet-600"
+                      className="p-2 rounded-lg hover:bg-tremor-background-subtle text-zinc-500 hover:text-tremor-brand"
                       title="Editar"
                     >
                       <Edit3 className="w-4 h-4" />

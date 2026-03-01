@@ -8,6 +8,8 @@ import {
 } from '../db/repositories/bank.repository';
 import { Comprobante } from '../types';
 import { logger } from '../config/logger';
+import { dispatchWebhookEvent } from './webhook.service';
+import { evaluarAlertasPorEvento } from './alert.service';
 
 interface MatchCandidate {
   bankTxId: string;
@@ -312,10 +314,24 @@ VALUES($1, $2, $3, $4, $5, $6)
 
     await updateRun(runId, { estado: 'DONE', summary });
     logger.info('Conciliación completada', { runId, summary });
+
+    void dispatchWebhookEvent(run.tenant_id, 'conciliacion_completada', {
+      run_id: runId,
+      periodo_desde: run.periodo_desde,
+      periodo_hasta: run.periodo_hasta,
+      ...summary,
+    });
   } catch (err) {
     const msg = (err as Error).message;
     logger.error('Error en conciliación', { runId, error: msg });
     await updateRun(runId, { estado: 'FAILED', error_mensaje: msg });
+
+    if (run) {
+      void evaluarAlertasPorEvento(run.tenant_id, 'conciliacion_fallida', {
+        run_id: runId,
+        error: msg,
+      });
+    }
   }
 }
 

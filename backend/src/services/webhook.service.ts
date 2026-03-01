@@ -14,7 +14,14 @@ export type WebhookEvento =
   | 'sifen_de_rechazado'
   | 'sifen_lote_enviado'
   | 'sifen_lote_completado'
-  | 'sifen_anulacion';
+  | 'sifen_anulacion'
+  | 'anomalia_detectada'
+  | 'alerta_disparada'
+  | 'conciliacion_completada'
+  | 'plan_limite_80'
+  | 'plan_limite_100'
+  | 'factura_electronica_emitida'
+  | 'clasificacion_aplicada';
 
 interface WebhookRow {
   id: string;
@@ -145,12 +152,35 @@ export async function retryPendingDeliveries(): Promise<void> {
         [result.http_status, result.respuesta, intentos, d.id]
       );
     } else {
-      const nextRetry = new Date(Date.now() + Math.pow(2, intentos) * 60000);
-      await query(
-        `UPDATE webhook_deliveries SET estado='RETRYING', http_status=$1, error_message=$2,
-         intentos=$3, next_retry_at=$4 WHERE id=$5`,
-        [result.http_status ?? null, result.error ?? null, intentos, nextRetry, d.id]
-      );
+      const wh2 = wh; // already fetched
+      if (intentos >= wh2.intentos_max) {
+        // Move to dead-letter queue
+        await query(
+          `UPDATE webhook_deliveries SET estado='DEAD', http_status=$1, error_message=$2,
+           intentos=$3, next_retry_at=NULL WHERE id=$4`,
+          [result.http_status ?? null, result.error ?? null, intentos, d.id]
+        );
+        logger.warn('Webhook moved to DLQ after max retries', { deliveryId: d.id, webhookId: d.webhook_id, intentos });
+      } else {
+        // Exponential backoff capped at 24h
+        const backoffMs = Math.min(Math.pow(2, intentos) * 60000, 86_400_000);
+        const nextRetry = new Date(Date.now() + backoffMs);
+        await query(
+          `UPDATE webhook_deliveries SET estado='RETRYING', http_status=$1, error_message=$2,
+           intentos=$3, next_retry_at=$4 WHERE id=$5`,
+          [result.http_status ?? null, result.error ?? null, intentos, nextRetry, d.id]
+        );
+      }
     }
   }
+}
+
+/** Replay a DEAD delivery — resets to PENDING for next retry cycle */
+export async function replayDeadDelivery(deliveryId: string, tenantId: string): Promise<boolean> {
+  const row = await queryOne<{ id: string }>(
+    `UPDATE webhook_deliveries SET estado='PENDING', intentos=0, next_retry_at=NOW()
+     WHERE id=$1 AND tenant_id=$2 AND estado='DEAD' RETURNING id`,
+    [deliveryId, tenantId]
+  );
+  return !!row;
 }

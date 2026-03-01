@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { query, queryOne } from '../db/connection';
 import { logger } from '../config/logger';
 import { findTenantConfig, findTenantById } from '../db/repositories/tenant.repository';
+import { systemService } from './system.service';
 
 export type EventoNotificacion =
   | 'SYNC_OK'
@@ -14,7 +15,12 @@ export type EventoNotificacion =
   | 'SIFEN_DE_RECHAZADO'
   | 'SIFEN_LOTE_ERROR'
   | 'SIFEN_CERT_EXPIRANDO'
-  | 'SIFEN_ANULACION_OK';
+  | 'SIFEN_ANULACION_OK'
+  | 'FACTURA_ENVIADA'
+  | 'PLAN_LIMITE_80'
+  | 'PLAN_LIMITE_100'
+  | 'ANOMALIA_DETECTADA'
+  | 'ADDON_EXPIRANDO';
 
 interface NotifContext {
   tenantId: string;
@@ -40,6 +46,45 @@ interface SmtpConfig {
   from: string;
   fromName: string;
   secure: boolean;
+}
+
+export interface SmtpSystemConfig {
+  enabled: boolean;
+  host: string;
+  port?: number;
+  user: string;
+  password?: string;
+  from_email: string;
+  from_name?: string;
+  secure?: boolean;
+}
+
+export async function getSystemSmtp(): Promise<SmtpConfig | null> {
+  const cfg = await systemService.getSetting<SmtpSystemConfig>('smtp_config');
+  if (!cfg?.enabled || !cfg.host || !cfg.user || !cfg.from_email) return null;
+  return {
+    host: cfg.host,
+    port: cfg.port ?? 587,
+    user: cfg.user,
+    password: cfg.password ?? '',
+    from: cfg.from_email,
+    fromName: cfg.from_name ?? 'Sistema',
+    secure: cfg.secure ?? false,
+  };
+}
+
+export function buildTransporter(smtp: SmtpConfig) {
+  const isSecure = smtp.secure === true || smtp.port === 465;
+  const isLocalhost = smtp.host === 'localhost' || smtp.host === '127.0.0.1';
+  return nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: isSecure,
+    auth: { user: smtp.user, pass: smtp.password },
+    tls: { rejectUnauthorized: !isLocalhost },
+    connectionTimeout: 10000,
+    greetingTimeout: 5000,
+  });
 }
 
 interface ExtraConfig {
@@ -82,6 +127,11 @@ function isEventoHabilitado(evento: EventoNotificacion, extra: ExtraConfig): boo
     case 'SIFEN_LOTE_ERROR': return true;
     case 'SIFEN_CERT_EXPIRANDO': return true;
     case 'SIFEN_ANULACION_OK': return true;
+    case 'FACTURA_ENVIADA': return true;
+    case 'PLAN_LIMITE_80': return true;
+    case 'PLAN_LIMITE_100': return true;
+    case 'ANOMALIA_DETECTADA': return true;
+    case 'ADDON_EXPIRANDO': return true;
     default: return false;
   }
 }
@@ -99,6 +149,11 @@ function buildSubject(evento: EventoNotificacion, tenantNombre: string): string 
     SIFEN_LOTE_ERROR: `[${tenantNombre}] Error al enviar lote a SIFEN`,
     SIFEN_CERT_EXPIRANDO: `[${tenantNombre}] Certificado digital próximo a vencer`,
     SIFEN_ANULACION_OK: `[${tenantNombre}] Anulación de DE confirmada por SIFEN`,
+    FACTURA_ENVIADA: `[${tenantNombre}] Factura Electrónica enviada`,
+    PLAN_LIMITE_80: `[${tenantNombre}] Aviso: 80% del límite de comprobantes consumido`,
+    PLAN_LIMITE_100: `[${tenantNombre}] ALERTA: Límite de comprobantes alcanzado`,
+    ANOMALIA_DETECTADA: `[${tenantNombre}] Nueva anomalía detectada en comprobantes`,
+    ADDON_EXPIRANDO: `[${tenantNombre}] Módulo add-on próximo a vencer`,
   };
   return subjects[evento] ?? `[${tenantNombre}] Notificación SIFEN`;
 }
@@ -122,6 +177,11 @@ function buildHtml(
     SIFEN_LOTE_ERROR: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Error en Lote SIFEN' },
     SIFEN_CERT_EXPIRANDO: { bg: '#fefce8', border: '#ca8a04', icon: '&#9888;', title: 'Certificado por Vencer' },
     SIFEN_ANULACION_OK: { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'Anulación Confirmada' },
+    FACTURA_ENVIADA: { bg: '#eff6ff', border: '#2563eb', icon: '&#9993;', title: 'Factura Electrónica Enviada' },
+    PLAN_LIMITE_80: { bg: '#fefce8', border: '#ca8a04', icon: '&#9888;', title: 'Aviso: 80% del límite consumido' },
+    PLAN_LIMITE_100: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Límite de comprobantes alcanzado' },
+    ANOMALIA_DETECTADA: { bg: '#fff7ed', border: '#ea580c', icon: '&#9888;', title: 'Anomalía Detectada' },
+    ADDON_EXPIRANDO: { bg: '#fefce8', border: '#ca8a04', icon: '&#9889;', title: 'Add-on próximo a vencer' },
   };
 
   const c = colorMap[evento];
@@ -266,28 +326,23 @@ export async function enviarNotificacion(ctx: NotifContext): Promise<boolean> {
 
     if (!isEventoHabilitado(ctx.evento, extra)) return false;
 
-    const smtp = getSmtpConfig(extra);
+    let smtp = getSmtpConfig(extra);
     if (!smtp) {
-      logger.warn('SMTP no configurado para tenant', { tenantId: ctx.tenantId });
+      // Fallback: usar SMTP global del sistema
+      smtp = await getSystemSmtp();
+      if (smtp) {
+        logger.debug('Usando SMTP global del sistema como fallback', { tenantId: ctx.tenantId });
+      }
+    }
+    if (!smtp) {
+      logger.warn('Sin SMTP configurado (tenant ni sistema)', { tenantId: ctx.tenantId });
       return false;
     }
 
     const asunto = buildSubject(ctx.evento, tenant.nombre_fantasia);
     const html = buildHtml(ctx.evento, tenant.nombre_fantasia, ctx.metadata ?? {});
 
-    const isSecure = smtp.secure === true || smtp.port === 465;
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: isSecure,
-      auth: {
-        user: smtp.user,
-        pass: smtp.password,
-      },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 10000,
-      greetingTimeout: 5000,
-    });
+    const transporter = buildTransporter(smtp);
 
     await transporter.sendMail({
       from: `"${smtp.fromName}" <${smtp.from}>`,
@@ -347,17 +402,7 @@ export async function enviarNotificacionTest(tenantId: string): Promise<{ ok: bo
     const smtp = getSmtpConfig(extra);
     if (!smtp) return { ok: false, error: 'SMTP no configurado. Configure host, usuario y email remitente en la tab Integraciones.' };
 
-    const isSecure = smtp.secure === true || smtp.port === 465;
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: isSecure,
-      auth: { user: smtp.user, pass: smtp.password },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 10000,
-      greetingTimeout: 5000,
-    });
-
+    const transporter = buildTransporter(smtp);
     await transporter.verify();
 
     const asunto = buildSubject('TEST', tenant.nombre_fantasia);
@@ -454,17 +499,7 @@ export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<bool
 </body>
 </html>`;
 
-    const isSecure = smtp.secure === true || smtp.port === 465;
-    const transporter = nodemailer.createTransport({
-      host: smtp.host,
-      port: smtp.port,
-      secure: isSecure,
-      auth: {
-        user: smtp.user,
-        pass: smtp.password,
-      },
-    });
-
+    const transporter = buildTransporter(smtp);
     await transporter.sendMail({
       from: `"${smtp.fromName}" <${smtp.from}>`,
       to: ctx.emailCliente,
@@ -474,7 +509,7 @@ export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<bool
 
     await logNotification({
       tenantId: ctx.tenantId,
-      evento: 'TEST' as any, // TODO: Use a real EventoNotificacion if needed
+      evento: 'FACTURA_ENVIADA',
       destinatario: ctx.emailCliente,
       asunto,
       estado: 'SENT',
