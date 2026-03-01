@@ -94,9 +94,8 @@ async function detectarDuplicado(c: Comprobante, tenantId: string): Promise<Anom
   return null;
 }
 
-async function detectarMontoInusual(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
+async function detectarMontoInusual(c: Comprobante, tenantId: string, cfg: AnomalyConfig): Promise<AnomalyToInsert | null> {
   const total = parseFloat(c.total_operacion) || 0;
-  const cfg = await getAnomalyConfig();
 
   const row = await queryOne<{ avg: string; stddev: string; cnt: string }>(
     `SELECT AVG(total_operacion::numeric) as avg, STDDEV(total_operacion::numeric) as stddev, COUNT(*) as cnt
@@ -134,11 +133,10 @@ async function detectarMontoInusual(c: Comprobante, tenantId: string): Promise<A
   return null;
 }
 
-async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
+async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string, cfg: AnomalyConfig): Promise<AnomalyToInsert | null> {
   const fecha = c.fecha_emision instanceof Date
     ? c.fecha_emision.toISOString().slice(0, 10)
     : String(c.fecha_emision).slice(0, 10);
-  const cfg = await getAnomalyConfig();
 
   const row = await queryOne<{ cnt: string }>(
     `SELECT COUNT(*) as cnt FROM comprobantes
@@ -147,12 +145,13 @@ async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string): Prom
     [tenantId, c.ruc_vendedor, fecha, c.id]
   );
 
-  if (parseInt(row?.cnt ?? '0') >= cfg.frecuencia_max_dia) {
+  const cnt = parseInt(row?.cnt ?? '0');
+  if (cnt >= cfg.frecuencia_max_dia) {
     return {
       tipo: 'FRECUENCIA_INUSUAL',
       severidad: 'MEDIA',
       descripcion: `Frecuencia inusual: más de ${cfg.frecuencia_max_dia} comprobantes del proveedor ${c.ruc_vendedor} en el mismo día`,
-      detalles: { ruc_vendedor: c.ruc_vendedor, fecha, cantidad: parseInt(row?.cnt ?? '0') + 1, umbral: cfg.frecuencia_max_dia },
+      detalles: { ruc_vendedor: c.ruc_vendedor, fecha, cantidad: cnt + 1, umbral: cfg.frecuencia_max_dia },
     };
   }
 
@@ -186,10 +185,9 @@ async function detectarTaxMismatch(c: Comprobante, _tenantId: string): Promise<A
   return null;
 }
 
-async function detectarPriceAnomaly(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
-  // Find same ruc_vendedor with same number_comprobante prefix (same product line) but different per-unit amount
-  // Simpler: same vendor, same tipo_comprobante, but total deviates >50% from vendor's median for this month
+async function detectarPriceAnomaly(c: Comprobante, tenantId: string, cfg: AnomalyConfig): Promise<AnomalyToInsert | null> {
   const total = parseFloat(c.total_operacion) || 0;
+
   const row = await queryOne<{ median: string; cnt: string }>(
     `SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_operacion::numeric)::text AS median,
             COUNT(*) as cnt
@@ -200,9 +198,8 @@ async function detectarPriceAnomaly(c: Comprobante, tenantId: string): Promise<A
     [tenantId, c.ruc_vendedor, c.tipo_comprobante, c.id]
   );
 
-  const cfg = await getAnomalyConfig();
   const cnt = parseInt(row?.cnt ?? '0');
-  if (cnt < cfg.precio_min_muestras) return null; // Need enough data points
+  if (cnt < cfg.precio_min_muestras) return null;
 
   const median = parseFloat(row?.median ?? '0');
   if (median <= 0) return null;
@@ -240,12 +237,13 @@ async function detectarRoundNumber(c: Comprobante, _tenantId: string): Promise<A
 
 export async function analizarComprobante(comprobante: Comprobante, tenantId: string): Promise<void> {
   try {
+    const cfg = await getAnomalyConfig();
     const results = await Promise.all([
       detectarDuplicado(comprobante, tenantId),
-      detectarMontoInusual(comprobante, tenantId),
-      detectarFrecuenciaInusual(comprobante, tenantId),
+      detectarMontoInusual(comprobante, tenantId, cfg),
+      detectarFrecuenciaInusual(comprobante, tenantId, cfg),
       detectarTaxMismatch(comprobante, tenantId),
-      detectarPriceAnomaly(comprobante, tenantId),
+      detectarPriceAnomaly(comprobante, tenantId, cfg),
       detectarRoundNumber(comprobante, tenantId),
     ]);
 
