@@ -17,6 +17,8 @@ import { logger } from '../config/logger';
 import { TenantConfig } from '../types';
 import { decrypt } from './crypto.service';
 import { upsertComprobante } from '../db/repositories/comprobante.repository';
+import { analizarComprobante } from './anomaly.service';
+import { evaluarAlertasPorEvento } from './alert.service';
 
 export interface ComprobanteRow {
   origen: 'ELECTRONICO' | 'VIRTUAL';
@@ -604,7 +606,7 @@ export class MarangatuService {
 
         for (const row of rows) {
           try {
-            const { created } = await upsertComprobante({
+            const { comprobante, created } = await upsertComprobante({
               tenant_id: tenantId,
               origen: row.origen,
               ruc_vendedor: row.ruc_vendedor,
@@ -618,6 +620,13 @@ export class MarangatuService {
             });
             if (created) {
               result.inserted++;
+              // Análisis de anomalías y alertas — fire-and-forget
+              void analizarComprobante(comprobante, tenantId);
+              void evaluarAlertasPorEvento(tenantId, 'monto_mayor_a', {
+                monto: row.total_operacion,
+                numero_comprobante: row.numero_comprobante,
+                ruc_vendedor: row.ruc_vendedor,
+              });
             } else {
               result.updated++;
             }

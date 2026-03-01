@@ -1,4 +1,6 @@
 import { logger } from '../config/logger';
+import { analizarComprobante } from './anomaly.service';
+import { evaluarAlertasPorEvento } from './alert.service';
 import { findTenantConfig } from '../db/repositories/tenant.repository';
 import {
   markEnviosOrdsPendingAfterSync,
@@ -275,7 +277,7 @@ export class SyncService {
           return row.fecha_emision;
         })();
 
-        const { created } = await upsertComprobanteVirtual({
+        const { comprobante, created } = await upsertComprobanteVirtual({
           tenant_id: tenantId,
           origen: 'VIRTUAL',
           ruc_vendedor: row.ruc_informante,
@@ -298,8 +300,17 @@ export class SyncService {
           },
         });
 
-        if (created) inserted++;
-        else updated++;
+        if (created) {
+          inserted++;
+          void analizarComprobante(comprobante, tenantId);
+          void evaluarAlertasPorEvento(tenantId, 'monto_mayor_a', {
+            monto: row.importe,
+            numero_comprobante: row.numero_comprobante,
+            ruc_vendedor: row.ruc_informante,
+          });
+        } else {
+          updated++;
+        }
       }
     );
 

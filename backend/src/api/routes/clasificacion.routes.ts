@@ -82,6 +82,58 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  // Dry-run: count matches per rule without applying labels
+  app.post<{ Params: { tenantId: string } }>(
+    '/tenants/:tenantId/clasificacion/dry-run',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      const reglas = await query<{
+        id: string; nombre: string; campo: string; operador: string; valor: string; etiqueta: string;
+      }>(
+        `SELECT id, nombre, campo, operador, valor, etiqueta
+         FROM clasificacion_reglas WHERE tenant_id=$1 AND activo=true ORDER BY prioridad ASC`,
+        [req.params.tenantId]
+      );
+
+      const results: Array<{ regla_id: string; nombre: string; etiqueta: string; coincidencias: number }> = [];
+
+      const sqlCampo: Record<string, string> = {
+        ruc_vendedor: 'ruc_vendedor',
+        razon_social_vendedor: 'razon_social_vendedor',
+        tipo_comprobante: 'tipo_comprobante',
+      };
+
+      for (const r of reglas) {
+        let whereClause = '';
+        const vals: unknown[] = [req.params.tenantId];
+
+        if (r.campo === 'monto_mayor') {
+          whereClause = `total_operacion::numeric > $2`;
+          vals.push(r.valor);
+        } else if (r.campo === 'monto_menor') {
+          whereClause = `total_operacion::numeric < $2`;
+          vals.push(r.valor);
+        } else if (r.campo in sqlCampo) {
+          const col = sqlCampo[r.campo];
+          if (r.operador === 'equals') { whereClause = `${col} = $2`; vals.push(r.valor); }
+          else if (r.operador === 'not_contains') { whereClause = `${col} NOT ILIKE $2`; vals.push(`%${r.valor}%`); }
+          else if (r.operador === 'starts_with') { whereClause = `${col} ILIKE $2`; vals.push(`${r.valor}%`); }
+          else if (r.operador === 'ends_with') { whereClause = `${col} ILIKE $2`; vals.push(`%${r.valor}`); }
+          else if (r.operador === 'regex') { whereClause = `${col} ~ $2`; vals.push(r.valor); }
+          else { whereClause = `${col} ILIKE $2`; vals.push(`%${r.valor}%`); }
+        } else continue;
+
+        const countRow = await queryOne<{ cnt: string }>(
+          `SELECT COUNT(*) as cnt FROM comprobantes WHERE tenant_id=$1 AND ${whereClause}`,
+          vals
+        );
+        results.push({ regla_id: r.id, nombre: r.nombre, etiqueta: r.etiqueta, coincidencias: parseInt(countRow?.cnt ?? '0') });
+      }
+
+      return reply.send({ success: true, data: results });
+    }
+  );
+
   app.post<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/clasificacion/aplicar',
     async (req, reply) => {

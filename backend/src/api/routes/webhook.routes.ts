@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { checkFeature } from '../middleware/plan.middleware';
 import { query, queryOne } from '../../db/connection';
-import { dispatchWebhookEvent } from '../../services/webhook.service';
+import { dispatchWebhookEvent, replayDeadDelivery } from '../../services/webhook.service';
 import { ApiError } from '../../utils/errors';
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
@@ -141,6 +141,50 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
         data: rows,
         meta: { total: Number(countRow?.count ?? 0), page, limit, total_pages: Math.ceil(Number(countRow?.count ?? 0) / limit) },
       });
+    }
+  );
+
+  // DLQ — list DEAD deliveries across all webhooks for a tenant
+  app.get<{ Params: { tenantId: string }; Querystring: { page?: string; limit?: string } }>(
+    '/tenants/:tenantId/webhooks/dlq',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      const page = Math.max(1, Number(req.query.page ?? 1));
+      const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
+      const offset = (page - 1) * limit;
+
+      const [rows, countRow] = await Promise.all([
+        query(
+          `SELECT d.id, d.webhook_id, d.evento, d.estado, d.http_status, d.error_message, d.intentos, d.created_at,
+                  w.nombre AS webhook_nombre, w.url AS webhook_url
+           FROM webhook_deliveries d
+           JOIN tenant_webhooks w ON w.id = d.webhook_id
+           WHERE d.tenant_id=$1 AND d.estado='DEAD'
+           ORDER BY d.created_at DESC LIMIT $2 OFFSET $3`,
+          [req.params.tenantId, limit, offset]
+        ),
+        queryOne<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM webhook_deliveries WHERE tenant_id=$1 AND estado='DEAD'`,
+          [req.params.tenantId]
+        ),
+      ]);
+
+      return reply.send({
+        success: true,
+        data: rows,
+        meta: { total: Number(countRow?.count ?? 0), page, limit, total_pages: Math.ceil(Number(countRow?.count ?? 0) / limit) },
+      });
+    }
+  );
+
+  // Replay a DEAD delivery — resets it to PENDING
+  app.post<{ Params: { tenantId: string; id: string; deliveryId: string } }>(
+    '/tenants/:tenantId/webhooks/:id/deliveries/:deliveryId/replay',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      const ok = await replayDeadDelivery(req.params.deliveryId, req.params.tenantId);
+      if (!ok) throw new ApiError(404, 'NOT_FOUND', 'Delivery no encontrado o no está en estado DEAD');
+      return reply.send({ success: true, message: 'Delivery reencolado para reintento' });
     }
   );
 }
