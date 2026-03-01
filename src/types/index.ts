@@ -261,6 +261,14 @@ export interface MetricsSaas {
   top_tenants: Array<{ tenant_id: string; nombre: string; total_comprobantes: number; total_xml: number }>;
   jobs_ultimos_7_dias: Array<{ dia: string; exitosos: string; fallidos: string }>;
   xml_stats: { total: number; descargados: number; pendientes: number; tasa_descarga: number };
+  // SaaS KPIs (added in metrics v2)
+  mrr?: number;
+  arpu?: number;
+  tenants_pagos?: number;
+  plan_distribucion?: Array<{ plan: string; cantidad: number; mrr_plan: number }>;
+  addon_usage?: Array<{ addon: string; activos: number; cancelados: number }>;
+  anomalias_30d?: { total: number; alta: number; media: number; baja: number };
+  webhooks_24h?: { total: number; exitosos: number; fallidos: number; dead: number };
 }
 
 export interface PaginatedResponse<T> {

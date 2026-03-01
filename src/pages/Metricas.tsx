@@ -11,6 +11,10 @@ import {
   Send,
   TrendingUp,
   Award,
+  DollarSign,
+  Users,
+  AlertTriangle,
+  Zap,
 } from 'lucide-react';
 import {
   Card,
@@ -132,6 +136,68 @@ export function Metricas({ toastError }: MetricasProps) {
           <Text className="mt-2">{overview?.ords.fallidos ?? 0} fallidos</Text>
         </Card>
       </Grid>
+
+      {/* SaaS KPIs — MRR, ARPU, anomalías, webhooks */}
+      {(saas?.mrr !== undefined || saas?.anomalias_30d !== undefined) && (
+        <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
+          {saas?.mrr !== undefined && (
+            <Card decoration="top" decorationColor="emerald">
+              <Flex alignItems="start">
+                <div>
+                  <Text>MRR</Text>
+                  <Metric>{(saas.mrr).toLocaleString('es-PY')} Gs.</Metric>
+                </div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-50">
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                </div>
+              </Flex>
+              <Text className="mt-2">{saas.tenants_pagos ?? 0} empresas pagando</Text>
+            </Card>
+          )}
+          {saas?.arpu !== undefined && (
+            <Card decoration="top" decorationColor="violet">
+              <Flex alignItems="start">
+                <div>
+                  <Text>ARPU</Text>
+                  <Metric>{(saas.arpu).toLocaleString('es-PY')} Gs.</Metric>
+                </div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-50">
+                  <Users className="w-4 h-4 text-violet-600" />
+                </div>
+              </Flex>
+              <Text className="mt-2">promedio por empresa</Text>
+            </Card>
+          )}
+          {saas?.anomalias_30d !== undefined && (
+            <Card decoration="top" decorationColor="rose">
+              <Flex alignItems="start">
+                <div>
+                  <Text>Anomalías 30d</Text>
+                  <Metric>{saas.anomalias_30d.total.toLocaleString('es-PY')}</Metric>
+                </div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-rose-50">
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                </div>
+              </Flex>
+              <Text className="mt-2">{saas.anomalias_30d.alta} alta · {saas.anomalias_30d.media} media</Text>
+            </Card>
+          )}
+          {saas?.webhooks_24h !== undefined && (
+            <Card decoration="top" decorationColor="amber">
+              <Flex alignItems="start">
+                <div>
+                  <Text>Webhooks 24h</Text>
+                  <Metric>{saas.webhooks_24h.total.toLocaleString('es-PY')}</Metric>
+                </div>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50">
+                  <Zap className="w-4 h-4 text-amber-600" />
+                </div>
+              </Flex>
+              <Text className="mt-2">{saas.webhooks_24h.exitosos} ok · {saas.webhooks_24h.dead} DLQ</Text>
+            </Card>
+          )}
+        </Grid>
+      )}
 
       <Grid numItemsLg={3} className="gap-6 mb-6">
         <Card>
