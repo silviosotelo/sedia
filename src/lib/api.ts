@@ -337,6 +337,16 @@ export const api = {
         `/tenants/${tenantId}/webhooks/${webhookId}/deliveries?page=${page}&limit=${limit}`
       ).then((r) => ({ data: r.data ?? [], pagination: r.pagination }));
     },
+    dlq: (tenantId: string, page = 1, limit = 20): Promise<PaginatedResponse<WebhookDelivery & { webhook_id: string; webhook_nombre: string; webhook_url: string }>> => {
+      if (MOCK_MODE) return Promise.resolve({ data: [], pagination: { page, limit, total: 0, total_pages: 0 } });
+      return request<{ data: (WebhookDelivery & { webhook_id: string; webhook_nombre: string; webhook_url: string })[]; meta: { total: number; page: number; limit: number; total_pages: number } }>(
+        `/tenants/${tenantId}/webhooks/dlq?page=${page}&limit=${limit}`
+      ).then((r) => ({ data: r.data ?? [], pagination: { total: r.meta?.total ?? 0, page: r.meta?.page ?? page, limit: r.meta?.limit ?? limit, total_pages: r.meta?.total_pages ?? 0 } }));
+    },
+    replay: (tenantId: string, webhookId: string, deliveryId: string): Promise<{ message: string }> => {
+      if (MOCK_MODE) return Promise.resolve({ message: 'Reencolado (demo)' });
+      return request<{ message: string }>(`/tenants/${tenantId}/webhooks/${webhookId}/deliveries/${deliveryId}/replay`, { method: 'POST', body: JSON.stringify({}) });
+    },
   },
 
   apiTokens: {

@@ -290,7 +290,7 @@ export interface TenantWebhook {
 export interface WebhookDelivery {
   id: string;
   evento: string;
-  estado: 'PENDING' | 'SUCCESS' | 'FAILED' | 'RETRYING';
+  estado: 'PENDING' | 'SUCCESS' | 'FAILED' | 'RETRYING' | 'DEAD';
   http_status: number | null;
   error_message: string | null;
   intentos: number;

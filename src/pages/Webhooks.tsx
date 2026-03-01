@@ -1,7 +1,7 @@
 import { PageLoader } from '../components/ui/Spinner';
 import { useState, useEffect, useCallback } from 'react';
-import { Webhook, Plus, Search, Edit2, Trash2, CheckCircle2, XCircle, AlertCircle, RefreshCw, Send, Settings, Lock, EyeOff, Eye, ChevronUp, ChevronDown } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, NumberInput, Switch } from '@tremor/react';
+import { Webhook, Plus, Edit2, Trash2, CheckCircle2, XCircle, AlertCircle, RefreshCw, Send, EyeOff, Eye, ChevronUp, ChevronDown, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, NumberInput, Switch, Tab, TabList, TabGroup, TabPanel, TabPanels } from '@tremor/react';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { NoTenantState } from '../components/ui/NoTenantState';
@@ -31,6 +31,7 @@ const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' 
   FAILED: { label: 'Fallido', variant: 'danger', icon: XCircle },
   RETRYING: { label: 'Reintento', variant: 'warning', icon: AlertCircle },
   PENDING: { label: 'Pendiente', variant: 'default', icon: RefreshCw },
+  DEAD: { label: 'DLQ', variant: 'danger', icon: AlertTriangle },
 };
 
 interface WebhookFormData {
@@ -174,6 +175,71 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
   );
 }
 
+function DlqPanel({ tenantId, toastSuccess, toastError }: { tenantId: string; toastSuccess: (m: string) => void; toastError: (m: string) => void }) {
+  const [items, setItems] = useState<(WebhookDelivery & { webhook_id: string; webhook_nombre: string; webhook_url: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [replayingId, setReplayingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setItems((await api.webhooks.dlq(tenantId)).data); } catch { toastError('Error al cargar DLQ'); } finally { setLoading(false); }
+  }, [tenantId, toastError]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleReplay = async (item: typeof items[0]) => {
+    setReplayingId(item.id);
+    try {
+      await api.webhooks.replay(tenantId, item.webhook_id, item.id);
+      toastSuccess('Delivery reencolado para reintento');
+      await load();
+    } catch (e) { toastError((e as Error).message); } finally { setReplayingId(null); }
+  };
+
+  if (loading) return <PageLoader />;
+  if (!items.length) return (
+    <EmptyState icon={<AlertTriangle className="w-5 h-5" />} title="Sin entregas en DLQ"
+      description="No hay entregas fallidas en la cola de mensajes muertos." />
+  );
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableHeaderCell>Webhook</TableHeaderCell>
+            <TableHeaderCell>Evento</TableHeaderCell>
+            <TableHeaderCell>HTTP</TableHeaderCell>
+            <TableHeaderCell>Error</TableHeaderCell>
+            <TableHeaderCell>Intentos</TableHeaderCell>
+            <TableHeaderCell>Fecha</TableHeaderCell>
+            <TableHeaderCell></TableHeaderCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {items.map((d) => (
+            <TableRow key={d.id} className="hover:bg-tremor-background-subtle">
+              <TableCell>
+                <Text className="font-medium text-xs">{d.webhook_nombre}</Text>
+                <Text className="font-mono text-[10px] text-tremor-content-subtle truncate max-w-[160px]">{d.webhook_url}</Text>
+              </TableCell>
+              <TableCell className="font-mono text-xs">{d.evento}</TableCell>
+              <TableCell>{d.http_status ? <span className="font-mono font-semibold text-rose-600">{d.http_status}</span> : <span className="text-tremor-content-subtle">—</span>}</TableCell>
+              <TableCell className="max-w-[200px]"><Text className="text-xs text-rose-600 truncate">{d.error_message ?? '—'}</Text></TableCell>
+              <TableCell><span className="font-mono text-xs">{d.intentos}</span></TableCell>
+              <TableCell className="text-xs text-tremor-content">{formatDateTime(d.created_at)}</TableCell>
+              <TableCell>
+                <Button size="xs" variant="secondary" icon={RotateCcw} loading={replayingId === d.id}
+                  onClick={() => void handleReplay(d)}>Reintentar</Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </Card>
+  );
+}
+
 export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
   const { activeTenantId } = useTenant();
   const tenantId = activeTenantId ?? '';
@@ -236,7 +302,15 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
 
       {!tenantId ? (
         <NoTenantState message="Seleccioná una empresa para gestionar sus webhooks." />
-      ) : loading && !webhooks.length ? (
+      ) : (
+      <TabGroup>
+        <TabList className="mb-4">
+          <Tab>Configurados</Tab>
+          <Tab>Cola de errores (DLQ)</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel>
+      {loading && !webhooks.length ? (
         <PageLoader />
       ) : !webhooks.length ? (
         <EmptyState icon={<Webhook className="w-5 h-5" />} title="Sin webhooks"
@@ -281,6 +355,13 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
             </Card>
           ))}
         </div>
+      )}
+          </TabPanel>
+          <TabPanel>
+            <DlqPanel tenantId={tenantId} toastSuccess={toastSuccess} toastError={toastError} />
+          </TabPanel>
+        </TabPanels>
+      </TabGroup>
       )}
 
       <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nuevo webhook" size="md">

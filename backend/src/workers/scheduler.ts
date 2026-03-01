@@ -5,7 +5,7 @@ import { config } from '../config/env';
 import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.repository';
 import { createJob, countActiveJobsForTenant, resetStuckRunningJobs, findJobs } from '../db/repositories/job.repository';
 import { query } from '../db/connection';
-import { enviarNotificacionSifen } from '../services/notification.service';
+import { enviarNotificacionSifen, enviarNotificacion } from '../services/notification.service';
 import { verificarSinSync } from '../services/alert.service';
 import { retryPendingDeliveries } from '../services/webhook.service';
 
@@ -252,6 +252,40 @@ async function checkCertExpiry(): Promise<void> {
   }
 }
 
+// ─── Addon expiry check: diario ──────────────────────────────────────────────
+
+async function checkAddonExpiry(): Promise<void> {
+  logger.debug('Scheduler: verificando vencimiento de add-ons');
+  try {
+    const expiring = await query<{ tenant_id: string; addon_nombre: string; activo_hasta: Date }>(
+      `SELECT ta.tenant_id, a.nombre AS addon_nombre, ta.activo_hasta
+       FROM tenant_addons ta
+       JOIN addons a ON a.id = ta.addon_id
+       WHERE ta.activo_hasta IS NOT NULL
+         AND ta.activo_hasta > NOW()
+         AND ta.activo_hasta < NOW() + INTERVAL '7 days'
+         AND ta.status = 'ACTIVE'`,
+      []
+    );
+
+    await Promise.all(
+      expiring.map((row) => {
+        const diasRestantes = Math.ceil(
+          (new Date(row.activo_hasta).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        logger.warn('Add-on por vencer', { tenant_id: row.tenant_id, addon: row.addon_nombre, dias: diasRestantes });
+        return enviarNotificacion({
+          tenantId: row.tenant_id,
+          evento: 'ADDON_EXPIRANDO',
+          metadata: { addon_nombre: row.addon_nombre, activo_hasta: new Date(row.activo_hasta).toISOString(), dias_restantes: diasRestantes },
+        }).catch(() => {});
+      })
+    );
+  } catch (err) {
+    logger.error('Scheduler: error en addon expiry check', { error: (err as Error).message });
+  }
+}
+
 // ─── Cron principal ──────────────────────────────────────────────────────────
 
 export function startScheduler(): void {
@@ -296,6 +330,15 @@ export function startScheduler(): void {
       await checkCertExpiry();
     } catch (err) {
       logger.error('Scheduler SIFEN cert expiry error', { error: (err as Error).message });
+    }
+  });
+
+  // Addon expiry check una vez al día (a las 9am)
+  cron.schedule('0 9 * * *', async () => {
+    try {
+      await checkAddonExpiry();
+    } catch (err) {
+      logger.error('Scheduler addon expiry error', { error: (err as Error).message });
     }
   });
 
