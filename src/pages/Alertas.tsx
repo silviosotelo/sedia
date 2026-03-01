@@ -21,11 +21,15 @@ interface AlertasProps {
 }
 
 const TIPO_CFG: Record<string, { label: string; icon: typeof Bell; desc: string; fields: string[] }> = {
-  monto_mayor_a: { label: 'Monto mayor a', icon: DollarSign, desc: 'Notifica cuando llega una factura que supera un monto', fields: ['monto'] },
-  horas_sin_sync: { label: 'Horas sin sync', icon: Clock, desc: 'Notifica si no hubo sincronización en N horas', fields: ['horas'] },
-  proveedor_nuevo: { label: 'Proveedor nuevo', icon: UserPlus, desc: 'Notifica cuando aparece un RUC vendedor por primera vez', fields: [] },
-  factura_duplicada: { label: 'Factura duplicada', icon: Copy, desc: 'Notifica cuando se detecta un comprobante con número duplicado', fields: [] },
-  job_fallido: { label: 'Job fallido', icon: Zap, desc: 'Notifica cuando un job de sincronización falla', fields: [] },
+  monto_mayor_a: { label: 'Monto mayor a', icon: DollarSign, desc: 'Notifica cuando llega una factura que supera un umbral configurable', fields: ['monto'] },
+  horas_sin_sync: { label: 'Horas sin sync', icon: Clock, desc: 'Notifica si no hubo sincronización con Marangatú en N horas seguidas', fields: ['horas'] },
+  proveedor_nuevo: { label: 'Proveedor nuevo', icon: UserPlus, desc: 'Notifica cuando aparece un RUC vendedor por primera vez en la cuenta', fields: [] },
+  factura_duplicada: { label: 'Factura duplicada', icon: Copy, desc: 'Notifica cuando se detecta un comprobante con número o CDC ya registrado', fields: [] },
+  anomalia_detectada: { label: 'Anomalía detectada', icon: AlertTriangle, desc: 'Notifica cuando el motor de detección identifica cualquier tipo de anomalía', fields: [] },
+  job_fallido: { label: 'Job fallido', icon: Zap, desc: 'Notifica cuando un job de sincronización o procesamiento falla', fields: [] },
+  uso_plan_80: { label: 'Uso al 80%', icon: Bell, desc: 'Notifica cuando la empresa alcanza el 80% de su límite mensual de comprobantes', fields: [] },
+  uso_plan_100: { label: 'Límite alcanzado (100%)', icon: Bell, desc: 'Notifica cuando la empresa llega al 100% de su límite mensual de comprobantes', fields: [] },
+  conciliacion_fallida: { label: 'Conciliación fallida', icon: Bell, desc: 'Notifica cuando un proceso de conciliación bancaria termina con error', fields: [] },
 };
 
 interface AlertaFormData {

@@ -1,52 +1,43 @@
--- Migration 027: Performance indexes + Extended alert types
+-- Migration 027: Performance indexes + Extended clasificacion operadores
+
+-- Extender operadores de clasificación (drop viejo check si existe)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'clasificacion_reglas_operador_check') THEN
+    ALTER TABLE clasificacion_reglas DROP CONSTRAINT clasificacion_reglas_operador_check;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'clasificacion_reglas') THEN
+    ALTER TABLE clasificacion_reglas ADD CONSTRAINT clasificacion_reglas_operador_check
+      CHECK (operador IN ('equals', 'contains', 'starts_with', 'ends_with', 'not_contains', 'regex', 'greater_than', 'less_than'));
+  END IF;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ──────────────────────────────────────────────────────────────
--- Extender tipos de alertas (drop viejo check, agregar nuevos tipos)
--- ──────────────────────────────────────────────────────────────
-ALTER TABLE tenant_alertas DROP CONSTRAINT IF EXISTS tenant_alertas_tipo_check;
-ALTER TABLE tenant_alertas ADD CONSTRAINT tenant_alertas_tipo_check
-  CHECK (tipo IN (
-    'monto_mayor_a',
-    'horas_sin_sync',
-    'proveedor_nuevo',
-    'factura_duplicada',
-    'job_fallido',
-    'anomalia_detectada',
-    'uso_plan_80',
-    'uso_plan_100',
-    'conciliacion_fallida'
-  ));
-
--- Extender operadores de clasificación (drop viejo check)
-ALTER TABLE clasificacion_reglas DROP CONSTRAINT IF EXISTS clasificacion_reglas_operador_check;
-ALTER TABLE clasificacion_reglas ADD CONSTRAINT clasificacion_reglas_operador_check
-  CHECK (operador IN ('equals', 'contains', 'starts_with', 'ends_with', 'not_contains', 'regex', 'greater_than', 'less_than'));
-
--- ──────────────────────────────────────────────────────────────
--- Índices de rendimiento
+-- Índices de rendimiento (solo si las tablas existen)
 -- ──────────────────────────────────────────────────────────────
 
--- Webhook deliveries: cola de reintentos
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry
-  ON webhook_deliveries(estado, next_retry_at)
-  WHERE estado IN ('FAILED', 'RETRYING', 'PENDING');
+-- Webhook deliveries: cola de reintentos (solo si existe la tabla)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'webhook_deliveries') THEN
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_retry
+      ON webhook_deliveries(estado, next_retry_at)
+      WHERE estado IN ('FAILED', 'RETRYING', 'PENDING');
 
--- Webhook deliveries: por tenant (para UI)
-CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_tenant_created
-  ON webhook_deliveries(tenant_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_tenant_created
+      ON webhook_deliveries(tenant_id, created_at DESC);
+  END IF;
+END $$;
 
 -- Anomalías: buscar activas recientes por tenant
 CREATE INDEX IF NOT EXISTS idx_anomaly_tenant_created
   ON anomaly_detections(tenant_id, created_at DESC)
   WHERE estado = 'ACTIVA';
-
--- Alertas: evaluación por tipo de evento
-CREATE INDEX IF NOT EXISTS idx_alertas_tenant_tipo_activo
-  ON tenant_alertas(tenant_id, tipo, activo);
-
--- Alertas: log reciente por tenant
-CREATE INDEX IF NOT EXISTS idx_alerta_log_tenant_created
-  ON alerta_log(tenant_id, created_at DESC);
 
 -- Comprobantes: búsqueda por vendedor + fecha (para anomalías)
 CREATE INDEX IF NOT EXISTS idx_comprobantes_ruc_fecha
