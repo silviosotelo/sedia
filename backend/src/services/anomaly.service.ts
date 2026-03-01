@@ -123,12 +123,93 @@ async function detectarFrecuenciaInusual(c: Comprobante, tenantId: string): Prom
   return null;
 }
 
+async function detectarTaxMismatch(c: Comprobante, _tenantId: string): Promise<AnomalyToInsert | null> {
+  const total = parseFloat(c.total_operacion) || 0;
+  // Check IVA fields in raw_payload if available
+  const raw = (c.raw_payload ?? {}) as Record<string, unknown>;
+  const ivaDeclarado = parseFloat(String(raw.iva ?? raw.monto_iva ?? raw.total_iva ?? '0')) || 0;
+  if (ivaDeclarado <= 0 || total <= 0) return null;
+
+  // IVA 10% or 5% — calculate expected based on total
+  // total = base + iva → iva10 = total * 10/110, iva5 = total * 5/105
+  const iva10Esperado = total * 10 / 110;
+  const iva5Esperado = total * 5 / 105;
+  const tolerancia = total * 0.02; // 2% tolerance
+
+  const matchesIva10 = Math.abs(ivaDeclarado - iva10Esperado) <= tolerancia;
+  const matchesIva5 = Math.abs(ivaDeclarado - iva5Esperado) <= tolerancia;
+
+  if (!matchesIva10 && !matchesIva5) {
+    return {
+      tipo: 'TAX_MISMATCH',
+      severidad: 'MEDIA',
+      descripcion: `IVA inconsistente: declarado ${ivaDeclarado.toFixed(0)} Gs., esperado ~${iva10Esperado.toFixed(0)} (10%) o ~${iva5Esperado.toFixed(0)} (5%)`,
+      detalles: { total, iva_declarado: ivaDeclarado, iva_esperado_10: Math.round(iva10Esperado), iva_esperado_5: Math.round(iva5Esperado) },
+    };
+  }
+  return null;
+}
+
+async function detectarPriceAnomaly(c: Comprobante, tenantId: string): Promise<AnomalyToInsert | null> {
+  // Find same ruc_vendedor with same number_comprobante prefix (same product line) but different per-unit amount
+  // Simpler: same vendor, same tipo_comprobante, but total deviates >50% from vendor's median for this month
+  const total = parseFloat(c.total_operacion) || 0;
+  const row = await queryOne<{ median: string; cnt: string }>(
+    `SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY total_operacion::numeric)::text AS median,
+            COUNT(*) as cnt
+     FROM comprobantes
+     WHERE tenant_id = $1 AND ruc_vendedor = $2 AND tipo_comprobante = $3
+       AND DATE_TRUNC('month', fecha_emision) = DATE_TRUNC('month', NOW())
+       AND id != $4`,
+    [tenantId, c.ruc_vendedor, c.tipo_comprobante, c.id]
+  );
+
+  const cnt = parseInt(row?.cnt ?? '0');
+  if (cnt < 5) return null; // Need enough data points
+
+  const median = parseFloat(row?.median ?? '0');
+  if (median <= 0) return null;
+
+  const ratio = total / median;
+  if (ratio > 2.5 || ratio < 0.4) {
+    return {
+      tipo: 'PRICE_ANOMALY',
+      severidad: 'BAJA',
+      descripcion: `Precio inusual: ${total.toLocaleString('es-PY')} Gs. (mediana del mes: ${median.toFixed(0)} Gs., ratio: ${ratio.toFixed(2)}x)`,
+      detalles: { total, mediana: Math.round(median), ratio: Math.round(ratio * 100) / 100, tipo_comprobante: c.tipo_comprobante },
+    };
+  }
+  return null;
+}
+
+async function detectarRoundNumber(c: Comprobante, _tenantId: string): Promise<AnomalyToInsert | null> {
+  const total = parseFloat(c.total_operacion) || 0;
+  if (total <= 0) return null;
+
+  // Suspicious round amounts: multiples of 1,000,000 Gs. or multiples of 100,000 for amounts > 500k
+  const isExactMillion = total % 1_000_000 === 0 && total >= 5_000_000;
+  const isExact100k = total % 100_000 === 0 && total >= 500_000 && total < 5_000_000;
+
+  if (isExactMillion || isExact100k) {
+    return {
+      tipo: 'ROUND_NUMBER',
+      severidad: 'BAJA',
+      descripcion: `Monto exactamente redondo: ${total.toLocaleString('es-PY')} Gs.`,
+      detalles: { total, tipo: isExactMillion ? 'multiplo_millon' : 'multiplo_100k' },
+    };
+  }
+  return null;
+}
+
 export async function analizarComprobante(comprobante: Comprobante, tenantId: string): Promise<void> {
   try {
     const results = await Promise.all([
       detectarDuplicado(comprobante, tenantId),
       detectarMontoInusual(comprobante, tenantId),
       detectarFrecuenciaInusual(comprobante, tenantId),
+      detectarTaxMismatch(comprobante, tenantId),
+      detectarPriceAnomaly(comprobante, tenantId),
+      detectarRoundNumber(comprobante, tenantId),
     ]);
 
     for (const anomaly of results) {

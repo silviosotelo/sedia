@@ -31,6 +31,9 @@ const TIPO_LABELS: Record<string, string> = {
   MONTO_INUSUAL: 'Monto inusual',
   PROVEEDOR_NUEVO: 'Proveedor nuevo',
   FRECUENCIA_INUSUAL: 'Frecuencia inusual',
+  TAX_MISMATCH: 'IVA inconsistente',
+  PRICE_ANOMALY: 'Precio anómalo',
+  ROUND_NUMBER: 'Monto redondo',
 };
 
 export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
@@ -136,6 +139,9 @@ export function Anomalias({ toastSuccess, toastError }: AnomaliasProps) {
             <SelectItem value="MONTO_INUSUAL">Monto inusual</SelectItem>
             <SelectItem value="PROVEEDOR_NUEVO">Proveedor nuevo</SelectItem>
             <SelectItem value="FRECUENCIA_INUSUAL">Frecuencia inusual</SelectItem>
+            <SelectItem value="TAX_MISMATCH">IVA inconsistente</SelectItem>
+            <SelectItem value="PRICE_ANOMALY">Precio anómalo</SelectItem>
+            <SelectItem value="ROUND_NUMBER">Monto redondo</SelectItem>
           </Select>
         </div>
       </div>

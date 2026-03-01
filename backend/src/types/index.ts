@@ -472,7 +472,7 @@ export interface AuditLogEntry {
 
 // ─── Anomaly Detection ────────────────────────────────────────────────────────
 
-export type AnomalyTipo = 'DUPLICADO' | 'MONTO_INUSUAL' | 'PROVEEDOR_NUEVO' | 'FRECUENCIA_INUSUAL';
+export type AnomalyTipo = 'DUPLICADO' | 'MONTO_INUSUAL' | 'PROVEEDOR_NUEVO' | 'FRECUENCIA_INUSUAL' | 'TAX_MISMATCH' | 'PRICE_ANOMALY' | 'ROUND_NUMBER';
 export type AnomalySeveridad = 'ALTA' | 'MEDIA' | 'BAJA';
 export type AnomalyEstado = 'ACTIVA' | 'REVISADA' | 'DESCARTADA';
 
