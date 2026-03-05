@@ -1,7 +1,10 @@
+import { createHash } from 'crypto';
 import { FastifyInstance } from 'fastify';
 import { billingManager } from '../../services/billing.service';
+import { bancardService } from '../../services/bancard.service';
 import { logger } from '../../config/logger';
 import { query } from '../../db/connection';
+import { ApiError } from '../../utils/errors';
 
 export async function webhookBillingRoutes(app: FastifyInstance): Promise<void> {
 
@@ -10,9 +13,19 @@ export async function webhookBillingRoutes(app: FastifyInstance): Promise<void> 
         const payload = req.body as any;
         logger.info('Bancard Webhook recibido', { process_id: payload?.operation?.shop_process_id });
 
-        // En un entorno real, aquí validaríamos el token de Bancard que viene en el header o body
-
         const { operation } = payload;
+        if (!operation) throw new ApiError(400, 'BAD_REQUEST', 'Payload inválido');
+
+        // Validar token de confirmación MD5
+        const { shop_process_id, amount, currency, token } = operation;
+        const config = await bancardService.getConfig();
+        const verifyToken = createHash('md5')
+            .update(config.private_key + shop_process_id + "confirm" + bancardService.formatAmount(amount) + currency)
+            .digest('hex');
+
+        if (token !== verifyToken) {
+            throw new ApiError(403, 'FORBIDDEN', 'Token de seguridad inválido');
+        }
         if (operation && operation.response === 'S' && operation.response_description === 'Transaction approved') {
             const processId = operation.shop_process_id; // Este ID debería mapear a una factura/suscripción pendiente
 

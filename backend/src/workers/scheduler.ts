@@ -127,7 +127,7 @@ async function enqueueScheduledSyncs(): Promise<void> {
              scheduler_ultimo_run_exitoso = NOW()
          WHERE tenant_id = $1`,
         [tenant.id, frecuenciaMinutos]
-      ).catch(() => {});
+      ).catch(err => logger.debug('Error actualizando proximo_run', { tenant_id: tenant.id, error: err.message }));
 
       logger.info('Scheduler: job SYNC_COMPROBANTES encolado', {
         tenant_id: tenant.id,

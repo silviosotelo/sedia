@@ -188,8 +188,8 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         setCheckoutData(res.data);
       } else {
         // vPOS 2.0 Iframe integration
-        const { process_id } = res.data;
-        setCheckoutData({ method: 'vpos', process_id });
+        const { process_id, bancard_env } = res.data;
+        setCheckoutData({ method: 'vpos', process_id, bancard_env });
       }
     } catch (err: any) {
       toastError(err.message || 'Error al iniciar el pago');
@@ -224,15 +224,18 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
   const currentPlanId = usage?.plan?.id;
   const maxHistory = Math.max(...(usage?.historial ?? []).map((h) => h.comprobantes_procesados), 1);
 
-  const queryParams = new URLSearchParams(window.location.search);
-  const isSuccess = queryParams.get('success') === 'true';
-  const isCancel = queryParams.get('cancel') === 'true';
-  const paymentStatus = queryParams.get('status');
+  const [paymentResult, setPaymentResult] = useState<'success' | 'cancel' | null>(() => {
+    const qp = new URLSearchParams(window.location.search);
+    if (qp.get('success') === 'true') return 'success';
+    if (qp.get('cancel') === 'true') return 'cancel';
+    return null;
+  });
+  const paymentStatus = new URLSearchParams(window.location.search).get('status');
 
-  if (isSuccess || isCancel) {
+  if (paymentResult) {
     return (
       <div className="animate-fade-in flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        {isSuccess ? (
+        {paymentResult === 'success' ? (
           <>
             <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
               <CheckCircle2 className="w-8 h-8" />
@@ -255,8 +258,9 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
         )}
         <button
           onClick={() => {
-            window.history.replaceState({}, '', '/#billing');
-            window.location.reload();
+            window.history.replaceState({}, '', window.location.pathname);
+            setPaymentResult(null);
+            void load();
           }}
           className="btn-md btn-primary"
         >
@@ -403,7 +407,7 @@ export function Billing({ toastSuccess, toastError }: BillingProps) {
               <div className="min-h-[400px]">
                 <BancardIframe
                   processId={checkoutData.process_id}
-                  enviroment="Staging"
+                  enviroment={checkoutData.bancard_env || 'Staging'}
                   options={{
                     handler: () => {
                       setShowCheckout(false);

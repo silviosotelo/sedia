@@ -2,8 +2,30 @@ import { FastifyInstance } from 'fastify';
 import { query } from '../../db/connection';
 import { Comprobante } from '../../types';
 import { logger } from '../../config/logger';
+import { systemService } from '../../services/system.service';
 
 export async function publicRoutes(app: FastifyInstance): Promise<void> {
+    // Branding del sistema (sin auth — usado por super_admin sin tenant)
+    app.get('/branding/system', async (_req, reply) => {
+        const [name, primary, secondary, logo, favicon] = await Promise.all([
+            systemService.getSetting<string>('brand_name'),
+            systemService.getSetting<string>('brand_color_primary'),
+            systemService.getSetting<string>('brand_color_secondary'),
+            systemService.getSetting<string>('brand_logo_url'),
+            systemService.getSetting<string>('brand_favicon_url'),
+        ]);
+        return reply.send({
+            success: true,
+            data: {
+                nombre_app: name ?? 'SEDIA',
+                color_primario: primary ?? '#18181b',
+                color_secundario: secondary ?? '#f4f4f5',
+                logo_url: logo ?? '',
+                favicon_url: favicon ?? '',
+            },
+        });
+    });
+
     // Portal público: Descarga/Vista de Factura por Hash
     // No requiere autenticación, accesible vía link enviado al cliente
     app.get<{ Params: { hash: string } }>('/public/invoice/:hash', async (req, reply) => {

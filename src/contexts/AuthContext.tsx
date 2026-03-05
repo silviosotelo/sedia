@@ -29,7 +29,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || '/api';
+import { BASE_URL } from '../lib/api';
 
 const DEFAULT_BRANDING = {
   nombre_app: 'SEDIA',
@@ -77,6 +77,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           return;
         }
+      }
+
+      // Super admin without tenant_id: fetch system branding
+      if (token && !user?.tenant_id) {
+        try {
+          const resSys = await fetch(`/branding/system`);
+          if (resSys.ok) {
+            const { data } = await resSys.json();
+            setBranding(data);
+            return;
+          }
+        } catch { /* ignore */ }
       }
 
       // Fallback if no specific branding found

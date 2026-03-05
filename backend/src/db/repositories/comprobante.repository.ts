@@ -113,44 +113,44 @@ export async function findComprobantesByTenant(
   filters: ComprobanteFilters,
   pagination: PaginationParams
 ): Promise<{ data: Comprobante[]; total: number }> {
-  const conditions: string[] = ['tenant_id = $1'];
+  const conditions: string[] = ['c.tenant_id = $1'];
   const params: unknown[] = [tenantId];
   let i = 2;
 
   if (filters.fecha_desde) {
-    conditions.push(`fecha_emision >= $${i++}`);
+    conditions.push(`c.fecha_emision >= $${i++}`);
     params.push(filters.fecha_desde);
   }
   if (filters.fecha_hasta) {
-    conditions.push(`fecha_emision <= $${i++}`);
+    conditions.push(`c.fecha_emision <= $${i++}`);
     params.push(filters.fecha_hasta);
   }
   if (filters.tipo_comprobante) {
-    conditions.push(`tipo_comprobante = $${i++}`);
+    conditions.push(`c.tipo_comprobante = $${i++}`);
     params.push(filters.tipo_comprobante);
   }
   if (filters.ruc_vendedor) {
-    conditions.push(`ruc_vendedor = $${i++}`);
+    conditions.push(`c.ruc_vendedor = $${i++}`);
     params.push(filters.ruc_vendedor);
   }
   if (filters.xml_descargado === true) {
-    conditions.push(`xml_descargado_at IS NOT NULL`);
+    conditions.push(`c.xml_descargado_at IS NOT NULL`);
   } else if (filters.xml_descargado === false) {
-    conditions.push(`xml_descargado_at IS NULL`);
+    conditions.push(`c.xml_descargado_at IS NULL`);
   }
 
   if (filters.modo === 'ventas' && filters.tenant_ruc) {
-    conditions.push(`ruc_vendedor = $${i++}`);
+    conditions.push(`c.ruc_vendedor = $${i++}`);
     params.push(filters.tenant_ruc);
   } else if (filters.modo === 'compras' && filters.tenant_ruc) {
-    conditions.push(`ruc_vendedor <> $${i++}`);
+    conditions.push(`c.ruc_vendedor <> $${i++}`);
     params.push(filters.tenant_ruc);
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
 
   const countRows = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM comprobantes ${where}`,
+    `SELECT COUNT(*) as count FROM comprobantes c ${where}`,
     params
   );
   const total = parseInt(countRows[0]?.count ?? '0', 10);
@@ -159,8 +159,14 @@ export async function findComprobantesByTenant(
   const offset = (pagination.page - 1) * pagination.limit;
 
   const data = await query<Comprobante>(
-    `SELECT * FROM comprobantes ${where}
-     ORDER BY fecha_emision DESC
+    `SELECT c.*,
+            COALESCE(
+              (SELECT json_agg(json_build_object('etiqueta', ce.etiqueta, 'color', ce.color))
+               FROM comprobante_etiquetas ce WHERE ce.comprobante_id = c.id),
+              '[]'::json
+            ) AS etiquetas
+     FROM comprobantes c ${where}
+     ORDER BY c.fecha_emision DESC
      LIMIT $${i++} OFFSET $${i++}`,
     [...params, limit, offset]
   );

@@ -137,13 +137,9 @@ export function SifenDetallePage({ tenantId, deId, onBack, toastSuccess, toastEr
                     )}
                     {de.estado === 'APPROVED' && (
                         <>
-                            <a href={api.sifen.downloadXmlUrl(tenantId, de.id)} target="_blank" rel="noreferrer">
-                                <Button size="xs" variant="secondary" icon={FileText}>XML</Button>
-                            </a>
+                            <Button size="xs" variant="secondary" icon={FileText} onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
                             {de.tiene_kude && (
-                                <a href={api.sifen.downloadKudeUrl(tenantId, de.id)} target="_blank" rel="noreferrer">
-                                    <Button size="xs" variant="secondary" icon={Download}>KUDE PDF</Button>
-                                </a>
+                                <Button size="xs" variant="secondary" icon={Download} onClick={() => api.sifen.downloadKude(tenantId, de.id)}>KUDE PDF</Button>
                             )}
                             <Button size="xs" variant="secondary" color="red" icon={FileX} onClick={handleAnular} loading={anulando}>
                                 Anular

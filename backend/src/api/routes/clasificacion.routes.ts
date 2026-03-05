@@ -195,7 +195,8 @@ export async function clasificacionRoutes(app: FastifyInstance): Promise<void> {
            SELECT id, $1, $2, $4, $3, 'auto'
            FROM comprobantes
            WHERE tenant_id=$1 AND ${whereClause}
-           ON CONFLICT (comprobante_id, etiqueta) DO NOTHING`,
+           ON CONFLICT (comprobante_id, etiqueta) DO NOTHING
+           RETURNING id`,
           vals
         );
         aplicadas += Array.isArray(result) ? result.length : 0;

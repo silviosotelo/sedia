@@ -67,13 +67,14 @@ export async function findAllPlans(): Promise<Plan[]> {
 
 export async function createPlan(data: Partial<Plan>): Promise<Plan | null> {
     return queryOne<Plan>(
-        `INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, limite_comprobantes_mes, features, activo)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        `INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, limite_comprobantes_mes, limite_usuarios, features, activo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
         [
             data.nombre,
             data.descripcion,
             data.precio_mensual_pyg,
             data.limite_comprobantes_mes,
+            data.limite_usuarios ?? 3,
             data.features ? JSON.stringify(data.features) : '{}',
             data.activo ?? true
         ]
@@ -82,11 +83,12 @@ export async function createPlan(data: Partial<Plan>): Promise<Plan | null> {
 
 export async function updatePlan(id: string, data: Partial<Plan>): Promise<Plan | null> {
     return queryOne<Plan>(
-        `UPDATE plans 
+        `UPDATE plans
      SET nombre = COALESCE($2, nombre),
          descripcion = COALESCE($3, descripcion),
          precio_mensual_pyg = COALESCE($4, precio_mensual_pyg),
          limite_comprobantes_mes = COALESCE($5, limite_comprobantes_mes),
+         limite_usuarios = COALESCE($8, limite_usuarios),
          features = COALESCE($6, features),
          activo = COALESCE($7, activo)
      WHERE id = $1 RETURNING *`,
@@ -97,7 +99,8 @@ export async function updatePlan(id: string, data: Partial<Plan>): Promise<Plan 
             data.precio_mensual_pyg,
             data.limite_comprobantes_mes,
             data.features ? JSON.stringify(data.features) : null,
-            data.activo
+            data.activo,
+            data.limite_usuarios ?? null
         ]
     );
 }

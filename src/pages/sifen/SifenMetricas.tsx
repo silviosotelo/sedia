@@ -8,6 +8,8 @@ import { SifenEstadoBadge } from '../../components/sifen/SifenEstadoBadge';
 
 interface Props {
     tenantId: string;
+    toastSuccess?: (msg: string) => void;
+    toastError?: (msg: string) => void;
 }
 
 export function SifenMetricasPage({ tenantId }: Props) {

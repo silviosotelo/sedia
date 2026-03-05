@@ -21,7 +21,7 @@ function evaluarCondicion(
   data: Record<string, unknown>
 ): boolean {
   if (tipo === 'monto_mayor_a') {
-    return Number(data.monto ?? data.total ?? 0) > Number(config.umbral ?? 0);
+    return Number(data.monto ?? data.total ?? 0) > Number(config.monto ?? config.umbral ?? 0);
   }
   if (tipo === 'horas_sin_sync') return false; // periodic only
   return true;
@@ -150,7 +150,7 @@ export async function verificarSinSync(): Promise<void> {
               MAX(j.completed_at)::text AS last_sync
        FROM tenant_alertas a
        LEFT JOIN jobs j ON j.tenant_id = a.tenant_id
-         AND j.tipo = 'SYNC_MARANGATU' AND j.estado = 'DONE'
+         AND j.tipo = 'SYNC_COMPROBANTES' AND j.estado = 'DONE'
        WHERE a.tipo = 'horas_sin_sync' AND a.activo = true
        GROUP BY a.id, a.tenant_id, a.nombre, a.tipo, a.config, a.canal,
                 a.webhook_id, a.cooldown_minutos, a.ultima_disparo`

@@ -3,6 +3,7 @@ import { Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
 import { Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab } from '@tremor/react';
+import { api } from '../../lib/api';
 import type { TenantWithConfig, AuthType } from '../../types';
 
 interface TenantFormProps {
@@ -28,6 +29,10 @@ export interface TenantFormData {
     ords_usuario: string;
     ords_password: string;
     ords_token: string;
+    scheduler_habilitado: boolean;
+    scheduler_hora_inicio: string;
+    scheduler_hora_fin: string;
+    scheduler_dias_semana: number[];
     extra_config: {
       solvecaptcha_api_key: string;
       smtp_host: string;
@@ -194,6 +199,10 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
       ords_usuario: initialData?.config?.ords_usuario || '',
       ords_password: '',
       ords_token: '',
+      scheduler_habilitado: true,
+      scheduler_hora_inicio: '06:00',
+      scheduler_hora_fin: '22:00',
+      scheduler_dias_semana: [1, 2, 3, 4, 5],
       extra_config: getInitialExtra(initialData),
     },
   });
@@ -263,6 +272,16 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
     e.preventDefault();
     if (!validate()) return;
     await onSubmit(buildPayload());
+    if (initialData?.id) {
+      try {
+        await api.tenants.updateScheduler(initialData.id, {
+          scheduler_habilitado: form.config.scheduler_habilitado,
+          scheduler_hora_inicio: form.config.scheduler_hora_inicio,
+          scheduler_hora_fin: form.config.scheduler_hora_fin,
+          scheduler_dias_semana: form.config.scheduler_dias_semana,
+        });
+      } catch { /* scheduler update non-blocking */ }
+    }
   };
 
   const ex = form.config.extra_config;
@@ -570,6 +589,69 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               />
               <p className="text-xs text-zinc-400 mt-1">Mínimo 5 minutos. Default: 60</p>
             </Field>
+
+            <div className="pt-4 border-t border-zinc-100">
+              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Scheduler de sincronización</p>
+              <div className="space-y-3">
+                <Toggle
+                  value={form.config.scheduler_habilitado}
+                  onChange={(v) => setConfig('scheduler_habilitado', v)}
+                  label="Scheduler habilitado"
+                  description="Activa o desactiva la sincronización automática programada"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Hora inicio">
+                    <TextInput
+                      type="time"
+                      value={form.config.scheduler_hora_inicio}
+                      onChange={(e) => setConfig('scheduler_hora_inicio', e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Hora fin">
+                    <TextInput
+                      type="time"
+                      value={form.config.scheduler_hora_fin}
+                      onChange={(e) => setConfig('scheduler_hora_fin', e.target.value)}
+                    />
+                  </Field>
+                </div>
+                <Field label="Días de la semana" hint="Días en los que se ejecuta la sincronización automática">
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {[
+                      { num: 1, label: 'Lun' },
+                      { num: 2, label: 'Mar' },
+                      { num: 3, label: 'Mié' },
+                      { num: 4, label: 'Jue' },
+                      { num: 5, label: 'Vie' },
+                      { num: 6, label: 'Sáb' },
+                      { num: 0, label: 'Dom' },
+                    ].map(({ num, label }) => {
+                      const active = form.config.scheduler_dias_semana.includes(num);
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            const dias = active
+                              ? form.config.scheduler_dias_semana.filter((d) => d !== num)
+                              : [...form.config.scheduler_dias_semana, num].sort();
+                            setConfig('scheduler_dias_semana', dias);
+                          }}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                            active
+                              ? 'bg-zinc-900 text-white border-zinc-900'
+                              : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Field>
+              </div>
+            </div>
           </>
         )}
       </div>

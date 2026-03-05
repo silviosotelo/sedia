@@ -7,8 +7,8 @@ import { ApiError } from '../../utils/errors';
 
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAuth);
-  app.addHook('preHandler', checkFeature('webhooks'));
 
+  // GET routes don't require the webhooks feature — allows viewing even on free plans
   app.get<{ Params: { tenantId: string } }>(
     '/tenants/:tenantId/webhooks',
     async (req, reply) => {
@@ -30,6 +30,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     }
   }>(
     '/tenants/:tenantId/webhooks',
+    { preHandler: checkFeature('webhooks') },
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, url, secret, eventos, activo = true, intentos_max = 3, timeout_ms = 10000 } = req.body;
@@ -53,6 +54,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
     }
   }>(
     '/tenants/:tenantId/webhooks/:id',
+    { preHandler: checkFeature('webhooks') },
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const { nombre, url, secret, eventos, activo, intentos_max, timeout_ms } = req.body;
@@ -87,6 +89,7 @@ export async function webhookRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete<{ Params: { tenantId: string; id: string } }>(
     '/tenants/:tenantId/webhooks/:id',
+    { preHandler: checkFeature('webhooks') },
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       await query(

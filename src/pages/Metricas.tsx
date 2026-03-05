@@ -35,15 +35,20 @@ import {
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { api } from '../lib/api';
-import type { MetricsOverview, MetricsSaas } from '../types';
+import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
+import type { MetricsOverview, MetricsSaas, MetricsTenant } from '../types';
 
 interface MetricasProps {
   toastError: (title: string, desc?: string) => void;
 }
 
 export function Metricas({ toastError }: MetricasProps) {
+  const { isSuperAdmin } = useAuth();
+  const { activeTenantId } = useTenant();
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [saas, setSaas] = useState<MetricsSaas | null>(null);
+  const [tenantMetrics, setTenantMetrics] = useState<MetricsTenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -51,19 +56,24 @@ export function Metricas({ toastError }: MetricasProps) {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const [overviewData, saasData] = await Promise.all([
-        api.metrics.overview(),
-        api.metrics.saas(),
-      ]);
-      setOverview(overviewData);
-      setSaas(saasData);
+      if (isSuperAdmin) {
+        const [overviewData, saasData] = await Promise.all([
+          api.metrics.overview(),
+          api.metrics.saas(),
+        ]);
+        setOverview(overviewData);
+        setSaas(saasData);
+      } else if (activeTenantId) {
+        const data = await api.metrics.tenant(activeTenantId);
+        setTenantMetrics(data);
+      }
     } catch (e) {
       toastError('Error al cargar métricas', e instanceof Error ? e.message : undefined);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [toastError]);
+  }, [toastError, isSuperAdmin, activeTenantId]);
 
   useEffect(() => {
     void load();
@@ -72,6 +82,69 @@ export function Metricas({ toastError }: MetricasProps) {
   }, [load]);
 
   if (loading) return <PageLoader />;
+
+  // Tenant view for non-super_admin
+  if (!isSuperAdmin) {
+    const tm = tenantMetrics;
+    const xmlTotalT = (tm?.xml.con_xml ?? 0) + (tm?.xml.sin_xml ?? 0);
+    const jobsTotalT = (tm?.jobs.exitosos ?? 0) + (tm?.jobs.fallidos ?? 0);
+    return (
+      <div className="animate-fade-in">
+        <Header
+          title="Métricas"
+          subtitle="Indicadores de sincronización y operación de tu empresa"
+          onRefresh={() => void load(true)}
+          refreshing={refreshing}
+        />
+        <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
+          <Card decoration="top" decorationColor="sky">
+            <Flex alignItems="start">
+              <div><Text>Comprobantes</Text><Metric>{(tm?.comprobantes.total ?? 0).toLocaleString('es-PY')}</Metric></div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-sky-50"><FileText className="w-4 h-4 text-sky-600" /></div>
+            </Flex>
+            <Text className="mt-2">{tm?.comprobantes.sin_sincronizar ?? 0} sin sincronizar</Text>
+          </Card>
+          <Card decoration="top" decorationColor="emerald">
+            <Flex alignItems="start">
+              <div><Text>XML descargados</Text><Metric>{(tm?.xml.con_xml ?? 0).toLocaleString('es-PY')}</Metric></div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-50"><FileCheck2 className="w-4 h-4 text-emerald-600" /></div>
+            </Flex>
+            <Text className="mt-2">{xmlTotalT > 0 ? Math.round(((tm?.xml.con_xml ?? 0) / xmlTotalT) * 100) : 0}% de cobertura</Text>
+          </Card>
+          <Card decoration="top" decorationColor="blue">
+            <Flex alignItems="start">
+              <div><Text>Jobs exitosos</Text><Metric>{(tm?.jobs.exitosos ?? 0).toLocaleString('es-PY')}</Metric></div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-50"><CheckCircle2 className="w-4 h-4 text-blue-600" /></div>
+            </Flex>
+            <Text className="mt-2">{jobsTotalT > 0 ? Math.round(((tm?.jobs.exitosos ?? 0) / jobsTotalT) * 100) : 0}% tasa de éxito</Text>
+          </Card>
+          <Card decoration="top" decorationColor="amber">
+            <Flex alignItems="start">
+              <div><Text>ORDS enviados</Text><Metric>{(tm?.ords.enviados ?? 0).toLocaleString('es-PY')}</Metric></div>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50"><Send className="w-4 h-4 text-amber-600" /></div>
+            </Flex>
+            <Text className="mt-2">{tm?.ords.fallidos ?? 0} fallidos</Text>
+          </Card>
+        </Grid>
+        {(tm?.por_tipo ?? []).length > 0 && (
+          <Card className="mb-6">
+            <Title className="mb-4">Comprobantes por tipo</Title>
+            <Table>
+              <TableHead><TableRow><TableHeaderCell>Tipo</TableHeaderCell><TableHeaderCell className="text-right">Cantidad</TableHeaderCell></TableRow></TableHead>
+              <TableBody>
+                {(tm?.por_tipo ?? []).map((r) => (
+                  <TableRow key={r.tipo}>
+                    <TableCell><Badge color="zinc">{r.tipo}</Badge></TableCell>
+                    <TableCell className="text-right font-medium">{r.cantidad.toLocaleString('es-PY')}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )}
+      </div>
+    );
+  }
 
   const xmlTotal = (overview?.xml.con_xml ?? 0) + (overview?.xml.sin_xml ?? 0);
   const xmlTasa = xmlTotal > 0 ? Math.round(((overview?.xml.con_xml ?? 0) / xmlTotal) * 100) : 0;
@@ -187,13 +260,13 @@ export function Metricas({ toastError }: MetricasProps) {
               <Flex alignItems="start">
                 <div>
                   <Text>Webhooks 24h</Text>
-                  <Metric>{saas.webhooks_24h.total.toLocaleString('es-PY')}</Metric>
+                  <Metric>{saas.webhooks_24h.enviados.toLocaleString('es-PY')}</Metric>
                 </div>
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50">
                   <Zap className="w-4 h-4 text-amber-600" />
                 </div>
               </Flex>
-              <Text className="mt-2">{saas.webhooks_24h.exitosos} ok · {saas.webhooks_24h.dead} DLQ</Text>
+              <Text className="mt-2">{saas.webhooks_24h.exitosos} ok · {saas.webhooks_24h.muertos} DLQ</Text>
             </Card>
           )}
         </Grid>
@@ -232,16 +305,14 @@ export function Metricas({ toastError }: MetricasProps) {
                 <TableHead>
                   <TableRow>
                     <TableHeaderCell>Add-on</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Activos</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Cancelados</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Tenants activos</TableHeaderCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {saas.addon_usage.map((r) => (
                     <TableRow key={r.addon}>
                       <TableCell>{r.addon}</TableCell>
-                      <TableCell className="text-right"><Badge color="emerald">{r.activos}</Badge></TableCell>
-                      <TableCell className="text-right"><Badge color="zinc">{r.cancelados}</Badge></TableCell>
+                      <TableCell className="text-right"><Badge color="emerald">{r.tenants}</Badge></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

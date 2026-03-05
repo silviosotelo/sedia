@@ -24,6 +24,9 @@ const EVENTOS_DISPONIBLES = [
   { value: 'sync_fail', label: 'Sync fallido' },
   { value: 'xml_descargado', label: 'XML descargado' },
   { value: 'ords_enviado', label: 'Enviado a ORDS' },
+  { value: 'test', label: 'Prueba' },
+  { value: 'clasificacion_aplicada', label: 'Clasificación aplicada' },
+  { value: 'alerta_disparada', label: 'Alerta disparada' },
 ];
 
 const ESTADO_CFG: Record<string, { label: string; variant: 'success' | 'danger' | 'warning' | 'default'; icon: typeof CheckCircle2 }> = {

@@ -8,6 +8,8 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { EmptyState } from '../components/ui/EmptyState';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 
 interface Permiso {
     id: string;
@@ -27,6 +29,8 @@ interface Role {
 }
 
 export function Roles({ toastSuccess, toastError }: { toastSuccess: (m: string) => void; toastError: (m: string) => void }) {
+    const { isSuperAdmin, user: currentUser } = useAuth();
+    const { activeTenantId } = useTenant();
     const [roles, setRoles] = useState<Role[]>([]);
     const [permisos, setPermisos] = useState<Permiso[]>([]);
     const [loading, setLoading] = useState(true);
@@ -41,20 +45,22 @@ export function Roles({ toastSuccess, toastError }: { toastSuccess: (m: string) 
     });
 
     const load = useCallback(async () => {
+        const tenantId = activeTenantId ?? currentUser?.tenant_id;
+        if (!isSuperAdmin && !tenantId) return; // Wait until tenantId is available
         setLoading(true);
         try {
-            const [roles, p] = await Promise.all([
-                api.roles.list(),
+            const [rolesData, p] = await Promise.all([
+                tenantId && !isSuperAdmin ? api.roles.listForTenant(tenantId) : api.roles.list(),
                 api.get('/permisos')
             ]);
-            setRoles(roles);
+            setRoles(rolesData);
             setPermisos(p.data ?? []);
         } catch (err) {
-            toastError('Error al cargar roles globales');
+            toastError('Error al cargar roles');
         } finally {
             setLoading(false);
         }
-    }, [toastError]);
+    }, [toastError, isSuperAdmin, activeTenantId, currentUser?.tenant_id]);
 
     useEffect(() => { void load(); }, [load]);
 

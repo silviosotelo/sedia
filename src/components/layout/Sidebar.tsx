@@ -24,15 +24,19 @@ import {
   Settings,
   Palette,
   Package,
+  Plus,
+  Hash,
+  Layers,
+  BarChart2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { GlobalTenantSelector } from './GlobalTenantSelector';
-import type { RolNombre } from '../../types';
 
 export type Page =
   | 'dashboard' | 'tenants' | 'jobs' | 'comprobantes' | 'procesadoras'
-  | 'usuarios' | 'roles' | 'metricas' | 'notificaciones' | 'sifen'
+  | 'usuarios' | 'roles' | 'metricas' | 'notificaciones'
+  | 'sifen' | 'sifen-emitir' | 'sifen-numeracion' | 'sifen-lotes' | 'sifen-metricas' | 'sifen-config'
   | 'webhooks' | 'api-tokens' | 'clasificacion' | 'alertas'
   | 'conciliacion' | 'cuentas-bancarias' | 'bancos' | 'billing' | 'auditoria' | 'anomalias'
   | 'configuracion' | 'white-label' | 'planes';
@@ -42,44 +46,52 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   badge?: string;
-  allowedRoles?: RolNombre[];
+  superAdminOnly?: boolean;
   requiredFeature?: string;
   requiredPermission?: string; // "recurso:accion" — se verifica con hasPermission
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-  { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
-  { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" /> },
-  { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" /> },
-  { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'metricas' },
+  { id: 'tenants', label: 'Empresas', icon: <Building2 className="w-4 h-4" />, requiredPermission: 'tenants:ver' },
+  { id: 'jobs', label: 'Jobs', icon: <Briefcase className="w-4 h-4" />, requiredPermission: 'jobs:ver' },
+  { id: 'comprobantes', label: 'Comprobantes', icon: <FileText className="w-4 h-4" />, requiredPermission: 'comprobantes:ver' },
+  { id: 'metricas', label: 'Métricas', icon: <BarChart3 className="w-4 h-4" />, requiredPermission: 'metricas:ver', requiredFeature: 'metricas' },
+];
+
+const SIFEN_NAV_ITEMS: NavItem[] = [
+  { id: 'sifen',            label: 'Documentos',     icon: <FileText className="w-4 h-4" />, requiredPermission: 'sifen:ver' },
+  { id: 'sifen-emitir',     label: 'Emitir DE',      icon: <Plus className="w-4 h-4" />,     requiredPermission: 'sifen:emitir' },
+  { id: 'sifen-numeracion', label: 'Numeración',     icon: <Hash className="w-4 h-4" />,     requiredPermission: 'sifen:ver' },
+  { id: 'sifen-lotes',      label: 'Lotes',          icon: <Layers className="w-4 h-4" />,   requiredPermission: 'sifen:ver' },
+  { id: 'sifen-metricas',   label: 'Métricas',       icon: <BarChart2 className="w-4 h-4" />,requiredPermission: 'sifen:ver' },
+  { id: 'sifen-config',     label: 'Configuración',  icon: <Settings className="w-4 h-4" />, requiredPermission: 'sifen:configurar' },
 ];
 
 const AUTOMATION_NAV_ITEMS: NavItem[] = [
-  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'clasificacion' },
-  { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'alertas' },
-  { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'anomalias' },
-  { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'webhooks' },
-  { id: 'sifen', label: 'Facturación Electrónica', icon: <FileText className="w-4 h-4" />, requiredPermission: 'sifen:ver' },
-  { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'api_tokens' },
-  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'notificaciones' },
+  { id: 'clasificacion', label: 'Clasificación', icon: <Tag className="w-4 h-4" />, requiredFeature: 'clasificacion' },
+  { id: 'alertas', label: 'Alertas', icon: <AlertTriangle className="w-4 h-4" />, requiredFeature: 'alertas' },
+  { id: 'anomalias', label: 'Anomalías', icon: <TrendingUp className="w-4 h-4" />, superAdminOnly: true, requiredFeature: 'anomalias' },
+  { id: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" />, requiredFeature: 'webhooks' },
+  { id: 'api-tokens', label: 'API Tokens', icon: <Key className="w-4 h-4" />, requiredFeature: 'api_tokens' },
+  { id: 'notificaciones', label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, requiredFeature: 'notificaciones' },
 ];
 
 const RECONCILIATION_NAV_ITEMS: NavItem[] = [
-  { id: 'cuentas-bancarias', label: 'Cuentas Bancarias', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
-  { id: 'conciliacion', label: 'Procesos Conciliación', icon: <Briefcase className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
-  { id: 'procesadoras', label: 'Procesadoras de Pago', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'conciliacion' },
+  { id: 'cuentas-bancarias', label: 'Cuentas Bancarias', icon: <Landmark className="w-4 h-4" />, requiredFeature: 'conciliacion' },
+  { id: 'conciliacion', label: 'Procesos Conciliación', icon: <Briefcase className="w-4 h-4" />, requiredFeature: 'conciliacion' },
+  { id: 'procesadoras', label: 'Procesadoras de Pago', icon: <CreditCard className="w-4 h-4" />, requiredFeature: 'conciliacion' },
 ];
 
 const ADMIN_NAV_ITEMS: NavItem[] = [
-  { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
-  { id: 'roles', label: 'Roles y Permisos', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'roles_custom' },
-  { id: 'bancos', label: 'Gestión Bancos', icon: <Landmark className="w-4 h-4" />, allowedRoles: ['super_admin'] },
-  { id: 'planes', label: 'Planes y Add-ons', icon: <Package className="w-4 h-4" />, allowedRoles: ['super_admin'] },
-  { id: 'billing', label: 'Suscripción y Pagos', icon: <CreditCard className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'] },
-  { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, allowedRoles: ['super_admin'], requiredFeature: 'auditoria' },
-  { id: 'white-label', label: 'Personalización', icon: <Palette className="w-4 h-4" />, allowedRoles: ['super_admin', 'admin_empresa'], requiredFeature: 'whitelabel' },
-  { id: 'configuracion', label: 'Configuración Global', icon: <Settings className="w-4 h-4" />, allowedRoles: ['super_admin'] },
+  { id: 'usuarios', label: 'Usuarios', icon: <Users className="w-4 h-4" />, requiredPermission: 'usuarios:ver' },
+  { id: 'roles', label: 'Roles y Permisos', icon: <ShieldCheck className="w-4 h-4" />, requiredPermission: 'usuarios:ver', requiredFeature: 'roles_custom' },
+  { id: 'bancos', label: 'Gestión Bancos', icon: <Landmark className="w-4 h-4" />, superAdminOnly: true },
+  { id: 'planes', label: 'Planes y Add-ons', icon: <Package className="w-4 h-4" />, superAdminOnly: true },
+  { id: 'billing', label: 'Suscripción y Pagos', icon: <CreditCard className="w-4 h-4" />, requiredPermission: 'tenants:ver' },
+  { id: 'auditoria', label: 'Auditoría', icon: <ShieldCheck className="w-4 h-4" />, superAdminOnly: true, requiredFeature: 'auditoria' },
+  { id: 'white-label', label: 'Personalización', icon: <Palette className="w-4 h-4" />, requiredPermission: 'tenants:editar', requiredFeature: 'whitelabel' },
+  { id: 'configuracion', label: 'Configuración Global', icon: <Settings className="w-4 h-4" />, superAdminOnly: true },
 ];
 
 interface SidebarProps {
@@ -92,12 +104,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false, onClose }: SidebarProps) {
-  const { user, logout, branding, hasFeature, hasPermission } = useAuth();
-  const rolNombre = user?.rol.nombre as RolNombre | undefined;
+  const { user, logout, branding, hasFeature, hasPermission, isSuperAdmin } = useAuth();
 
   const [collapsed, setCollapsed] = useState(false);
   const [autoCollapsed, setAutoCollapsed] = useState(false);
   const [adminCollapsed, setAdminCollapsed] = useState(false);
+  const [sifenExpanded, setSifenExpanded] = useState(false);
+
+  const isSifenPage = current.startsWith('sifen');
 
   useEffect(() => {
     const isMin = localStorage.getItem('sedia_sidebar_collapsed') === 'true';
@@ -108,17 +122,17 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
     if (isAdminMin) setAdminCollapsed(true);
   }, []);
 
+  useEffect(() => {
+    if (isSifenPage) setSifenExpanded(true);
+  }, [isSifenPage]);
+
   const filterItems = (items: NavItem[]) => {
     return items.filter(item => {
-      // Check roles
-      if (item.allowedRoles && rolNombre) {
-        if (!item.allowedRoles.includes(rolNombre)) return false;
-      }
-      // Check feature flags (plan + add-ons)
-      if (item.requiredFeature) {
-        if (!hasFeature(item.requiredFeature)) return false;
-      }
-      // Check role permissions — el item es visible si el usuario tiene ese permiso
+      // super_admin-only items
+      if (item.superAdminOnly && !isSuperAdmin) return false;
+      // Check feature flags (plan + add-ons) — super_admin bypasses via hasFeature
+      if (item.requiredFeature && !hasFeature(item.requiredFeature)) return false;
+      // Check role permissions — super_admin bypasses via hasPermission
       if (item.requiredPermission) {
         const [recurso, accion] = item.requiredPermission.split(':');
         if (!hasPermission(recurso, accion)) return false;
@@ -237,6 +251,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           ))}
         </div>
 
+        {(filterItems(AUTOMATION_NAV_ITEMS).length > 0 || filterItems(SIFEN_NAV_ITEMS).length > 0) && (
         <div className="space-y-2">
           {!collapsed && (
             <button
@@ -256,10 +271,55 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
               {filterItems(AUTOMATION_NAV_ITEMS).map(item => (
                 <NavLink key={item.id} item={item} />
               ))}
+              {/* SIFEN expandable group */}
+              {filterItems(SIFEN_NAV_ITEMS).length > 0 && (
+                <div>
+                  <button
+                    onClick={() => setSifenExpanded(v => !v)}
+                    className={cn(
+                      'w-full flex items-center transition-all duration-200 text-sm group relative',
+                      collapsed ? 'justify-center p-2 rounded-xl mb-1' : 'gap-3 px-3 py-2.5 rounded-xl mb-1',
+                      isSifenPage
+                        ? 'text-zinc-900 font-bold bg-zinc-100/80'
+                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'
+                    )}
+                  >
+                    <span className={cn(
+                      'flex-shrink-0 flex items-center justify-center',
+                      isSifenPage ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600',
+                      collapsed ? 'w-5 h-5' : ''
+                    )}
+                      style={isSifenPage ? { color: branding.color_primario } : {}}
+                    >
+                      <Zap className="w-4 h-4" />
+                    </span>
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">Facturación Electrónica</span>
+                        {sifenExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                      </>
+                    )}
+                    {collapsed && (
+                      <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 shadow-xl text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                        Facturación Electrónica
+                      </div>
+                    )}
+                  </button>
+                  {sifenExpanded && !collapsed && (
+                    <div className="ml-4 pl-3 border-l border-zinc-200 space-y-0.5 mb-1">
+                      {filterItems(SIFEN_NAV_ITEMS).map(item => (
+                        <NavLink key={item.id} item={item} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
+        )}
 
+        {filterItems(RECONCILIATION_NAV_ITEMS).length > 0 && (
         <div className="space-y-2">
           {!collapsed && (
             <button
@@ -282,7 +342,9 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
             </div>
           )}
         </div>
+        )}
 
+        {filterItems(ADMIN_NAV_ITEMS).length > 0 && (
         <div className="space-y-2">
           {!collapsed && (
             <div className="px-2 py-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
@@ -295,6 +357,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
             ))}
           </div>
         </div>
+        )}
       </div>
 
       <div className={cn(

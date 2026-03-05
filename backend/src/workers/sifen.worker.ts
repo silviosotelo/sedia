@@ -51,7 +51,7 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
              WHERE id = $2 AND tenant_id = $3`,
             [errorMsg, deId, tenantId]
         );
-        await markJobFailed(jobId, errorMsg, 3);
+        await markJobFailed(jobId, errorMsg);
         await crearAlertaFallo(tenantId, deId, errorMsg);
     }
 }
@@ -76,7 +76,7 @@ export async function handleEnviarLoteSifen(jobId: string, tenantId: string, pay
         await dispatchWebhookEvent(tenantId, 'sifen_lote_enviado', { lote_id: loteId }).catch(() => {});
     } catch (err: any) {
         logger.error('Error en handleEnviarLoteSifen', { jobId, loteId, error: err.message });
-        await markJobFailed(jobId, err.message, 3);
+        await markJobFailed(jobId, err.message);
         await enviarNotificacionSifen(tenantId, 'SIFEN_LOTE_ERROR', {
             lote_id: loteId,
             error: err.message
@@ -147,7 +147,7 @@ export async function handleConsultarLoteSifen(jobId: string, tenantId: string, 
         }
     } catch (err: any) {
         logger.warn('Reintentando consulta de lote SIFEN', { jobId, loteId, error: err.message });
-        await markJobFailed(jobId, err.message, 10); // hasta 10 reintentos para polling
+        await markJobFailed(jobId, err.message); // hasta 10 reintentos para polling
     }
 }
 
@@ -180,7 +180,7 @@ export async function handleAnularSifen(jobId: string, tenantId: string, payload
         await dispatchWebhookEvent(tenantId, 'sifen_anulacion', { de_id: deId, cdc }).catch(() => {});
     } catch (err: any) {
         logger.error('Error anulando DE SIFEN', { jobId, deId, error: err.message });
-        await markJobFailed(jobId, err.message, 2);
+        await markJobFailed(jobId, err.message);
     }
 }
 
@@ -196,7 +196,7 @@ export async function handleGenerarKude(jobId: string, tenantId: string, payload
         logger.info('KUDE generado', { deId });
     } catch (err: any) {
         logger.error('Error generando KUDE', { jobId, deId, error: err.message });
-        await markJobFailed(jobId, err.message, 2);
+        await markJobFailed(jobId, err.message);
     }
 }
 
@@ -219,7 +219,7 @@ export async function handleReintentarFallidosSifen(jobId: string, tenantId: str
         logger.info(`Re-encolados ${fallidos.length} DEs fallidos`, { tenantId });
         await markJobDone(jobId);
     } catch (err: any) {
-        await markJobFailed(jobId, err.message, 2);
+        await markJobFailed(jobId, err.message);
     }
 }
 

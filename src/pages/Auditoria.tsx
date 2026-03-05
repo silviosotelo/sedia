@@ -114,17 +114,11 @@ export function Auditoria({ toastError }: AuditoriaProps) {
 
   const handleExport = () => {
     if (!tenantId) return;
-    const url = api.audit.exportUrl(tenantId, {
+    api.audit.exportDownload(tenantId, {
       accion: filterAccion && filterAccion !== 'all' ? filterAccion : undefined,
       desde: filterDesde || undefined,
       hasta: filterHasta || undefined,
     });
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'audit_log.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
 

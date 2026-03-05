@@ -558,11 +558,11 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
       </div>
 
       {/* Modals — Plans */}
-      <Modal isOpen={showNewPlan} onClose={() => setShowNewPlan(false)} title="Nuevo plan">
+      <Modal open={showNewPlan} onClose={() => setShowNewPlan(false)} title="Nuevo plan">
         <PlanForm onSave={handleCreatePlan} onCancel={() => setShowNewPlan(false)} loading={formLoading} />
       </Modal>
 
-      <Modal isOpen={!!editingPlan} onClose={() => setEditingPlan(null)} title="Editar plan">
+      <Modal open={!!editingPlan} onClose={() => setEditingPlan(null)} title="Editar plan">
         {editingPlan && (
           <PlanForm
             initial={editingPlan}
@@ -574,21 +574,21 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
       </Modal>
 
       <ConfirmDialog
-        isOpen={!!deletePlanId}
+        open={!!deletePlanId}
         title="Eliminar plan"
-        message="¿Eliminar este plan? Los tenants que lo usan no serán afectados inmediatamente."
+        description="¿Eliminar este plan? Los tenants que lo usan no serán afectados inmediatamente."
         confirmLabel="Eliminar"
         variant="danger"
         onConfirm={handleDeletePlan}
-        onCancel={() => setDeletePlanId(null)}
+        onClose={() => setDeletePlanId(null)}
       />
 
       {/* Modals — Addons */}
-      <Modal isOpen={showNewAddon} onClose={() => setShowNewAddon(false)} title="Nuevo add-on">
+      <Modal open={showNewAddon} onClose={() => setShowNewAddon(false)} title="Nuevo add-on">
         <AddonForm onSave={handleCreateAddon} onCancel={() => setShowNewAddon(false)} loading={addonFormLoading} />
       </Modal>
 
-      <Modal isOpen={!!editingAddon} onClose={() => setEditingAddon(null)} title="Editar add-on">
+      <Modal open={!!editingAddon} onClose={() => setEditingAddon(null)} title="Editar add-on">
         {editingAddon && (
           <AddonForm
             initial={editingAddon}
@@ -600,13 +600,13 @@ export function Planes({ toastSuccess, toastError }: PlanesProps) {
       </Modal>
 
       <ConfirmDialog
-        isOpen={!!deleteAddonId}
+        open={!!deleteAddonId}
         title="Desactivar add-on"
-        message="¿Desactivar este add-on? Los tenants que lo tienen activo seguirán teniéndolo hasta que se desactive manualmente."
+        description="¿Desactivar este add-on? Los tenants que lo tienen activo seguirán teniéndolo hasta que se desactive manualmente."
         confirmLabel="Desactivar"
         variant="danger"
         onConfirm={handleDeleteAddon}
-        onCancel={() => setDeleteAddonId(null)}
+        onClose={() => setDeleteAddonId(null)}
       />
     </div>
   );

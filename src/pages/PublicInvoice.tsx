@@ -103,11 +103,11 @@ export function PublicInvoice({ invoiceHash }: { invoiceHash: string }) {
                         {/* Acciones */}
                         <div className="flex flex-col sm:flex-row gap-4">
                             <Button
-                                onClick={() => window.open(api.comprobantes.downloadUrl(comprobante.tenant_id, comprobante.id, 'json'))}
+                                onClick={() => window.open(api.comprobantes.downloadUrl(comprobante.tenant_id, comprobante.id, 'pdf'))}
                                 className="flex-1 justify-center whitespace-normal h-10"
                                 icon={Download}
                             >
-                                Descargar KUDE (PDF)
+                                Descargar PDF
                             </Button>
                             {comprobante.xml_contenido && (
                                 <Button

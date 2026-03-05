@@ -1,6 +1,7 @@
 import { ApiError } from '../../utils/errors';
 import { FastifyInstance } from 'fastify';
 import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
+import { query, queryOne } from '../../db/connection';
 import {
   enviarNotificacionTest,
   getNotificationLog,
@@ -22,7 +23,7 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({
         success: true,
         data: result.data,
-        meta: {
+        pagination: {
           total: result.total,
           page,
           limit,
@@ -42,6 +43,58 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         throw new ApiError(400, 'API_ERROR', result.error || 'Error al enviar notificación');
       }
       return reply.send({ success: true, message: 'Email de prueba enviado correctamente' });
+    }
+  );
+
+  // ═══════════════════════════════════════
+  // NOTIFICATION TEMPLATES CRUD
+  // ═══════════════════════════════════════
+
+  app.get<{ Params: { tenantId: string } }>(
+    '/tenants/:tenantId/notifications/templates',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      const rows = await query(
+        `SELECT id, evento, asunto_custom, cuerpo_custom, activo, created_at, updated_at
+         FROM notification_templates WHERE tenant_id = $1 ORDER BY evento ASC`,
+        [req.params.tenantId]
+      );
+      return reply.send({ success: true, data: rows });
+    }
+  );
+
+  app.put<{
+    Params: { tenantId: string; evento: string };
+    Body: { asunto_custom?: string; cuerpo_custom?: string; activo?: boolean };
+  }>(
+    '/tenants/:tenantId/notifications/templates/:evento',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      const { asunto_custom, cuerpo_custom, activo } = req.body;
+
+      const row = await queryOne(
+        `INSERT INTO notification_templates (tenant_id, evento, asunto_custom, cuerpo_custom, activo)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (tenant_id, evento) DO UPDATE SET
+           asunto_custom = COALESCE($3, notification_templates.asunto_custom),
+           cuerpo_custom = COALESCE($4, notification_templates.cuerpo_custom),
+           activo = COALESCE($5, notification_templates.activo)
+         RETURNING id, evento, asunto_custom, cuerpo_custom, activo, updated_at`,
+        [req.params.tenantId, req.params.evento, asunto_custom ?? null, cuerpo_custom ?? null, activo ?? true]
+      );
+      return reply.send({ success: true, data: row });
+    }
+  );
+
+  app.delete<{ Params: { tenantId: string; evento: string } }>(
+    '/tenants/:tenantId/notifications/templates/:evento',
+    async (req, reply) => {
+      if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
+      await query(
+        `DELETE FROM notification_templates WHERE tenant_id = $1 AND evento = $2`,
+        [req.params.tenantId, req.params.evento]
+      );
+      return reply.status(204).send();
     }
   );
 }

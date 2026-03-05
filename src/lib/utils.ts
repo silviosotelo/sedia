@@ -88,4 +88,11 @@ export const JOB_TYPE_LABELS: Record<string, string> = {
   SYNC_COMPROBANTES: 'Sincronización',
   ENVIAR_A_ORDS: 'Envío ORDS',
   DESCARGAR_XML: 'Descarga XML',
+  SYNC_FACTURAS_VIRTUALES: 'Sync Facturas Virtuales',
+  SIFEN_EMITIR_DE: 'Emisión SIFEN',
+  SIFEN_ENVIAR_LOTE: 'Envío Lote SIFEN',
+  SIFEN_CONSULTAR_LOTE: 'Consulta Lote SIFEN',
+  SIFEN_ANULAR: 'Anulación SIFEN',
+  SIFEN_GENERAR_KUDE: 'Generación KUDE',
+  SIFEN_REINTENTAR_FALLIDOS: 'Reintento SIFEN',
 };

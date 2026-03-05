@@ -182,13 +182,13 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                                             )}
                                             {doc.estado === 'APPROVED' && (
                                                 <>
-                                                    <a href={api.sifen.downloadXmlUrl(tenantId, doc.id)} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar XML">
+                                                    <button onClick={() => api.sifen.downloadXml(tenantId, doc.id)} className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar XML">
                                                         <FileText className="w-3.5 h-3.5" />
-                                                    </a>
+                                                    </button>
                                                     {doc.tiene_kude && (
-                                                        <a href={api.sifen.downloadKudeUrl(tenantId, doc.id)} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar KUDE PDF">
+                                                        <button onClick={() => api.sifen.downloadKude(tenantId, doc.id)} className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar KUDE PDF">
                                                             <Download className="w-3.5 h-3.5" />
-                                                        </a>
+                                                        </button>
                                                     )}
                                                     <button onClick={e => handleAnular(doc.id, e)} className="text-red-400 hover:text-red-600 p-1 rounded" title="Anular">
                                                         <FileX className="w-3.5 h-3.5" />

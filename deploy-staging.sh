@@ -12,6 +12,18 @@ PROJECT_DIR="/var/www/sedia-dev"
 
 cd "$PROJECT_DIR"
 
+# Protección: verificar que NO exista docker-compose.yml sin DISABLED
+if [ -f "docker-compose.yml" ]; then
+    echo "ERROR: docker-compose.yml existe en sedia-dev. Esto colisionaría con producción."
+    echo "Usa solo docker-compose.dev.yml para staging."
+    exit 1
+fi
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+    echo "ERROR: $COMPOSE_FILE no encontrado en $PROJECT_DIR"
+    exit 1
+fi
+
 echo "▶ [1/4] Pulling latest changes from develop branch..."
 GIT_SSH_COMMAND="ssh -i /root/.ssh/hostinger-vps-sedia" git pull origin develop
 

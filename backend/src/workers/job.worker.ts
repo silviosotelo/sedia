@@ -109,7 +109,7 @@ export async function processSingleJob(): Promise<boolean> {
       tipo_job: job.tipo_job,
       error: errorDetails,
     });
-    await markJobFailed(job.id, errorDetails, job.max_intentos);
+    await markJobFailed(job.id, errorDetails);
     return true;
   }
 }

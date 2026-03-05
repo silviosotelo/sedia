@@ -242,68 +242,68 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                 <div className="absolute right-0 top-full mt-1 bg-white border border-tremor-border rounded-lg shadow-lg z-20 min-w-[160px] py-1 animate-fade-in">
 
                   {hasFeature('exportacion_json') && (
-                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'json', {
+                    <button onClick={() => { setShowExport(false); api.comprobantes.export(effectiveTenantId, 'json', {
                       tipo_comprobante: tipoFilter as TipoComprobante,
                       xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
                       fecha_desde: fechaDesde,
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                    }); }} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle w-full text-left">
                       <FileJson className="w-3.5 h-3.5 text-tremor-content" />Exportar JSON
-                    </a>
+                    </button>
                   )}
 
                   {hasFeature('exportacion_txt') && (
-                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'txt', {
+                    <button onClick={() => { setShowExport(false); api.comprobantes.export(effectiveTenantId, 'txt', {
                       tipo_comprobante: tipoFilter as TipoComprobante,
                       xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
                       fecha_desde: fechaDesde,
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                    }); }} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle w-full text-left">
                       <FileType2 className="w-3.5 h-3.5 text-tremor-content" />Hechauka TXT
-                    </a>
+                    </button>
                   )}
 
                   {hasFeature('exportacion_xlsx') && (
-                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'xlsx', {
+                    <button onClick={() => { setShowExport(false); api.comprobantes.export(effectiveTenantId, 'xlsx', {
                       tipo_comprobante: tipoFilter as TipoComprobante,
                       xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
                       fecha_desde: fechaDesde,
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                    }); }} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle w-full text-left">
                       <ExternalLink className="w-3.5 h-3.5 text-tremor-content" />Excel XLSX
-                    </a>
+                    </button>
                   )}
 
                   {hasFeature('exportacion_pdf') && (
-                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'pdf', {
+                    <button onClick={() => { setShowExport(false); api.comprobantes.export(effectiveTenantId, 'pdf', {
                       tipo_comprobante: tipoFilter as TipoComprobante,
                       xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
                       fecha_desde: fechaDesde,
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                    }); }} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle w-full text-left">
                       <FileText className="w-3.5 h-3.5 text-tremor-content" />Imprimir PDF
-                    </a>
+                    </button>
                   )}
 
                   {hasFeature('exportacion_csv') && (
-                    <a href={api.comprobantes.exportUrl(effectiveTenantId, 'csv', {
+                    <button onClick={() => { setShowExport(false); api.comprobantes.export(effectiveTenantId, 'csv', {
                       tipo_comprobante: tipoFilter as TipoComprobante,
                       xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
                       fecha_desde: fechaDesde,
                       fecha_hasta: fechaHasta,
                       ruc_vendedor: search.match(/^\d/) ? search : undefined,
                       modo: modoFilter || undefined,
-                    })} download onClick={() => setShowExport(false)} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle">
+                    }); }} className="flex items-center gap-2.5 px-3 py-2 text-sm text-tremor-content-strong hover:bg-tremor-background-subtle w-full text-left">
                       <FileType2 className="w-3.5 h-3.5 text-tremor-content" />Exportar CSV
-                    </a>
+                    </button>
                   )}
 
                 </div>
@@ -588,16 +588,10 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-zinc-400">Descargar:</span>
-                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'json')} download>
-                    <Button size="xs" variant="secondary" icon={FileJson}>JSON</Button>
-                  </a>
-                  <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')} download>
-                    <Button size="xs" variant="secondary" icon={FileType2}>TXT</Button>
-                  </a>
+                  <Button size="xs" variant="secondary" icon={FileJson} onClick={() => api.comprobantes.download(selectedComprobante.tenant_id, selectedComprobante.id, 'json')}>JSON</Button>
+                  <Button size="xs" variant="secondary" icon={FileType2} onClick={() => api.comprobantes.download(selectedComprobante.tenant_id, selectedComprobante.id, 'txt')}>TXT</Button>
                   {selectedComprobante.xml_contenido && (
-                    <a href={api.comprobantes.downloadUrl(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')} download>
-                      <Button size="xs" variant="secondary" icon={Code2}>XML</Button>
-                    </a>
+                    <Button size="xs" variant="secondary" icon={Code2} onClick={() => api.comprobantes.download(selectedComprobante.tenant_id, selectedComprobante.id, 'xml')}>XML</Button>
                   )}
                 </div>
               </div>

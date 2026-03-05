@@ -140,8 +140,7 @@ export async function markJobDone(id: string): Promise<void> {
 
 export async function markJobFailed(
   id: string,
-  errorMessage: string,
-  maxIntentos: number
+  errorMessage: string
 ): Promise<void> {
   await query(
     `UPDATE jobs
@@ -151,11 +150,11 @@ export async function markJobFailed(
          END,
          error_message = $2,
          next_run_at = CASE
-           WHEN intentos >= $3 THEN next_run_at
+           WHEN intentos >= max_intentos THEN next_run_at
            ELSE NOW() + INTERVAL '5 minutes'
          END
      WHERE id = $1`,
-    [id, errorMessage, maxIntentos]
+    [id, errorMessage]
   );
 }
 

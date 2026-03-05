@@ -112,7 +112,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         return_url: `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/billing?success=true`,
         cancel_url: `${process.env['FRONTEND_URL'] || 'http://localhost:5173'}/billing?cancel=true`
       });
-      return reply.send({ success: true, data: { ...result, public_key: config.public_key } });
+      return reply.send({ success: true, data: { ...result, public_key: config.public_key, bancard_env: config.mode === 'production' ? 'Production' : 'Staging' } });
     }
   });
 

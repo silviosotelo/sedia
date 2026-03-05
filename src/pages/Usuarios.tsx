@@ -18,6 +18,7 @@ import { PageLoader } from '../components/ui/Spinner';
 import { api } from '../lib/api';
 import { formatDate } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { useTenant } from '../contexts/TenantContext';
 import type { Usuario, Rol, Tenant } from '../types';
 
 interface UsuariosProps {
@@ -41,6 +42,7 @@ const ROL_LABELS: Record<string, string> = {
 
 export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
   const { user: currentUser, isSuperAdmin } = useAuth();
+  const { activeTenantId } = useTenant();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [roles, setRoles] = useState<Rol[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -64,9 +66,11 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
+      const tenantIdForRoles = !isSuperAdmin ? (activeTenantId ?? currentUser?.tenant_id) : undefined;
+      if (!isSuperAdmin && !tenantIdForRoles) return; // Wait until tenantId is available
       const [usuariosData, rolesData] = await Promise.all([
         api.usuarios.list(),
-        api.roles.list(),
+        tenantIdForRoles ? api.roles.listForTenant(tenantIdForRoles) : api.roles.list(),
       ]);
       setUsuarios(usuariosData);
       setRoles(rolesData);
@@ -81,7 +85,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [toastError, isSuperAdmin]);
+  }, [toastError, isSuperAdmin, activeTenantId, currentUser?.tenant_id]);
 
   useEffect(() => {
     void load();

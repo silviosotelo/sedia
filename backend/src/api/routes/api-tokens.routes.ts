@@ -21,7 +21,7 @@ export async function apiTokenRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (!assertTenantAccess(req, reply, req.params.tenantId)) return;
       const rows = await query(
-        `SELECT id, nombre, token_prefix, permisos, activo, ultimo_uso_at, expira_at, created_at
+        `SELECT id, nombre, token_prefix, permisos, activo, ultimo_uso, expira_at, created_at
          FROM tenant_api_tokens WHERE tenant_id=$1 ORDER BY created_at DESC`,
         [req.params.tenantId]
       );

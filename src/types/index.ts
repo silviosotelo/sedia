@@ -266,9 +266,9 @@ export interface MetricsSaas {
   arpu?: number;
   tenants_pagos?: number;
   plan_distribucion?: Array<{ plan: string; cantidad: number; mrr_plan: number }>;
-  addon_usage?: Array<{ addon: string; activos: number; cancelados: number }>;
+  addon_usage?: Array<{ addon: string; tenants: number }>;
   anomalias_30d?: { total: number; alta: number; media: number; baja: number };
-  webhooks_24h?: { total: number; exitosos: number; fallidos: number; dead: number };
+  webhooks_24h?: { enviados: number; exitosos: number; fallidos: number; muertos: number };
 }
 
 export interface PaginatedResponse<T> {

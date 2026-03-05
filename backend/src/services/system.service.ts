@@ -29,9 +29,10 @@ export const systemService = {
 
     async updateSetting(key: string, value: any, userId?: string): Promise<void> {
         await query(
-            `UPDATE system_settings 
-       SET value = $2, updated_by = $3, updated_at = NOW() 
-       WHERE key = $1`,
+            `INSERT INTO system_settings (key, value, updated_by, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (key) DO UPDATE
+       SET value = $2, updated_by = $3, updated_at = NOW()`,
             [key, JSON.stringify(value), userId]
         );
         logger.info(`Configuración del sistema actualizada: ${key}`, { userId });

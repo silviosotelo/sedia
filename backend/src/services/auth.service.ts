@@ -326,7 +326,11 @@ export async function ensureSuperAdmin(): Promise<void> {
   const superAdminRole = await queryOne<{ id: string }>("SELECT id FROM roles WHERE nombre = 'super_admin'");
   if (!superAdminRole) return;
 
-  const defaultPassword = process.env['SUPER_ADMIN_PASSWORD'] ?? 'Admin@1234!';
+  const defaultPassword = process.env['SUPER_ADMIN_PASSWORD'];
+  if (!defaultPassword) {
+    logger.warn('SUPER_ADMIN_PASSWORD no definida. Se omite la creación automática del super admin.');
+    return;
+  }
   await createUsuario({
     rol_id: superAdminRole.id,
     nombre: 'Super Administrador',

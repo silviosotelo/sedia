@@ -16,6 +16,12 @@ import { Alertas } from './pages/Alertas';
 import { Conciliacion } from './pages/Conciliacion';
 import { Billing } from './pages/Billing';
 import { Sifen } from './pages/Sifen';
+import { SifenDocumentosPage } from './pages/sifen/SifenDocumentos';
+import { SifenEmitirPage } from './pages/sifen/SifenEmitir';
+import { SifenNumeracionPage } from './pages/sifen/SifenNumeracion';
+import { SifenLotesPage } from './pages/sifen/SifenLotes';
+import { SifenMetricasPage } from './pages/sifen/SifenMetricas';
+import { SifenConfigPage } from './pages/sifen/SifenConfig';
 import { Auditoria } from './pages/Auditoria';
 import { Anomalias } from './pages/Anomalias';
 import { Configuracion } from './pages/Configuracion';
@@ -28,6 +34,7 @@ import { Login } from './pages/Login';
 import { PublicInvoice } from './pages/PublicInvoice';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TenantProvider } from './contexts/TenantContext';
+import { useTenant } from './contexts/TenantContext';
 import { useToast } from './hooks/useToast';
 import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
@@ -39,8 +46,8 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; p
   jobs: { roles: null },
   comprobantes: { roles: null },
   usuarios: { roles: ['super_admin', 'admin_empresa'] },
-  roles: { roles: ['super_admin'] },
-  metricas: { roles: ['super_admin'], feature: 'metricas' },
+  roles: { roles: ['super_admin', 'admin_empresa'], feature: 'roles_custom' },
+  metricas: { roles: ['super_admin', 'admin_empresa'], feature: 'metricas' },
   notificaciones: { roles: ['super_admin', 'admin_empresa'] },
   webhooks: { roles: ['super_admin', 'admin_empresa'], feature: 'webhooks' },
   'api-tokens': { roles: ['super_admin', 'admin_empresa'], feature: 'api_tokens' },
@@ -57,6 +64,11 @@ const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; p
   procesadoras: { roles: ['super_admin', 'admin_empresa'] },
   // SIFEN: acceso basado en permiso de rol (sifen:ver), no en features del plan
   sifen: { roles: null, permiso: 'sifen:ver' },
+  'sifen-emitir':     { roles: null, permiso: 'sifen:ver' },
+  'sifen-numeracion': { roles: null, permiso: 'sifen:ver' },
+  'sifen-lotes':      { roles: null, permiso: 'sifen:ver' },
+  'sifen-metricas':   { roles: null, permiso: 'sifen:ver' },
+  'sifen-config':     { roles: null, permiso: 'sifen:ver' },
   planes: { roles: ['super_admin'] },
 };
 
@@ -67,6 +79,7 @@ interface NavParams {
 
 function AppInner() {
   const { user, loading: authLoading, isSuperAdmin, userTenantId, hasPermission } = useAuth();
+  const { activeTenantId } = useTenant();
   const [page, setPage] = useState<Page>('dashboard');
   const [navParams, setNavParams] = useState<NavParams>({});
   const [apiStatus, setApiStatus] = useState<'ok' | 'error' | 'checking'>('checking');
@@ -225,8 +238,26 @@ function AppInner() {
         {page === 'billing' && canAccessPage('billing') && (
           <Billing toastSuccess={success} toastError={error} />
         )}
-        {page === 'sifen' && canAccessPage('sifen') && (
+        {page === 'sifen' && canAccessPage('sifen') && activeTenantId && (
+          <SifenDocumentosPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen' && canAccessPage('sifen') && !activeTenantId && (
           <Sifen />
+        )}
+        {page === 'sifen-emitir' && canAccessPage('sifen-emitir') && activeTenantId && (
+          <SifenEmitirPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen-numeracion' && canAccessPage('sifen-numeracion') && activeTenantId && (
+          <SifenNumeracionPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen-lotes' && canAccessPage('sifen-lotes') && activeTenantId && (
+          <SifenLotesPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen-metricas' && canAccessPage('sifen-metricas') && activeTenantId && (
+          <SifenMetricasPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
+        )}
+        {page === 'sifen-config' && canAccessPage('sifen-config') && activeTenantId && (
+          <SifenConfigPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
         )}
         {page === 'auditoria' && canAccessPage('auditoria') && (
           <Auditoria toastError={error} />

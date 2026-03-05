@@ -23,7 +23,6 @@
     "@types/pdfkit": "^0.17.5",
     "@xmldom/xmldom": "^0.8.11",
     "axios": "^1.6.8",
-    "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
     "facturacionelectronicapy-kude": "^1.0.18",

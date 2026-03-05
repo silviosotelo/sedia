@@ -112,7 +112,14 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
 
 
   if (!tenantId) {
-    // ... (omitted headers)
+    return (
+      <div className="animate-fade-in">
+        <Header title="White Label" subtitle="Configuración de marca y apariencia personalizada" />
+        <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
+          <p>Seleccione un tenant para configurar la marca.</p>
+        </div>
+      </div>
+    );
   }
 
   if (loading && !loaded) return <PageLoader />;

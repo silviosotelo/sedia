@@ -33,7 +33,7 @@ import { mockStore } from './mock-data';
 
 export const MOCK_MODE = (import.meta.env.VITE_MOCK_MODE as string) === 'true';
 
-const BASE_URL = (import.meta.env.VITE_API_URL as string) || '/api';
+export const BASE_URL = (import.meta.env.VITE_API_URL as string) || '/api';
 
 function getToken(): string | null {
   return localStorage.getItem('saas_token');
@@ -42,6 +42,20 @@ function getToken(): string | null {
 function authHeaders(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+export async function downloadWithAuth(url: string, filename?: string): Promise<void> {
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`Error descargando: HTTP ${res.status}`);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = filename || '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(objectUrl);
 }
 
 async function handleApiError(res: Response): Promise<never> {
@@ -113,6 +127,10 @@ export const api = {
       if (MOCK_MODE) return mockStore.updateTenant(id, body);
       return request<{ data: Tenant }>(`/tenants/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data);
     },
+    getScheduler: (id: string) =>
+      request<{ data: { scheduler_habilitado: boolean; scheduler_hora_inicio: string; scheduler_hora_fin: string; scheduler_dias_semana: number[] } }>(`/tenants/${id}/scheduler/status`).then((r) => r.data),
+    updateScheduler: (id: string, cfg: { scheduler_habilitado: boolean; scheduler_hora_inicio: string; scheduler_hora_fin: string; scheduler_dias_semana: number[] }): Promise<void> =>
+      request(`/tenants/${id}/scheduler/config`, { method: 'PUT', body: JSON.stringify({ scheduler_config: cfg }) }),
   },
 
   jobs: {
@@ -202,11 +220,13 @@ export const api = {
       if (MOCK_MODE) return mockStore.getComprobante(tenantId, comprobanteId);
       return request<{ data: Comprobante }>(`/tenants/${tenantId}/comprobantes/${comprobanteId}`).then((r) => r.data);
     },
-    downloadUrl: (tenantId: string, comprobanteId: string, formato: 'json' | 'txt' | 'xml'): string => {
-      const token = localStorage.getItem('saas_token');
+    downloadUrl: (tenantId: string, comprobanteId: string, formato: 'json' | 'txt' | 'xml' | 'pdf'): string => {
       const q = new URLSearchParams({ formato });
-      if (token) q.set('token', token);
       return `${BASE_URL}/tenants/${tenantId}/comprobantes/${comprobanteId}/descargar?${q.toString()}`;
+    },
+    download: (tenantId: string, comprobanteId: string, formato: 'json' | 'txt' | 'xml' | 'pdf'): Promise<void> => {
+      const url = api.comprobantes.downloadUrl(tenantId, comprobanteId, formato);
+      return downloadWithAuth(url, `comprobante-${comprobanteId}.${formato}`);
     },
     exportUrl: (
       tenantId: string,
@@ -220,9 +240,7 @@ export const api = {
         modo?: 'ventas' | 'compras';
       }
     ): string => {
-      const token = localStorage.getItem('saas_token');
       const q = new URLSearchParams({ formato });
-      if (token) q.set('token', token);
       if (params?.fecha_desde) q.set('fecha_desde', params.fecha_desde);
       if (params?.fecha_hasta) q.set('fecha_hasta', params.fecha_hasta);
       if (params?.tipo_comprobante) q.set('tipo_comprobante', params.tipo_comprobante);
@@ -230,6 +248,21 @@ export const api = {
       if (params?.xml_descargado !== undefined) q.set('xml_descargado', String(params.xml_descargado));
       if (params?.modo) q.set('modo', params.modo);
       return `${BASE_URL}/tenants/${tenantId}/comprobantes/exportar?${q.toString()}`;
+    },
+    export: (
+      tenantId: string,
+      formato: 'json' | 'txt' | 'xlsx' | 'pdf' | 'csv',
+      params?: {
+        fecha_desde?: string;
+        fecha_hasta?: string;
+        tipo_comprobante?: string;
+        ruc_vendedor?: string;
+        xml_descargado?: boolean;
+        modo?: 'ventas' | 'compras';
+      }
+    ): Promise<void> => {
+      const url = api.comprobantes.exportUrl(tenantId, formato, params);
+      return downloadWithAuth(url, `comprobantes-export.${formato}`);
     },
     patch: (
       tenantId: string,
@@ -280,6 +313,9 @@ export const api = {
   roles: {
     list: (): Promise<Rol[]> => {
       return request<{ data: Rol[] }>('/roles').then((r) => r.data ?? []);
+    },
+    listForTenant: (tenantId: string): Promise<Rol[]> => {
+      return request<{ data: Rol[] }>(`/tenants/${tenantId}/roles`).then((r) => r.data ?? []);
     },
   },
 
@@ -428,6 +464,14 @@ export const api = {
       if (MOCK_MODE) return Promise.resolve({ message: 'Email de prueba enviado (demo)' });
       return request<{ message: string }>(`/tenants/${tenantId}/notifications/test`, { method: 'POST', body: JSON.stringify({}) });
     },
+    getTemplates: (tenantId: string): Promise<any[]> =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/notifications/templates`).then((r) => r.data ?? []),
+    saveTemplate: (tenantId: string, evento: string, body: { asunto_custom?: string; cuerpo_custom?: string; activo?: boolean }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/notifications/templates/${evento}`, {
+        method: 'PUT', body: JSON.stringify(body),
+      }).then((r) => r.data),
+    deleteTemplate: (tenantId: string, evento: string): Promise<void> =>
+      request<void>(`/tenants/${tenantId}/notifications/templates/${evento}`, { method: 'DELETE' }),
   },
 
   bank: {
@@ -637,9 +681,11 @@ export const api = {
       if (params?.accion) q.set('accion', params.accion);
       if (params?.desde) q.set('desde', params.desde);
       if (params?.hasta) q.set('hasta', params.hasta);
-      const t = localStorage.getItem('saas_token');
-      if (t) q.set('token', t);
       return `${BASE_URL}/tenants/${tenantId}/audit-log/export?${q.toString()}`;
+    },
+    exportDownload: (tenantId: string, params?: { accion?: string; desde?: string; hasta?: string }): Promise<void> => {
+      const url = api.audit.exportUrl(tenantId, params);
+      return downloadWithAuth(url, 'audit-log.xlsx');
     },
   },
 
@@ -680,7 +726,7 @@ export const api = {
 
   branding: {
     get: (tenantId: string) =>
-      request<{ data: Record<string, unknown> }>(`/tenants/${tenantId}/branding`).then((r) => r.data),
+      request<{ data: Record<string, unknown>; global: Record<string, unknown> }>(`/tenants/${tenantId}/branding`),
     update: (tenantId: string, body: Record<string, unknown>) =>
       request<{ data: Record<string, unknown> }>(`/tenants/${tenantId}/branding`, {
         method: 'PUT', body: JSON.stringify(body),
@@ -737,12 +783,16 @@ export const api = {
     anularDe: (tenantId: string, deId: string, motivo?: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/anular`, { method: 'POST', body: JSON.stringify({ motivo }) }),
     downloadXmlUrl: (tenantId: string, deId: string): string => {
-      const t = localStorage.getItem('saas_token');
-      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/xml${t ? `?token=${t}` : ''}`;
+      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/xml`;
+    },
+    downloadXml: (tenantId: string, deId: string): Promise<void> => {
+      return downloadWithAuth(api.sifen.downloadXmlUrl(tenantId, deId), `sifen-${deId}.xml`);
     },
     downloadKudeUrl: (tenantId: string, deId: string): string => {
-      const t = localStorage.getItem('saas_token');
-      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/kude${t ? `?token=${t}` : ''}`;
+      return `${BASE_URL}/tenants/${tenantId}/sifen/de/${deId}/kude`;
+    },
+    downloadKude: (tenantId: string, deId: string): Promise<void> => {
+      return downloadWithAuth(api.sifen.downloadKudeUrl(tenantId, deId), `kude-${deId}.pdf`);
     },
 
     // Lotes

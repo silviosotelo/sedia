@@ -339,8 +339,14 @@ export async function enviarNotificacion(ctx: NotifContext): Promise<boolean> {
       return false;
     }
 
-    const asunto = buildSubject(ctx.evento, tenant.nombre_fantasia);
-    const html = buildHtml(ctx.evento, tenant.nombre_fantasia, ctx.metadata ?? {});
+    // Check for custom template
+    const customTpl = await getCustomTemplate(ctx.tenantId, ctx.evento);
+    const asunto = customTpl?.asunto_custom
+      ? replaceTemplateVars(customTpl.asunto_custom, tenant.nombre_fantasia, ctx.metadata ?? {})
+      : buildSubject(ctx.evento, tenant.nombre_fantasia);
+    const html = customTpl?.cuerpo_custom
+      ? replaceTemplateVars(customTpl.cuerpo_custom, tenant.nombre_fantasia, ctx.metadata ?? {})
+      : buildHtml(ctx.evento, tenant.nombre_fantasia, ctx.metadata ?? {});
 
     const transporter = buildTransporter(smtp);
 
@@ -399,8 +405,11 @@ export async function enviarNotificacionTest(tenantId: string): Promise<{ ok: bo
     if (!config) return { ok: false, error: 'Sin configuracion de tenant' };
 
     const extra = (config.extra_config ?? {}) as ExtraConfig;
-    const smtp = getSmtpConfig(extra);
-    if (!smtp) return { ok: false, error: 'SMTP no configurado. Configure host, usuario y email remitente en la tab Integraciones.' };
+    let smtp = getSmtpConfig(extra);
+    if (!smtp) {
+      smtp = await getSystemSmtp();
+    }
+    if (!smtp) return { ok: false, error: 'SMTP no configurado. Configure host, usuario y email remitente en la tab Integraciones, o configure un SMTP global del sistema.' };
 
     const transporter = buildTransporter(smtp);
     await transporter.verify();
@@ -542,4 +551,44 @@ export async function enviarNotificacionSifen(
       tenantId, evento, error: (err as Error).message
     });
   }
+}
+
+// ═══════════════════════════════════════
+// CUSTOM TEMPLATE SUPPORT
+// ═══════════════════════════════════════
+
+interface CustomTemplate {
+  asunto_custom: string | null;
+  cuerpo_custom: string | null;
+  activo: boolean;
+}
+
+async function getCustomTemplate(tenantId: string, evento: string): Promise<CustomTemplate | null> {
+  const row = await queryOne<CustomTemplate>(
+    `SELECT asunto_custom, cuerpo_custom, activo FROM notification_templates WHERE tenant_id = $1 AND evento = $2 AND activo = true`,
+    [tenantId, evento]
+  );
+  return row ?? null;
+}
+
+function replaceTemplateVars(template: string, tenantNombre: string, metadata: Record<string, unknown>): string {
+  let result = template
+    .replace(/\{\{tenant_nombre\}\}/g, tenantNombre)
+    .replace(/\{\{fecha\}\}/g, new Date().toLocaleString('es-PY', { timeZone: 'America/Asuncion' }));
+
+  // Replace {{key}} with metadata values
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value !== undefined && value !== null) {
+      result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), String(value));
+    }
+  }
+
+  // Build a {{detalles}} block from all metadata
+  const detallesHtml = Object.entries(metadata)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `<strong>${k.replace(/_/g, ' ')}:</strong> ${String(v)}`)
+    .join('<br>');
+  result = result.replace(/\{\{detalles\}\}/g, detallesHtml);
+
+  return result;
 }

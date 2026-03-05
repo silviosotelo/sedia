@@ -74,15 +74,16 @@ export const bancardService = {
         description: string;
     }) {
         const config = await this.getConfig();
-        // Nota: Bancard QR suele tener un flujo distinto (generar QR y polling o webhook)
-        // Este es un placeholder conceptual basado en integraciones QR Bancard estandar
         const baseUrl = this.getApiBaseUrl(config.mode);
+        const formattedAmount = this.formatAmount(params.amount);
+        const token = this.generateToken(config.private_key, params.shop_process_id, formattedAmount);
 
         const payload = {
             public_key: config.public_key,
             operation: {
+                token,
                 shop_process_id: params.shop_process_id,
-                amount: params.amount.toString(),
+                amount: formattedAmount,
                 currency: 'PYG',
                 description: params.description,
             }
