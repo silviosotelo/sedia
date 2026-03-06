@@ -31,3 +31,12 @@ backend/tsc_output.txt
 __pycache__/
 *.pyc
 *.pyo
+
+# Agent skills / tools
+.agent/
+
+# Supabase
+supabase/
+
+# Claude Code
+.claude/
