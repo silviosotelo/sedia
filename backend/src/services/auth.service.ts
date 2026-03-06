@@ -1,6 +1,9 @@
 import crypto from 'crypto';
+import { promisify } from 'util';
 import { query, queryOne } from '../db/connection';
 import { logger } from '../config/logger';
+
+const pbkdf2Async = promisify(crypto.pbkdf2);
 
 export interface UsuarioRow {
   id: string;
@@ -41,11 +44,20 @@ export function hashPassword(password: string): string {
   return `${salt}:${hash}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [salt, hash] = stored.split(':');
   if (!salt || !hash) return false;
-  const attempt = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(attempt, 'hex'));
+  try {
+    const attempt = (await pbkdf2Async(password, salt, 100000, 64, 'sha512')).toString('hex');
+    const hashBuf = Buffer.from(hash, 'hex');
+    const attemptBuf = Buffer.from(attempt, 'hex');
+    // timingSafeEqual throws if lengths differ — return false instead of throwing
+    if (hashBuf.length !== attemptBuf.length) return false;
+    return crypto.timingSafeEqual(hashBuf, attemptBuf);
+  } catch (err) {
+    logger.error('Error en verifyPassword', { error: (err as Error).message });
+    return false;
+  }
 }
 
 export function generarToken(): string {
@@ -148,7 +160,7 @@ export async function login(
     throw new Error('Cuenta bloqueada temporalmente por múltiples intentos fallidos.');
   }
 
-  const valid = verifyPassword(password, usuario.password_hash);
+  const valid = await verifyPassword(password, usuario.password_hash);
 
   if (!valid) {
     const intentos = usuario.intentos_fallidos + 1;
@@ -183,22 +195,43 @@ export async function login(
   return { token, usuario: usuarioConRol };
 }
 
+// In-memory token cache to avoid 3-4 DB queries per authenticated request
+const tokenCache = new Map<string, { user: UsuarioConRol; cachedAt: number }>();
+const TOKEN_CACHE_TTL_MS = 120_000; // 120 seconds — longer TTL to reduce DB load under high CPU steal
+
 export async function validateToken(token: string): Promise<UsuarioConRol | null> {
   const tokenHash = hashToken(token);
+
+  const cached = tokenCache.get(tokenHash);
+  if (cached && Date.now() - cached.cachedAt < TOKEN_CACHE_TTL_MS) {
+    return cached.user;
+  }
+
   const sesion = await queryOne<{ usuario_id: string; activa: boolean; expires_at: Date }>(
     `SELECT usuario_id, activa, expires_at FROM usuario_sesiones WHERE token_hash = $1`,
     [tokenHash]
   );
 
   if (!sesion || !sesion.activa || sesion.expires_at < new Date()) {
+    tokenCache.delete(tokenHash);
     return null;
   }
 
-  return getUsuarioConRol(sesion.usuario_id);
+  const user = await getUsuarioConRol(sesion.usuario_id);
+  if (user) {
+    tokenCache.set(tokenHash, { user, cachedAt: Date.now() });
+  }
+  return user;
+}
+
+export function invalidateTokenCache(token: string): void {
+  const tokenHash = hashToken(token);
+  tokenCache.delete(tokenHash);
 }
 
 export async function logout(token: string): Promise<void> {
   const tokenHash = hashToken(token);
+  tokenCache.delete(tokenHash);
   await query(
     `UPDATE usuario_sesiones SET activa = FALSE WHERE token_hash = $1`,
     [tokenHash]

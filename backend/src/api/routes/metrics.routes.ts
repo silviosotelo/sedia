@@ -37,7 +37,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
             COUNT(*) FILTER (WHERE estado = 'RUNNING') as ejecutando,
             COUNT(*) FILTER (WHERE estado = 'DONE') as exitosos,
             COUNT(*) FILTER (WHERE estado = 'FAILED') as fallidos
-         FROM jobs`),
+         FROM jobs WHERE created_at >= NOW() - INTERVAL '30 days'`),
 
       queryOne<{
         total: string;
@@ -298,7 +298,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
            SUM(CASE WHEN fecha_emision BETWEEN $4 AND $5 THEN total_operacion::numeric ELSE 0 END) as monto_anterior,
            COUNT(*) FILTER (WHERE fecha_emision BETWEEN $2 AND $3) as cantidad_actual,
            COUNT(*) FILTER (WHERE fecha_emision BETWEEN $4 AND $5) as cantidad_anterior
-         FROM comprobantes WHERE tenant_id = $1`,
+         FROM comprobantes WHERE tenant_id = $1 AND fecha_emision BETWEEN $4 AND $3`,
         [id, desde, hastaStr, prevDesde, prevHasta]
       ),
 
@@ -424,15 +424,18 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
 
       query<{ tenant_id: string; nombre: string; total_comprobantes: string; total_xml: string; plan: string | null; precio: string | null }>(
         `SELECT t.id as tenant_id, t.nombre_fantasia as nombre,
-                COUNT(c.id) as total_comprobantes,
-                COUNT(c.id) FILTER (WHERE c.xml_descargado_at IS NOT NULL) as total_xml,
+                COALESCE(cc.total, 0)::text as total_comprobantes,
+                COALESCE(cc.total_xml, 0)::text as total_xml,
                 p.nombre as plan,
                 p.precio_mensual_pyg::text as precio
          FROM tenants t
-         LEFT JOIN comprobantes c ON c.tenant_id = t.id
+         LEFT JOIN (
+           SELECT tenant_id, COUNT(*) as total,
+                  COUNT(*) FILTER (WHERE xml_descargado_at IS NOT NULL) as total_xml
+           FROM comprobantes GROUP BY tenant_id
+         ) cc ON cc.tenant_id = t.id
          LEFT JOIN plans p ON p.id = t.plan_id
          WHERE t.activo = true
-         GROUP BY t.id, t.nombre_fantasia, p.nombre, p.precio_mensual_pyg
          ORDER BY total_comprobantes DESC
          LIMIT 10`
       ),

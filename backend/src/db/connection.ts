@@ -6,11 +6,14 @@ let pool: Pool | null = null;
 
 export function getPool(): Pool {
   if (!pool) {
+    const connStr = config.database.url.includes('sslmode=')
+      ? config.database.url
+      : config.database.url + (config.database.url.includes('?') ? '&' : '?') + 'sslmode=disable';
     pool = new Pool({
-      connectionString: config.database.url,
+      connectionString: connStr,
       min: config.database.poolMin,
       max: config.database.poolMax,
-      idleTimeoutMillis: 30000,
+      idleTimeoutMillis: 120_000,
       connectionTimeoutMillis: 5000,
     });
 

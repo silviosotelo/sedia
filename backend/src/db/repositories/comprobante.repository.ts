@@ -149,28 +149,25 @@ export async function findComprobantesByTenant(
 
   const where = `WHERE ${conditions.join(' AND ')}`;
 
-  const countRows = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM comprobantes c ${where}`,
-    params
-  );
-  const total = parseInt(countRows[0]?.count ?? '0', 10);
-
   const limit = pagination.limit;
   const offset = (pagination.page - 1) * pagination.limit;
 
-  const data = await query<Comprobante>(
+  const data = await query<Comprobante & { _total: string }>(
     `SELECT c.*,
-            COALESCE(
-              (SELECT json_agg(json_build_object('etiqueta', ce.etiqueta, 'color', ce.color))
-               FROM comprobante_etiquetas ce WHERE ce.comprobante_id = c.id),
-              '[]'::json
-            ) AS etiquetas
-     FROM comprobantes c ${where}
+            COUNT(*) OVER() AS _total,
+            COALESCE(ce_agg.etiquetas, '[]'::json) AS etiquetas
+     FROM comprobantes c
+     LEFT JOIN LATERAL (
+       SELECT json_agg(json_build_object('etiqueta', ce.etiqueta, 'color', ce.color)) AS etiquetas
+       FROM comprobante_etiquetas ce WHERE ce.comprobante_id = c.id
+     ) ce_agg ON true
+     ${where}
      ORDER BY c.fecha_emision DESC
      LIMIT $${i++} OFFSET $${i++}`,
     [...params, limit, offset]
   );
 
+  const total = data.length > 0 ? parseInt(data[0]._total, 10) : 0;
   return { data, total };
 }
 

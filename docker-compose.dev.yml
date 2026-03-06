@@ -2,30 +2,10 @@ version: '3.8'
 
 # =============================================================================
 # Ambiente STAGING/DEV — staging.rohekawebservices.online
-# El nginx y SSL son manejados por el compose de producción (/var/www/sedia)
+# PostgreSQL y Nginx son nativos (systemctl)
 # =============================================================================
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: staging-comprobantes-db
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - staging_postgres_data:/var/lib/postgresql/data
-    networks:
-      staging-network:
-        aliases:
-          - staging-db
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER}" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   api:
     build:
       context: ./backend
@@ -43,13 +23,12 @@ services:
       EKUATIA_BASE_URL: ${EKUATIA_BASE_URL}
       EKUATIA_RECAPTCHA_SITE_KEY: ${EKUATIA_RECAPTCHA_SITE_KEY}
       R2_ENABLED: ${R2_ENABLED}
-    expose:
-      - "${PORT}"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - staging-network
+      DB_POOL_MIN: ${DB_POOL_MIN:-2}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+    ports:
+      - "127.0.0.1:4002:4000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     command: [ "node", "dist/main.js" ]
 
@@ -67,11 +46,10 @@ services:
       MARANGATU_BASE_URL: ${MARANGATU_BASE_URL}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS}
       WORKER_MAX_CONCURRENT_JOBS: ${WORKER_MAX_CONCURRENT_JOBS}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - staging-network
+      DB_POOL_MIN: ${DB_POOL_MIN:-1}
+      DB_POOL_MAX: ${DB_POOL_MAX:-5}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     command: [ "node", "dist/worker.js" ]
     deploy:
@@ -89,10 +67,8 @@ services:
         VITE_API_URL: ${VITE_API_URL}
         VITE_MOCK_MODE: ${VITE_MOCK_MODE}
     container_name: staging-comprobantes-frontend
-    expose:
-      - "80"
-    networks:
-      - staging-network
+    ports:
+      - "127.0.0.1:3002:80"
     restart: unless-stopped
 
   migrate:
@@ -103,19 +79,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - staging-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: [ "node", "-e", "require('ts-node').register(); require('./src/db/migrate.ts');" ]
     profiles:
       - migrate
-
-volumes:
-  staging_postgres_data:
-
-networks:
-  staging-network:
-    name: staging-network
-    external: true

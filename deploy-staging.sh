@@ -40,7 +40,7 @@ if [ "$1" == "--migrate" ]; then
 fi
 
 echo "▶ [4/4] Reloading nginx..."
-docker exec set-comprobantes-nginx nginx -s reload
+sudo systemctl reload nginx
 
 echo ""
 echo "✓ Staging deploy complete → https://staging.rohekawebservices.online"

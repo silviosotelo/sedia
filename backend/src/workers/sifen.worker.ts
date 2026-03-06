@@ -99,7 +99,9 @@ export async function handleConsultarLoteSifen(jobId: string, tenantId: string, 
 
             // Notificar y trackear métricas para cada DE del lote
             const items = await query<any>(
-                `SELECT sli.estado_item, sd.id as de_id, sd.cdc, sd.datos_receptor->>'email' as email_receptor
+                `SELECT sli.estado_item, sd.id as de_id, sd.cdc,
+                        sd.datos_receptor->>'email' as email_receptor,
+                        sd.sifen_mensaje
                  FROM sifen_lote_items sli JOIN sifen_de sd ON sd.id = sli.de_id
                  WHERE sli.lote_id = $1`,
                 [loteId]
@@ -124,14 +126,10 @@ export async function handleConsultarLoteSifen(jobId: string, tenantId: string, 
                     ).catch(() => {});
                 } else if (item.estado_item === 'REJECTED') {
                     await incrementarUsageSifen(tenantId, 'rechazados').catch(() => {});
-                    const deInfo = await queryOne<any>(
-                        `SELECT sifen_mensaje FROM sifen_de WHERE id = $1`,
-                        [item.de_id]
-                    );
                     await enviarNotificacionSifen(tenantId, 'SIFEN_DE_RECHAZADO', {
                         de_id: item.de_id,
                         cdc: item.cdc,
-                        motivo: deInfo?.sifen_mensaje || 'Rechazado por SIFEN',
+                        motivo: item.sifen_mensaje || 'Rechazado por SIFEN',
                     }).catch(() => {});
                     await dispatchWebhookEvent(tenantId, 'sifen_de_rechazado', {
                         de_id: item.de_id,

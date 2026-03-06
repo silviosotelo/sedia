@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // First try to get by current domain (public)
       const domain = window.location.hostname;
       const resPublic = await fetch(`${BASE_URL}/tenants/by-domain/${domain}`);
-      if (resPublic.ok) {
+      if (resPublic.ok && resPublic.status !== 204) {
         const data = await resPublic.json();
         if (data.data) {
           setBranding(data.data);
@@ -116,15 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (token) {
-      void fetchMe(token).finally(() => setLoading(false));
+      // Fetch user first, then branding (avoids double branding call)
+      void fetchMe(token)
+        .then(() => refreshBranding())
+        .finally(() => setLoading(false));
     } else {
-      setLoading(false);
+      void refreshBranding().finally(() => setLoading(false));
     }
-  }, [token, fetchMe]);
-
-  useEffect(() => {
-    void refreshBranding();
-  }, [refreshBranding]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   // Apply branding colors to CSS variables
   useEffect(() => {

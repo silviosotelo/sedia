@@ -38,7 +38,7 @@ export const config = {
   database: {
     url: requireEnv('DATABASE_URL'),
     poolMin: optionalEnvInt('DB_POOL_MIN', 2),
-    poolMax: optionalEnvInt('DB_POOL_MAX', 10),
+    poolMax: optionalEnvInt('DB_POOL_MAX', 20),
   },
   security: {
     encryptionKey: requireEnv('ENCRYPTION_KEY'),

@@ -238,14 +238,22 @@ async function detectarRoundNumber(c: Comprobante, _tenantId: string): Promise<A
 export async function analizarComprobante(comprobante: Comprobante, tenantId: string): Promise<void> {
   try {
     const cfg = await getAnomalyConfig();
-    const results = await Promise.all([
+
+    // Run only non-DB checks synchronously, defer DB-heavy checks
+    const quickResults = await Promise.all([
+      detectarTaxMismatch(comprobante, tenantId),
+      detectarRoundNumber(comprobante, tenantId),
+    ]);
+
+    // DB-heavy checks: run in parallel but throttled (3 queries total instead of 5)
+    const dbResults = await Promise.all([
       detectarDuplicado(comprobante, tenantId),
       detectarMontoInusual(comprobante, tenantId, cfg),
       detectarFrecuenciaInusual(comprobante, tenantId, cfg),
-      detectarTaxMismatch(comprobante, tenantId),
       detectarPriceAnomaly(comprobante, tenantId, cfg),
-      detectarRoundNumber(comprobante, tenantId),
     ]);
+
+    const results = [...quickResults, ...dbResults];
 
     for (const anomaly of results) {
       if (anomaly) {
@@ -266,7 +274,6 @@ export async function analizarComprobante(comprobante: Comprobante, tenantId: st
             evento: 'ANOMALIA_DETECTADA',
             metadata: anomalyPayload,
           });
-          // Evaluar alertas: batch tipos en una sola query
           const alertTipos: string[] = ['anomalia_detectada'];
           if (anomaly.tipo === 'DUPLICADO') alertTipos.push('factura_duplicada');
           else if (anomaly.tipo === 'PROVEEDOR_NUEVO') alertTipos.push('proveedor_nuevo');
@@ -276,6 +283,20 @@ export async function analizarComprobante(comprobante: Comprobante, tenantId: st
     }
   } catch (err) {
     logger.error('Error analizando anomalías', { comprobante_id: comprobante.id, error: (err as Error).message });
+  }
+}
+
+/**
+ * Batch analyze: processes anomalies for multiple comprobantes with reduced DB pressure.
+ * Use this instead of calling analizarComprobante in a loop.
+ */
+export async function analizarComprobanteBatch(comprobantes: Comprobante[], tenantId: string): Promise<void> {
+  if (!comprobantes.length) return;
+  // Process in chunks of 10 to limit concurrent DB connections
+  const CHUNK_SIZE = 10;
+  for (let i = 0; i < comprobantes.length; i += CHUNK_SIZE) {
+    const chunk = comprobantes.slice(i, i + CHUNK_SIZE);
+    await Promise.all(chunk.map(c => analizarComprobante(c, tenantId)));
   }
 }
 

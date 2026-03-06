@@ -147,10 +147,10 @@ export async function verificarSinSync(): Promise<void> {
       `SELECT a.id, a.tenant_id, a.nombre, a.tipo, a.config, a.canal, a.webhook_id,
               a.cooldown_minutos, a.ultima_disparo,
               (a.config->>'horas') as horas,
-              MAX(j.completed_at)::text AS last_sync
+              MAX(j.last_run_at)::text AS last_sync
        FROM tenant_alertas a
        LEFT JOIN jobs j ON j.tenant_id = a.tenant_id
-         AND j.tipo = 'SYNC_COMPROBANTES' AND j.estado = 'DONE'
+         AND j.tipo_job = 'SYNC_COMPROBANTES' AND j.estado = 'DONE'
        WHERE a.tipo = 'horas_sin_sync' AND a.activo = true
        GROUP BY a.id, a.tenant_id, a.nombre, a.tipo, a.config, a.canal,
                 a.webhook_id, a.cooldown_minutos, a.ultima_disparo`

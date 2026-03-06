@@ -17,7 +17,6 @@ import { queryOne } from '../db/connection';
 import { Tenant } from '../types';
 
 export class SyncService {
-  private marangatuService = new MarangatuService();
   private ordsService = new OrdsService();
   private ekuatiaService: EkuatiaService | null = null;
 
@@ -41,7 +40,9 @@ export class SyncService {
       throw new Error(`Configuración no encontrada para tenant ${tenantId}`);
     }
 
-    const syncResult = await this.marangatuService.syncComprobantes(
+    // Create a fresh instance per job to avoid shared browser state between concurrent jobs
+    const marangatuService = new MarangatuService();
+    const syncResult = await marangatuService.syncComprobantes(
       tenantId,
       tenantConfig,
       {

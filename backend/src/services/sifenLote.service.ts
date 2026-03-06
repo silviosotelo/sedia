@@ -27,15 +27,14 @@ export const sifenLoteService = {
         );
         const loteId = loteResult[0].id;
 
-        for (let i = 0; i < des.length; i++) {
-            await query(
-                `INSERT INTO sifen_lote_items (tenant_id, lote_id, de_id, orden)
-                 VALUES ($1, $2, $3, $4)`,
-                [tenantId, loteId, des[i].id, i + 1]
-            );
-        }
-
         const deIds = des.map((d: any) => d.id);
+        const ordenes = des.map((_: any, idx: number) => idx + 1);
+        await query(
+            `INSERT INTO sifen_lote_items (tenant_id, lote_id, de_id, orden)
+             SELECT $1, $2, unnest($3::uuid[]), unnest($4::int[])`,
+            [tenantId, loteId, deIds, ordenes]
+        );
+
         await query(
             `UPDATE sifen_de SET estado = 'IN_LOTE', updated_at = NOW()
              WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
@@ -132,37 +131,49 @@ export const sifenLoteService = {
             );
 
             const detalles: any[] = result?.detalles || result?.detalleLote || [];
+
+            // Batch lookup: resolve all CDCs in one query instead of N+1
+            const cdcs = detalles
+                .map((d: any) => d.cdc || d.CDC)
+                .filter(Boolean);
+
+            const deMap = new Map<string, string>();
+            if (cdcs.length) {
+                const deRows = await query<{ id: string; cdc: string }>(
+                    `SELECT id, cdc FROM sifen_de WHERE cdc = ANY($1) AND tenant_id = $2`,
+                    [cdcs, tenantId]
+                );
+                for (const row of deRows) {
+                    deMap.set(row.cdc, row.id);
+                }
+            }
+
             for (const detalle of detalles) {
                 const cdc = detalle.cdc || detalle.CDC;
                 const codigoItem = String(detalle.codigo || detalle.codigoEstado || '');
                 const aprobado = codigoItem === '0300' || detalle.estado === 'APROBADO';
                 const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
 
-                if (cdc) {
-                    const de = await queryOne<any>(
-                        `SELECT id FROM sifen_de WHERE cdc = $1 AND tenant_id = $2`,
-                        [cdc, tenantId]
+                const deId = cdc ? deMap.get(cdc) : undefined;
+                if (deId) {
+                    await query(
+                        `UPDATE sifen_de SET estado = $1, sifen_respuesta = $2,
+                            sifen_codigo = $3, sifen_mensaje = $4, updated_at = NOW()
+                         WHERE id = $5`,
+                        [
+                            nuevoEstado,
+                            JSON.stringify(detalle),
+                            codigoItem,
+                            detalle.descripcion || detalle.mensaje || null,
+                            deId
+                        ]
                     );
-                    if (de) {
-                        await query(
-                            `UPDATE sifen_de SET estado = $1, sifen_respuesta = $2,
-                                sifen_codigo = $3, sifen_mensaje = $4, updated_at = NOW()
-                             WHERE id = $5`,
-                            [
-                                nuevoEstado,
-                                JSON.stringify(detalle),
-                                codigoItem,
-                                detalle.descripcion || detalle.mensaje || null,
-                                de.id
-                            ]
-                        );
 
-                        await query(
-                            `UPDATE sifen_lote_items SET estado_item = $1, respuesta_item = $2, updated_at = NOW()
-                             WHERE lote_id = $3 AND de_id = $4`,
-                            [aprobado ? 'ACCEPTED' : 'REJECTED', JSON.stringify(detalle), loteId, de.id]
-                        );
-                    }
+                    await query(
+                        `UPDATE sifen_lote_items SET estado_item = $1, respuesta_item = $2, updated_at = NOW()
+                         WHERE lote_id = $3 AND de_id = $4`,
+                        [aprobado ? 'ACCEPTED' : 'REJECTED', JSON.stringify(detalle), loteId, deId]
+                    );
                 }
             }
         }

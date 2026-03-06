@@ -167,11 +167,28 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         preHandler: [requirePermiso('sifen:ver')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        const pdfBuffer = await sifenKudeService.generarKude(req.params.id, req.params.deId);
-        const de = await queryOne<any>(`SELECT cdc FROM sifen_de WHERE id = $1`, [req.params.deId]);
+        // Try to read pre-generated KUDE first; only regenerate if not available
+        const de = await queryOne<{ cdc: string; kude_pdf_key: string | null }>(
+            `SELECT cdc, kude_pdf_key FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [req.params.deId, req.params.id]
+        );
+        if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
+
+        let pdfBuffer: Buffer;
+        if (de.kude_pdf_key) {
+            try {
+                const { storageService } = await import('../../services/storage.service');
+                if (storageService.isEnabled()) {
+                    const signedUrl = await storageService.getSignedDownloadUrl(de.kude_pdf_key, 300);
+                    return reply.redirect(302, signedUrl);
+                }
+            } catch { /* fallthrough to generate */ }
+        }
+        // Generate on-demand (fallback)
+        pdfBuffer = await sifenKudeService.generarKude(req.params.id, req.params.deId);
         return reply
             .header('Content-Type', 'application/pdf')
-            .header('Content-Disposition', `attachment; filename="KUDE_${de?.cdc || req.params.deId}.pdf"`)
+            .header('Content-Disposition', `attachment; filename="KUDE_${de.cdc || req.params.deId}.pdf"`)
             .send(pdfBuffer);
     });
 

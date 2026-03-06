@@ -2,8 +2,7 @@ import cron from 'node-cron';
 import { DateTime } from 'luxon';
 import { logger } from '../config/logger';
 import { config } from '../config/env';
-import { findActiveTenants, findTenantConfig } from '../db/repositories/tenant.repository';
-import { createJob, countActiveJobsForTenant, resetStuckRunningJobs, findJobs } from '../db/repositories/job.repository';
+import { createJob, resetStuckRunningJobs } from '../db/repositories/job.repository';
 import { query } from '../db/connection';
 import { enviarNotificacionSifen, enviarNotificacion } from '../services/notification.service';
 import { verificarSinSync } from '../services/alert.service';
@@ -46,36 +45,40 @@ async function enqueueScheduledSyncs(): Promise<void> {
     logger.warn(`Scheduler: ${resetCount} job(s) RUNNING atascados fueron reiniciados a PENDING`);
   }
 
-  const tenants = await findActiveTenants();
+  // Single query: fetch tenants with config, scheduler settings, and last sync job
+  const tenantRows = await query<{
+    id: string; nombre_fantasia: string; timezone: string | null;
+    frecuencia_sincronizacion_minutos: number | null;
+    scheduler_habilitado: boolean | null; scheduler_hora_inicio: string | null;
+    scheduler_hora_fin: string | null; scheduler_dias_semana: number[] | null;
+    scheduler_frecuencia_minutos: number | null;
+    active_jobs: string; last_run: Date | null;
+  }>(
+    `SELECT t.id, t.nombre_fantasia, t.timezone,
+            tc.frecuencia_sincronizacion_minutos,
+            tc.scheduler_habilitado, tc.scheduler_hora_inicio, tc.scheduler_hora_fin,
+            tc.scheduler_dias_semana, tc.scheduler_frecuencia_minutos,
+            COALESCE((SELECT COUNT(*) FROM jobs j WHERE j.tenant_id = t.id
+              AND j.tipo_job = 'SYNC_COMPROBANTES' AND j.estado IN ('PENDING','RUNNING')), 0)::text AS active_jobs,
+            (SELECT MAX(COALESCE(j2.last_run_at, j2.created_at)) FROM jobs j2
+              WHERE j2.tenant_id = t.id AND j2.tipo_job = 'SYNC_COMPROBANTES') AS last_run
+     FROM tenants t
+     JOIN tenant_config tc ON tc.tenant_id = t.id
+     WHERE t.activo = true`,
+    []
+  );
 
-  for (const tenant of tenants) {
+  for (const tenant of tenantRows) {
     try {
-      const tenantConfig = await findTenantConfig(tenant.id);
-      if (!tenantConfig) continue;
-
-      // Load scheduler config (columns added by migration 007)
-      let sc: SchedulerTenantConfig = {
-        scheduler_habilitado: null,
-        scheduler_hora_inicio: null,
-        scheduler_hora_fin: null,
-        scheduler_dias_semana: null,
-        scheduler_frecuencia_minutos: null,
+      const sc: SchedulerTenantConfig = {
+        scheduler_habilitado: tenant.scheduler_habilitado,
+        scheduler_hora_inicio: tenant.scheduler_hora_inicio,
+        scheduler_hora_fin: tenant.scheduler_hora_fin,
+        scheduler_dias_semana: tenant.scheduler_dias_semana,
+        scheduler_frecuencia_minutos: tenant.scheduler_frecuencia_minutos,
       };
 
-      try {
-        const rows = await query<SchedulerTenantConfig>(
-          `SELECT scheduler_habilitado, scheduler_hora_inicio, scheduler_hora_fin,
-                  scheduler_dias_semana, scheduler_frecuencia_minutos
-           FROM tenant_config WHERE tenant_id = $1`,
-          [tenant.id]
-        );
-        if (rows[0]) sc = rows[0];
-      } catch {
-        // Migration 007 not applied yet — ignore
-      }
-
-      // Check schedule window
-      const timezone = (tenant as unknown as { timezone?: string }).timezone ?? 'America/Asuncion';
+      const timezone = tenant.timezone ?? 'America/Asuncion';
       if (!isWithinSchedule(timezone, sc)) {
         logger.debug('Scheduler: fuera de ventana horaria configurada, saltando', { tenant_id: tenant.id });
         continue;
@@ -83,26 +86,15 @@ async function enqueueScheduledSyncs(): Promise<void> {
 
       const frecuenciaMinutos =
         sc.scheduler_frecuencia_minutos ??
-        tenantConfig.frecuencia_sincronizacion_minutos ?? 60;
+        tenant.frecuencia_sincronizacion_minutos ?? 60;
 
-      const active = await countActiveJobsForTenant(tenant.id, 'SYNC_COMPROBANTES');
-      if (active > 0) {
-        logger.debug('Scheduler: tenant ya tiene job activo, saltando', {
-          tenant_id: tenant.id,
-        });
+      if (parseInt(tenant.active_jobs) > 0) {
+        logger.debug('Scheduler: tenant ya tiene job activo, saltando', { tenant_id: tenant.id });
         continue;
       }
 
-      const lastJobs = await findJobs({
-        tenant_id: tenant.id,
-        tipo_job: 'SYNC_COMPROBANTES',
-        limit: 1,
-      });
-
-      const lastJob = lastJobs[0];
-      if (lastJob) {
-        const lastRun = lastJob.last_run_at ?? lastJob.created_at;
-        const msSinceLastRun = Date.now() - new Date(lastRun).getTime();
+      if (tenant.last_run) {
+        const msSinceLastRun = Date.now() - new Date(tenant.last_run).getTime();
         const msFrequency = frecuenciaMinutos * 60 * 1000;
         if (msSinceLastRun < msFrequency) {
           logger.debug('Scheduler: frecuencia no alcanzada, saltando', {
@@ -156,7 +148,8 @@ async function autoArmSifenLotes(): Promise<void> {
        JOIN addons a ON a.id = ta.addon_id
        WHERE sd.estado = 'ENQUEUED'
          AND sd.xml_signed IS NOT NULL
-         AND ta.activo = true
+         AND ta.status = 'ACTIVE'
+         AND (ta.activo_hasta IS NULL OR ta.activo_hasta > NOW())
          AND a.features->>'facturacion_electronica' = 'true'`,
       []
     );
@@ -197,23 +190,23 @@ async function autoArmSifenLotes(): Promise<void> {
 async function autoPolLSifenLotes(): Promise<void> {
   logger.debug('Scheduler SIFEN: auto-poll lotes SENT');
   try {
-    const lotesSent = await query<{ id: string; tenant_id: string }>(
-      `SELECT id, tenant_id FROM sifen_lote
-       WHERE estado = 'SENT'
-         AND updated_at < NOW() - INTERVAL '2 minutes'
+    // Single query: find SENT lotes that don't already have a pending/running poll job
+    const lotesToPoll = await query<{ id: string; tenant_id: string }>(
+      `SELECT sl.id, sl.tenant_id FROM sifen_lote sl
+       WHERE sl.estado = 'SENT'
+         AND sl.updated_at < NOW() - INTERVAL '2 minutes'
+         AND NOT EXISTS (
+           SELECT 1 FROM jobs j
+           WHERE j.tenant_id = sl.tenant_id
+             AND j.tipo_job = 'SIFEN_CONSULTAR_LOTE'
+             AND j.payload->>'lote_id' = sl.id::text
+             AND j.estado IN ('PENDING','RUNNING')
+         )
        LIMIT 20`,
       []
     );
 
-    for (const lote of lotesSent) {
-      // Verificar que no hay job de consulta ya pendiente/activo
-      const existing = await query<{ id: string }>(
-        `SELECT id FROM jobs WHERE tenant_id = $1 AND tipo_job = 'SIFEN_CONSULTAR_LOTE'
-         AND payload->>'lote_id' = $2 AND estado IN ('PENDING','RUNNING') LIMIT 1`,
-        [lote.tenant_id, lote.id]
-      );
-      if (existing.length > 0) continue;
-
+    for (const lote of lotesToPoll) {
       await query(
         `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_CONSULTAR_LOTE', $2)`,
         [lote.tenant_id, JSON.stringify({ lote_id: lote.id })]

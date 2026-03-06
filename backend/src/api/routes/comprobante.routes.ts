@@ -131,11 +131,6 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver comprobantes');
     }
 
-    const tenant = await findTenantById(req.params.id);
-    if (!tenant) {
-      throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
-    }
-
     const {
       fecha_desde,
       fecha_hasta,
@@ -155,6 +150,13 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         xml_descargado === 'false' ? false :
           undefined;
 
+    // Only fetch tenant if we need the RUC for ventas/compras filter
+    let tenantRuc: string | undefined;
+    if (modo === 'ventas' || modo === 'compras') {
+      const tenant = await findTenantById(req.params.id);
+      tenantRuc = tenant?.ruc;
+    }
+
     const { data, total } = await findComprobantesByTenant(
       req.params.id,
       {
@@ -164,7 +166,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         ruc_vendedor,
         xml_descargado: xmlDescargadoFilter,
         modo: modo as 'ventas' | 'compras' | undefined,
-        tenant_ruc: tenant.ruc,
+        tenant_ruc: tenantRuc,
       },
       { page: pageNum, limit: limitNum }
     );
@@ -187,10 +189,6 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       if (!assertTenantAccess(req, reply, req.params.id)) return;
       if (!req.currentUser!.permisos.includes('comprobantes:ver') && req.currentUser!.rol.nombre !== 'super_admin') {
         throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver comprobantes');
-      }
-      const tenant = await findTenantById(req.params.id);
-      if (!tenant) {
-        throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
       }
 
       const comprobante = await findComprobanteById(
@@ -425,9 +423,6 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       if (sincronizar !== undefined && !u.permisos.includes('comprobantes:editar_sincronizar') && u.rol.nombre !== 'super_admin') {
         throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para cambiar flag de sincronización');
       }
-
-      const tenant = await findTenantById(req.params.id);
-      if (!tenant) throw new ApiError(404, 'NOT_FOUND', 'Tenant no encontrado');
 
       const comprobante = await findComprobanteById(req.params.id, req.params.comprobanteId);
       if (!comprobante) throw new ApiError(404, 'NOT_FOUND', 'Comprobante no encontrado');

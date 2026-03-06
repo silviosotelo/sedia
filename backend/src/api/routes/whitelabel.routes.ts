@@ -21,6 +21,7 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
 
     const cached = domainCache.get(domain);
     if (cached && Date.now() - cached.cachedAt < DOMAIN_CACHE_TTL_MS) {
+      if (cached.data === null) return reply.code(204).send();
       return reply.send({ success: true, data: cached.data });
     }
 
@@ -42,7 +43,9 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
     );
 
     if (!row?.wl_activo) {
-      throw new ApiError(404, 'API_ERROR', 'No hay white-label configurado para este dominio');
+      // Cache the miss too — avoids repeated DB queries for domains without white-label
+      domainCache.set(domain, { data: null, cachedAt: Date.now() });
+      return reply.code(204).send();
     }
 
     const data = {

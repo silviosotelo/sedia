@@ -17,18 +17,30 @@ export async function findTenantPlanInfo(tenantId: string): Promise<TenantPlanIn
     return { plan, trial_hasta: row.trial_hasta };
 }
 
+// In-memory cache for addon feature checks (avoid 1 DB query per authenticated request)
+const addonFeatureCache = new Map<string, { result: boolean; cachedAt: number }>();
+const ADDON_CACHE_TTL_MS = 60_000; // 60 seconds
+
 export async function findAddonWithFeature(tenantId: string, feature: string): Promise<boolean> {
+    const cacheKey = `${tenantId}:${feature}`;
+    const cached = addonFeatureCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt < ADDON_CACHE_TTL_MS) {
+        return cached.result;
+    }
+
     const addon = await queryOne<{ id: string }>(
-        `SELECT ta.id 
+        `SELECT ta.id
      FROM tenant_addons ta
      JOIN addons a ON a.id = ta.addon_id
-     WHERE ta.tenant_id = $1 
-       AND ta.status = 'ACTIVE' 
+     WHERE ta.tenant_id = $1
+       AND ta.status = 'ACTIVE'
        AND (ta.activo_hasta IS NULL OR ta.activo_hasta > NOW())
        AND a.features->>$2 = 'true'`,
         [tenantId, feature]
     );
-    return !!addon;
+    const result = !!addon;
+    addonFeatureCache.set(cacheKey, { result, cachedAt: Date.now() });
+    return result;
 }
 
 export async function findUsageMetricsForMonth(tenantId: string, month: number, year: number): Promise<UsageMetrics | null> {
