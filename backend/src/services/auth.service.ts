@@ -198,6 +198,7 @@ export async function login(
 // In-memory token cache to avoid 3-4 DB queries per authenticated request
 const tokenCache = new Map<string, { user: UsuarioConRol; cachedAt: number }>();
 const TOKEN_CACHE_TTL_MS = 120_000; // 120 seconds — longer TTL to reduce DB load under high CPU steal
+const TOKEN_CACHE_MAX_SIZE = 1000;
 
 export async function validateToken(token: string): Promise<UsuarioConRol | null> {
   const tokenHash = hashToken(token);
@@ -219,6 +220,11 @@ export async function validateToken(token: string): Promise<UsuarioConRol | null
 
   const user = await getUsuarioConRol(sesion.usuario_id);
   if (user) {
+    // Evict oldest entries if cache is full
+    if (tokenCache.size >= TOKEN_CACHE_MAX_SIZE) {
+      const firstKey = tokenCache.keys().next().value;
+      if (firstKey) tokenCache.delete(firstKey);
+    }
     tokenCache.set(tokenHash, { user, cachedAt: Date.now() });
   }
   return user;

@@ -34,7 +34,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { formatRelative, JOB_TYPE_LABELS } from '../lib/utils';
-import type { Tenant, Job, DashboardStats, DashboardAvanzado, ForecastResult } from '../types';
+import type { Job, DashboardStats, DashboardAvanzado, ForecastResult } from '../types';
 import type { Page } from '../components/layout/Sidebar';
 
 interface DashboardProps {
@@ -71,7 +71,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const isTenantUser = !isSuperAdmin && !!userTenantId;
   const activeTid = activeTenantId ?? '';
 
-  const [tenants, setTenants] = useState<Tenant[]>(allTenants);
   const [recentJobs, setRecentJobs] = useState<Job[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,21 +84,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     else setRefreshing(true);
     try {
       const jobParams = isTenantUser ? { tenant_id: userTenantId!, limit: 8 } : { limit: 8 };
-      const [tenantsData, jobsData] = await Promise.all([
-        isTenantUser ? api.tenants.get(userTenantId!).then((t) => [t]) : api.tenants.list(),
-        api.jobs.list(jobParams),
-      ]);
-      setTenants(tenantsData);
+      const jobsData = await api.jobs.list(jobParams);
       setRecentJobs(jobsData);
 
-      const activeTenants = tenantsData.filter((t) => t.activo).length;
+      const activeTenants = allTenants.filter((t) => t.activo).length;
       const pending = jobsData.filter((j) => j.estado === 'PENDING').length;
       const running = jobsData.filter((j) => j.estado === 'RUNNING').length;
       const failed = jobsData.filter((j) => j.estado === 'FAILED').length;
       const done = jobsData.filter((j) => j.estado === 'DONE').length;
 
       setStats({
-        totalTenants: tenantsData.length,
+        totalTenants: allTenants.length,
         activeTenants,
         totalJobs: jobsData.length,
         pendingJobs: pending,
@@ -115,35 +110,34 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isTenantUser, userTenantId]);
-
-  const loadAdvanced = useCallback(async () => {
-    const tid = activeTid;
-    if (!tid) return;
-    setAdvancedLoading(true);
-    try {
-      const [dash, fc] = await Promise.all([
-        api.dashboardAvanzado.get(tid),
-        api.forecast.get(tid).catch(() => null),
-      ]);
-      setDashAvanzado(dash);
-      setForecast(fc);
-    } catch (_) {
-      // advanced metrics are non-critical
-    } finally {
-      setAdvancedLoading(false);
-    }
-  }, [activeTid]);
+  }, [isTenantUser, userTenantId, allTenants]);
 
   useEffect(() => {
     load();
-    const interval = setInterval(() => load(true), 30000);
-    return () => clearInterval(interval);
-  }, [load]);
-
-  useEffect(() => {
+    const tid = activeTid;
+    const loadAdvanced = async () => {
+      if (!tid) return;
+      setAdvancedLoading(true);
+      try {
+        const [dash, fc] = await Promise.all([
+          api.dashboardAvanzado.get(tid),
+          api.forecast.get(tid).catch(() => null),
+        ]);
+        setDashAvanzado(dash);
+        setForecast(fc);
+      } catch (_) {
+        // advanced metrics are non-critical
+      } finally {
+        setAdvancedLoading(false);
+      }
+    };
     void loadAdvanced();
-  }, [loadAdvanced]);
+    const interval = setInterval(() => {
+      void load(true);
+      void loadAdvanced();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [load, activeTid]);
 
   if (loading) return <PageLoader />;
 
@@ -154,7 +148,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     <div className="animate-fade-in">
       <Header
         title="Dashboard"
-        subtitle={isTenantUser ? `Vista general de ${tenants[0]?.nombre_fantasia ?? 'tu empresa'}` : 'Vista general del sistema'}
+        subtitle={isTenantUser ? `Vista general de ${allTenants[0]?.nombre_fantasia ?? 'tu empresa'}` : 'Vista general del sistema'}
         onRefresh={() => load(true)}
         refreshing={refreshing}
       />
@@ -194,7 +188,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 <Building2 className="w-4 h-4 text-zinc-700" />
               </div>
             </Flex>
-            <Text className="mt-2">{tenants.filter((t) => t.activo).length} activas</Text>
+            <Text className="mt-2">{allTenants.filter((t) => t.activo).length} activas</Text>
           </Card>
         )}
         <Card decoration="top" decorationColor="sky">
@@ -256,7 +250,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             ) : (
               <div className="divide-y divide-zinc-50">
                 {recentJobs.map((job) => {
-                  const tenant = tenants.find((t) => t.id === job.tenant_id);
+                  const tenant = allTenants.find((t) => t.id === job.tenant_id);
                   return (
                     <div
                       key={job.id}
@@ -316,7 +310,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                   Ver todas <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
-              {tenants.length === 0 ? (
+              {allTenants.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-center p-5">
                   <Building2 className="w-8 h-8 text-zinc-300 mb-3" />
                   <Text>Sin empresas aún</Text>
@@ -329,7 +323,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </div>
               ) : (
                 <div className="divide-y divide-zinc-50">
-                  {tenants.slice(0, 6).map((tenant) => (
+                  {allTenants.slice(0, 6).map((tenant) => (
                     <button
                       key={tenant.id}
                       onClick={() => onNavigate('tenants', { tenant_id: tenant.id })}
@@ -358,7 +352,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         )}
       </Grid>
 
-      {!isTenantUser && tenants.length > 0 && (
+      {!isTenantUser && allTenants.length > 0 && (
         <Grid numItemsLg={2} className="gap-4 mt-6">
           <Card>
             <div className="flex items-center gap-2 mb-4">
@@ -366,7 +360,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <Title>Acciones rápidas</Title>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {tenants.slice(0, 4).map((tenant) => (
+              {allTenants.slice(0, 4).map((tenant) => (
                 <button
                   key={tenant.id}
                   onClick={() => onNavigate('tenants', { tenant_id: tenant.id, action: 'sync' })}
@@ -390,7 +384,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <Title>Comprobantes por empresa</Title>
             </div>
             <div className="space-y-2">
-              {tenants.slice(0, 4).map((tenant) => (
+              {allTenants.slice(0, 4).map((tenant) => (
                 <button
                   key={tenant.id}
                   onClick={() => onNavigate('comprobantes')}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { RefreshCw, TrendingUp, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button, Card, BarChart, DonutChart, Title, Metric, Text, Flex } from '@tremor/react';
@@ -15,6 +15,8 @@ interface Props {
 export function SifenMetricasPage({ tenantId }: Props) {
     const [metrics, setMetrics] = useState<SifenMetrics | null>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const [desde, setDesde] = useState(() => {
         const d = new Date();
         d.setDate(1);
@@ -24,19 +26,41 @@ export function SifenMetricasPage({ tenantId }: Props) {
 
     const load = async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await api.sifen.getMetrics(tenantId, { desde, hasta });
             setMetrics(data);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            setError(err?.message || 'Error al cargar métricas SIFEN');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { load(); }, [tenantId, desde, hasta]);
+    useEffect(() => { load(); }, [tenantId, desde, hasta, retryCount]);
 
     if (loading) return <div className="py-20 flex justify-center"><Spinner /></div>;
+
+    if (error) {
+        const esPlanError = /plan|módulo|feature/i.test(error);
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+                <h3 className="text-lg font-semibold text-zinc-800 mb-2">No se pudo cargar</h3>
+                <p className="text-sm text-zinc-500 max-w-md">
+                    {esPlanError
+                        ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
+                        : error}
+                </p>
+                <button
+                    onClick={() => setRetryCount(c => c + 1)}
+                    className="mt-4 px-4 py-2 text-sm bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+                >
+                    Reintentar
+                </button>
+            </div>
+        );
+    }
 
     const tot = metrics?.totales;
 

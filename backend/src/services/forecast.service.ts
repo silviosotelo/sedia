@@ -9,6 +9,7 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const FORECAST_CACHE_MAX_SIZE = 200;
 
 function regresionLineal(puntos: Array<{ x: number; y: number }>): { slope: number; intercept: number } {
   const n = puntos.length;
@@ -57,6 +58,10 @@ export async function generarProyeccion(tenantId: string, mesesAProyectar = 3): 
         promedio_mensual: 0,
         variacion_mensual_pct: 0,
       };
+      if (cache.size >= FORECAST_CACHE_MAX_SIZE) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey) cache.delete(firstKey);
+      }
       cache.set(tenantId, { result, cachedAt: Date.now() });
       return result;
     }
@@ -121,6 +126,10 @@ export async function generarProyeccion(tenantId: string, mesesAProyectar = 3): 
       variacion_mensual_pct: Math.round(variacion_mensual_pct * 10) / 10,
     };
 
+    if (cache.size >= FORECAST_CACHE_MAX_SIZE) {
+      const firstKey = cache.keys().next().value;
+      if (firstKey) cache.delete(firstKey);
+    }
     cache.set(tenantId, { result, cachedAt: Date.now() });
     return result;
   } catch (err) {

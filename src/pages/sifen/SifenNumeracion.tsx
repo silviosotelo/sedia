@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button, Card, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, TextInput } from '@tremor/react';
@@ -21,6 +21,8 @@ const TIPO_OPTS = [
 export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Props) {
     const [numeraciones, setNumeraciones] = useState<SifenNumeracion[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const [showForm, setShowForm] = useState(false);
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState({
@@ -33,17 +35,18 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
 
     const load = async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await api.sifen.listNumeracion(tenantId);
             setNumeraciones(data);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            setError(err?.message || 'Error al cargar numeración SIFEN');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => { load(); }, [tenantId]);
+    useEffect(() => { load(); }, [tenantId, retryCount]);
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -139,6 +142,25 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
                     <TableBody>
                         {loading ? (
                             <TableRow><TableCell colSpan={7} className="text-center py-8"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
+                        ) : error ? (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center py-10">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
+                                        <p className="text-sm text-zinc-500 max-w-sm">
+                                            {/plan|módulo|feature/i.test(error)
+                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
+                                                : error}
+                                        </p>
+                                        <button
+                                            onClick={() => setRetryCount(c => c + 1)}
+                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+                                        >
+                                            Reintentar
+                                        </button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
                         ) : numeraciones.length === 0 ? (
                             <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-400 text-sm">No hay series configuradas. Cree una para poder emitir DEs.</TableCell></TableRow>
                         ) : (

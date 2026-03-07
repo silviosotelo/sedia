@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import type { Usuario } from '../types';
 
 const TOKEN_KEY = 'saas_token';
@@ -46,7 +46,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState(DEFAULT_BRANDING);
   const [billingStatus, setBillingStatus] = useState<'ACTIVE' | 'PAST_DUE' | 'CANCELED' | null>(null);
 
+  const tokenRef = useRef(token);
+  const tenantIdRef = useRef(user?.tenant_id);
+  useEffect(() => { tokenRef.current = token; }, [token]);
+  useEffect(() => { tenantIdRef.current = user?.tenant_id; }, [user?.tenant_id]);
+
   const refreshBranding = useCallback(async () => {
+    const currentToken = tokenRef.current;
+    const currentTenantId = tenantIdRef.current;
     try {
       // First try to get by current domain (public)
       const domain = window.location.hostname;
@@ -60,9 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // If logged in, get tenant-specific branding
-      if (token && user?.tenant_id) {
-        const resPrivate = await fetch(`${BASE_URL}/tenants/${user.tenant_id}/branding`, {
-          headers: { Authorization: `Bearer ${token}` }
+      if (currentToken && currentTenantId) {
+        const resPrivate = await fetch(`${BASE_URL}/tenants/${currentTenantId}/branding`, {
+          headers: { Authorization: `Bearer ${currentToken}` }
         });
         if (resPrivate.ok) {
           const data = await resPrivate.json();
@@ -80,9 +87,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Super admin without tenant_id: fetch system branding
-      if (token && !user?.tenant_id) {
+      if (currentToken && !currentTenantId) {
         try {
-          const resSys = await fetch(`/branding/system`);
+          const apiOrigin = BASE_URL.replace(/\/api\/?$/, '');
+          const resSys = await fetch(`${apiOrigin}/branding/system`);
           if (resSys.ok) {
             const { data } = await resSys.json();
             setBranding(data);
@@ -96,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setBranding(DEFAULT_BRANDING);
     }
-  }, [token, user?.tenant_id]);
+  }, []);
 
   const fetchMe = useCallback(async (t: string) => {
     try {
@@ -151,8 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (branding.nombre_app) document.title = branding.nombre_app;
   }, [branding]);
 
-  const login = async (email: string, password: string) => {
-    // ... (rest of the code)
+  const login = useCallback(async (email: string, password: string) => {
     const res = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -176,33 +183,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(newToken);
     setUser(usuario);
     if (usuario.billing_status) setBillingStatus(usuario.billing_status);
-  };
+  }, []);
 
-  const logout = async () => {
-    if (token) {
+  const logout = useCallback(async () => {
+    if (tokenRef.current) {
       try {
         await fetch(`${BASE_URL}/auth/logout`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${tokenRef.current}` },
         });
       } catch { /* silent */ }
     }
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);
-  };
+  }, []);
 
-  const hasPermission = (recurso: string, accion: string) => {
+  const hasPermission = useCallback((recurso: string, accion: string) => {
     if (!user) return false;
     if (user.rol.nombre === 'super_admin') return true;
     return user.permisos.includes(`${recurso}:${accion}`);
-  };
+  }, [user]);
 
-  const hasFeature = (feature: string) => {
+  const hasFeature = useCallback((feature: string) => {
     if (!user) return false;
     if (user.rol.nombre === 'super_admin') return true;
     return user.plan_features?.[feature] === true;
-  };
+  }, [user]);
 
   const isSuperAdmin = user?.rol.nombre === 'super_admin';
   const isAdminEmpresa = user?.rol.nombre === 'admin_empresa' || isSuperAdmin;
@@ -210,13 +217,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isReadonly = user?.rol.nombre === 'readonly';
   const userTenantId = user?.tenant_id ?? null;
 
+  const contextValue = useMemo(() => ({
+    user, token, loading, login, logout,
+    hasPermission, hasFeature, isSuperAdmin, isAdminEmpresa,
+    isUsuarioEmpresa, isReadonly, userTenantId,
+    branding, refreshBranding, billingStatus
+  }), [user, token, loading, login, logout, hasPermission, hasFeature,
+    isSuperAdmin, isAdminEmpresa, isUsuarioEmpresa, isReadonly, userTenantId,
+    branding, refreshBranding, billingStatus]);
+
   return (
-    <AuthContext.Provider value={{
-      user, token, loading, login, logout,
-      hasPermission, hasFeature, isSuperAdmin, isAdminEmpresa,
-      isUsuarioEmpresa, isReadonly, userTenantId,
-      branding, refreshBranding, billingStatus
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

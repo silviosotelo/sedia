@@ -15,7 +15,10 @@ export const sifenXmlService = {
         if (!config.timbrado) throw new Error('Timbrado no configurado en SIFEN');
 
         const de = await queryOne<any>(
-            `SELECT * FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            `SELECT id, tenant_id, cdc, tipo_documento, numero_documento, estado, moneda,
+                    total_pago, total_iva10, total_iva5, total_exento, fecha_emision,
+                    datos_receptor, datos_items, datos_adicionales, de_referenciado_cdc
+             FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
             [deId, tenantId]
         );
         if (!de) throw new Error('Documento DE no encontrado');

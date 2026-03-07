@@ -5,12 +5,21 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 interface LogContext {
   tenant_id?: string;
   job_id?: string;
+  stack?: string;
   [key: string]: unknown;
 }
 
 function formatLog(level: LogLevel, message: string, context?: LogContext): string {
   const timestamp = new Date().toISOString();
-  const contextStr = context ? ` ${JSON.stringify(context)}` : '';
+  let contextStr = '';
+  if (context) {
+    const { stack, ...rest } = context;
+    const restStr = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : '';
+    contextStr = restStr;
+    if (stack) {
+      contextStr += `\n  ${stack}`;
+    }
+  }
   return `[${timestamp}] [${level.toUpperCase()}] ${message}${contextStr}`;
 }
 

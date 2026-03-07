@@ -20,11 +20,18 @@ export function checkFeature(featureName: string) {
       return;
     }
 
-    // Check plan features first (cached in user session)
-    const hasPlanFeature = user.plan_features && user.plan_features[featureName] === true;
-    if (hasPlanFeature) return;
+    // Check plan features first (merged plan+addon features cached in user session)
+    if (user.plan_features && featureName in user.plan_features) {
+      if (user.plan_features[featureName] === true) return;
+      // Feature explicitly disabled in session — skip DB addon check
+      throw new ApiError(
+        403,
+        'PLAN_FEATURE_REQUIRED',
+        `Tu plan actual no incluye acceso a "${featureName}". Activa el módulo correspondiente.`
+      );
+    }
 
-    // Check add-ons (async DB check — covers SIFEN add-on and others)
+    // Feature not present in session (e.g. addon activated after login) — fall back to DB
     if (user.tenant_id) {
       const hasAddon = await findAddonWithFeature(user.tenant_id, featureName);
       if (hasAddon) return;

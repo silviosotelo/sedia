@@ -249,26 +249,43 @@ export async function upsertTransactions(
   txs: Omit<BankTransaction, 'id' | 'tenant_id' | 'bank_account_id' | 'created_at'>[]
 ): Promise<number> {
   if (txs.length === 0) return 0;
-  let inserted = 0;
-  for (const tx of txs) {
-    const idExterno = tx.id_externo ?? `${tx.fecha_operacion}_${tx.monto}_${Math.random().toString(36).slice(2)}`;
+
+  // Batch INSERT in chunks of 50 to avoid parameter limit (65535) and reduce N+1
+  const CHUNK_SIZE = 50;
+  let totalInserted = 0;
+
+  for (let i = 0; i < txs.length; i += CHUNK_SIZE) {
+    const chunk = txs.slice(i, i + CHUNK_SIZE);
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+
+    chunk.forEach((tx, idx) => {
+      const idExterno = tx.id_externo ?? `${tx.fecha_operacion}_${tx.monto}_${Math.random().toString(36).slice(2)}`;
+      const offset = idx * 13;
+      placeholders.push(
+        `($${offset + 1},$${offset + 2},$${offset + 3},$${offset + 4},$${offset + 5},$${offset + 6},$${offset + 7},$${offset + 8},$${offset + 9},$${offset + 10},$${offset + 11},$${offset + 12},$${offset + 13})`
+      );
+      values.push(
+        tenantId, bankAccountId, statementId, tx.fecha_operacion, tx.fecha_valor ?? null,
+        tx.descripcion ?? null, tx.referencia ?? null, tx.monto, tx.saldo ?? null,
+        tx.tipo_movimiento ?? null, tx.canal ?? null, idExterno,
+        JSON.stringify(tx.raw_payload ?? {})
+      );
+    });
+
     const rows = await query(
       `INSERT INTO bank_transactions
          (tenant_id, bank_account_id, statement_id, fecha_operacion, fecha_valor,
           descripcion, referencia, monto, saldo, tipo_movimiento, canal, id_externo, raw_payload)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       VALUES ${placeholders.join(',')}
        ON CONFLICT (bank_account_id, fecha_operacion, monto, id_externo) DO NOTHING
        RETURNING id`,
-      [
-        tenantId, bankAccountId, statementId, tx.fecha_operacion, tx.fecha_valor ?? null,
-        tx.descripcion ?? null, tx.referencia ?? null, tx.monto, tx.saldo ?? null,
-        tx.tipo_movimiento ?? null, tx.canal ?? null, idExterno,
-        JSON.stringify(tx.raw_payload ?? {}),
-      ]
+      values
     );
-    if (rows.length > 0) inserted++;
+    totalInserted += rows.length;
   }
-  return inserted;
+
+  return totalInserted;
 }
 
 export async function findTransactionsByPeriod(

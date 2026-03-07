@@ -10,7 +10,9 @@ export const sifenKudeService = {
      */
     async generarKude(tenantId: string, deId: string): Promise<Buffer> {
         const de = await queryOne<any>(
-            `SELECT sd.*, sc.razon_social as emisor_razon_social, sc.ruc as emisor_ruc, sc.dv as emisor_dv,
+            `SELECT sd.id, sd.tenant_id, sd.cdc, sd.tipo_documento, sd.numero_documento,
+                    sd.estado, sd.xml_signed, sd.xml_unsigned, sd.qr_text, sd.qr_png_base64,
+                    sc.razon_social as emisor_razon_social, sc.ruc as emisor_ruc, sc.dv as emisor_dv,
                     sc.establecimiento, sc.punto_expedicion
              FROM sifen_de sd
              JOIN sifen_config sc ON sc.tenant_id = sd.tenant_id

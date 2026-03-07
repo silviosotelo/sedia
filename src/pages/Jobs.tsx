@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   Briefcase,
   CheckCircle2,
@@ -215,29 +216,35 @@ export function Jobs({ toastError }: JobsProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
 
+  const loadTenants = useCallback(async () => {
+    try {
+      const tenantsData = isTenantUser
+        ? await api.tenants.get(userTenantId!).then((t) => [t])
+        : await api.tenants.list();
+      setTenants(tenantsData);
+    } catch (e: unknown) {
+      toastError('Error al cargar empresas', e instanceof Error ? e.message : undefined);
+    }
+  }, [isTenantUser, userTenantId, toastError]);
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const [jobsData, tenantsData] = await Promise.all([
-        api.jobs.list({
-          tenant_id: isTenantUser ? userTenantId! : undefined,
-          estado: statusFilter || undefined,
-          tipo_job: typeFilter && typeFilter !== 'all' ? typeFilter : undefined,
-          limit: 100,
-        }),
-        isTenantUser
-          ? api.tenants.get(userTenantId!).then((t) => [t])
-          : api.tenants.list(),
-      ]);
+      const jobsData = await api.jobs.list({
+        tenant_id: isTenantUser ? userTenantId! : undefined,
+        estado: statusFilter || undefined,
+        tipo_job: typeFilter && typeFilter !== 'all' ? typeFilter : undefined,
+        limit: 100,
+      });
       setJobs(jobsData);
-      setTenants(tenantsData);
     } catch (e: unknown) {
       toastError('Error al cargar jobs', e instanceof Error ? e.message : undefined);
     } finally {
@@ -247,6 +254,10 @@ export function Jobs({ toastError }: JobsProps) {
   }, [statusFilter, typeFilter, toastError, isTenantUser, userTenantId]);
 
   useEffect(() => {
+    void loadTenants();
+  }, [loadTenants]);
+
+  useEffect(() => {
     load();
     const interval = setInterval(() => load(true), 15000);
     return () => clearInterval(interval);
@@ -254,29 +265,41 @@ export function Jobs({ toastError }: JobsProps) {
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, typeFilter]);
+  }, [debouncedSearch, statusFilter, typeFilter]);
 
-  const filtered = jobs.filter((j) => {
-    const tenant = tenants.find((t) => t.id === j.tenant_id);
-    const searchLower = search.toLowerCase();
+  const tenantMap = useMemo(() => new Map(tenants.map(t => [t.id, t])), [tenants]);
+
+  const filtered = useMemo(() => jobs.filter((j) => {
+    const tenant = tenantMap.get(j.tenant_id);
+    const searchLower = debouncedSearch.toLowerCase();
     return (
-      !search ||
-      j.id.includes(search) ||
+      !debouncedSearch ||
+      j.id.includes(debouncedSearch) ||
       j.tipo_job.toLowerCase().includes(searchLower) ||
       tenant?.nombre_fantasia.toLowerCase().includes(searchLower) ||
-      tenant?.ruc.includes(search)
+      tenant?.ruc.includes(debouncedSearch)
     );
-  });
+  }), [jobs, tenantMap, debouncedSearch]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const counts = {
-    PENDING: jobs.filter((j) => j.estado === 'PENDING').length,
-    RUNNING: jobs.filter((j) => j.estado === 'RUNNING').length,
-    DONE: jobs.filter((j) => j.estado === 'DONE').length,
-    FAILED: jobs.filter((j) => j.estado === 'FAILED').length,
-  };
+  const counts = useMemo(() => {
+    const c = { PENDING: 0, RUNNING: 0, DONE: 0, FAILED: 0 };
+    for (const j of jobs) {
+      if (j.estado in c) c[j.estado as keyof typeof c]++;
+    }
+    return c;
+  }, [jobs]);
+
+  // Pause polling when tab is hidden
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') load(true);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [load]);
 
   if (loading) return <PageLoader />;
 
@@ -381,7 +404,7 @@ export function Jobs({ toastError }: JobsProps) {
                 <JobRow
                   key={job.id}
                   job={job}
-                  tenant={tenants.find((t) => t.id === job.tenant_id)}
+                  tenant={tenantMap.get(job.tenant_id)}
                   expanded={expandedId === job.id}
                   onToggle={() => setExpandedId(expandedId === job.id ? null : job.id)}
                 />

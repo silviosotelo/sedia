@@ -10,6 +10,7 @@ import { ApiError } from '../../utils/errors';
 // Simple in-memory cache for domain lookups
 const domainCache = new Map<string, { data: unknown; cachedAt: number }>();
 const DOMAIN_CACHE_TTL_MS = 5 * 60 * 1000;
+const DOMAIN_CACHE_MAX_SIZE = 200;
 
 export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
   // Register multipart for logo upload
@@ -44,6 +45,10 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
 
     if (!row?.wl_activo) {
       // Cache the miss too — avoids repeated DB queries for domains without white-label
+      if (domainCache.size >= DOMAIN_CACHE_MAX_SIZE) {
+        const firstKey = domainCache.keys().next().value;
+        if (firstKey) domainCache.delete(firstKey);
+      }
       domainCache.set(domain, { data: null, cachedAt: Date.now() });
       return reply.code(204).send();
     }
@@ -57,6 +62,10 @@ export async function whitelabelRoutes(app: FastifyInstance): Promise<void> {
       favicon_url: row.wl_favicon_url,
     };
 
+    if (domainCache.size >= DOMAIN_CACHE_MAX_SIZE) {
+      const firstKey = domainCache.keys().next().value;
+      if (firstKey) domainCache.delete(firstKey);
+    }
     domainCache.set(domain, { data, cachedAt: Date.now() });
     return reply.send({ success: true, data });
   });

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import {
   LayoutDashboard,
   Building2,
@@ -94,6 +94,66 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { id: 'configuracion', label: 'Configuración Global', icon: <Settings className="w-4 h-4" />, superAdminOnly: true },
 ];
 
+interface NavLinkProps {
+  item: NavItem;
+  current: Page;
+  collapsed: boolean;
+  branding: { color_primario: string };
+  onNavigate: (page: Page) => void;
+  onClose?: () => void;
+}
+
+const NavLink = memo(function NavLink({ item, current, collapsed, branding, onNavigate, onClose }: NavLinkProps) {
+  const active = current === item.id;
+  return (
+    <button
+      onClick={() => {
+        onNavigate(item.id);
+        if (onClose) onClose();
+      }}
+      className={cn(
+        'w-full flex items-center transition-all duration-200 text-sm group relative',
+        collapsed ? 'justify-center p-2 rounded-xl mb-1' : 'gap-3 px-3 py-2.5 rounded-xl mb-1.5',
+        active
+          ? 'text-zinc-900 font-bold bg-zinc-100/80 border border-transparent'
+          : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 border border-transparent'
+      )}
+      style={active && collapsed ? { borderColor: branding.color_primario, color: branding.color_primario } : {}}
+    >
+      {active && !collapsed && (
+        <div
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-zinc-900"
+          style={{ backgroundColor: branding.color_primario }}
+        />
+      )}
+      <span className={cn(
+        'flex-shrink-0 transition-colors flex items-center justify-center',
+        active ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600',
+        collapsed ? 'w-5 h-5' : ''
+      )}
+        style={active ? { color: branding.color_primario } : {}}
+      >
+        {item.icon}
+      </span>
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-left truncate">{item.label}</span>
+          {item.badge && (
+            <span className="px-1.5 py-0.5 rounded-md bg-zinc-100 text-[10px] font-bold text-zinc-500 min-w-[20px] text-center">
+              {item.badge}
+            </span>
+          )}
+        </>
+      )}
+      {collapsed && (
+        <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 shadow-xl text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+          {item.label}
+        </div>
+      )}
+    </button>
+  );
+});
+
 interface SidebarProps {
   current: Page;
   onNavigate: (page: Page) => void;
@@ -128,11 +188,8 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
 
   const filterItems = (items: NavItem[]) => {
     return items.filter(item => {
-      // super_admin-only items
       if (item.superAdminOnly && !isSuperAdmin) return false;
-      // Check feature flags (plan + add-ons) — super_admin bypasses via hasFeature
       if (item.requiredFeature && !hasFeature(item.requiredFeature)) return false;
-      // Check role permissions — super_admin bypasses via hasPermission
       if (item.requiredPermission) {
         const [recurso, accion] = item.requiredPermission.split(':');
         if (!hasPermission(recurso, accion)) return false;
@@ -141,56 +198,11 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
     });
   };
 
-  const NavLink = ({ item }: { item: NavItem }) => {
-    const active = current === item.id;
-    return (
-      <button
-        onClick={() => {
-          onNavigate(item.id);
-          if (onClose) onClose();
-        }}
-        className={cn(
-          'w-full flex items-center transition-all duration-200 text-sm group relative',
-          collapsed ? 'justify-center p-2 rounded-xl mb-1' : 'gap-3 px-3 py-2.5 rounded-xl mb-1.5',
-          active
-            ? 'text-zinc-900 font-bold bg-zinc-100/80 border border-transparent'
-            : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 border border-transparent'
-        )}
-        style={active && collapsed ? { borderColor: branding.color_primario, color: branding.color_primario } : {}}
-      >
-        {active && !collapsed && (
-          <div
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full bg-zinc-900"
-            style={{ backgroundColor: branding.color_primario }}
-          />
-        )}
-        <span className={cn(
-          'flex-shrink-0 transition-colors flex items-center justify-center',
-          active ? 'text-zinc-900' : 'text-zinc-400 group-hover:text-zinc-600',
-          collapsed ? 'w-5 h-5' : ''
-        )}
-          style={active ? { color: branding.color_primario } : {}}
-        >
-          {item.icon}
-        </span>
-        {!collapsed && (
-          <>
-            <span className="flex-1 text-left truncate">{item.label}</span>
-            {item.badge && (
-              <span className="px-1.5 py-0.5 rounded-md bg-zinc-100 text-[10px] font-bold text-zinc-500 min-w-[20px] text-center">
-                {item.badge}
-              </span>
-            )}
-          </>
-        )}
-        {collapsed && (
-          <div className="absolute left-full ml-4 px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 shadow-xl text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-            {item.label}
-          </div>
-        )}
-      </button>
-    );
-  };
+  const filteredAllNav = useMemo(() => filterItems(ALL_NAV_ITEMS), [isSuperAdmin, hasFeature, hasPermission]);
+  const filteredAutomationNav = useMemo(() => filterItems(AUTOMATION_NAV_ITEMS), [isSuperAdmin, hasFeature, hasPermission]);
+  const filteredSifenNav = useMemo(() => filterItems(SIFEN_NAV_ITEMS), [isSuperAdmin, hasFeature, hasPermission]);
+  const filteredReconciliationNav = useMemo(() => filterItems(RECONCILIATION_NAV_ITEMS), [isSuperAdmin, hasFeature, hasPermission]);
+  const filteredAdminNav = useMemo(() => filterItems(ADMIN_NAV_ITEMS), [isSuperAdmin, hasFeature, hasPermission]);
 
   return (
     <aside
@@ -246,12 +258,12 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
         collapsed ? "px-2 py-4" : "p-3"
       )}>
         <div className="space-y-1">
-          {filterItems(ALL_NAV_ITEMS).map(item => (
-            <NavLink key={item.id} item={item} />
+          {filteredAllNav.map(item => (
+            <NavLink key={item.id} item={item} current={current} collapsed={collapsed} branding={branding} onNavigate={onNavigate} onClose={onClose} />
           ))}
         </div>
 
-        {(filterItems(AUTOMATION_NAV_ITEMS).length > 0 || filterItems(SIFEN_NAV_ITEMS).length > 0) && (
+        {(filteredAutomationNav.length > 0 || filteredSifenNav.length > 0) && (
         <div className="space-y-2">
           {!collapsed && (
             <button
@@ -268,11 +280,11 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           )}
           {!autoCollapsed && (
             <div className="space-y-1">
-              {filterItems(AUTOMATION_NAV_ITEMS).map(item => (
-                <NavLink key={item.id} item={item} />
+              {filteredAutomationNav.map(item => (
+                <NavLink key={item.id} item={item} current={current} collapsed={collapsed} branding={branding} onNavigate={onNavigate} onClose={onClose} />
               ))}
               {/* SIFEN expandable group */}
-              {filterItems(SIFEN_NAV_ITEMS).length > 0 && (
+              {filteredSifenNav.length > 0 && (
                 <div>
                   <button
                     onClick={() => setSifenExpanded(v => !v)}
@@ -307,8 +319,8 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
                   </button>
                   {sifenExpanded && !collapsed && (
                     <div className="ml-4 pl-3 border-l border-zinc-200 space-y-0.5 mb-1">
-                      {filterItems(SIFEN_NAV_ITEMS).map(item => (
-                        <NavLink key={item.id} item={item} />
+                      {filteredSifenNav.map(item => (
+                        <NavLink key={item.id} item={item} current={current} collapsed={collapsed} branding={branding} onNavigate={onNavigate} onClose={onClose} />
                       ))}
                     </div>
                   )}
@@ -319,7 +331,7 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
         </div>
         )}
 
-        {filterItems(RECONCILIATION_NAV_ITEMS).length > 0 && (
+        {filteredReconciliationNav.length > 0 && (
         <div className="space-y-2">
           {!collapsed && (
             <button
@@ -336,15 +348,15 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
           )}
           {!adminCollapsed && (
             <div className="space-y-1">
-              {filterItems(RECONCILIATION_NAV_ITEMS).map(item => (
-                <NavLink key={item.id} item={item} />
+              {filteredReconciliationNav.map(item => (
+                <NavLink key={item.id} item={item} current={current} collapsed={collapsed} branding={branding} onNavigate={onNavigate} onClose={onClose} />
               ))}
             </div>
           )}
         </div>
         )}
 
-        {filterItems(ADMIN_NAV_ITEMS).length > 0 && (
+        {filteredAdminNav.length > 0 && (
         <div className="space-y-2">
           {!collapsed && (
             <div className="px-2 py-1 text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
@@ -352,8 +364,8 @@ export function Sidebar({ current, onNavigate, apiStatus, mockMode, open = false
             </div>
           )}
           <div className="space-y-1">
-            {filterItems(ADMIN_NAV_ITEMS).map(item => (
-              <NavLink key={item.id} item={item} />
+            {filteredAdminNav.map(item => (
+              <NavLink key={item.id} item={item} current={current} collapsed={collapsed} branding={branding} onNavigate={onNavigate} onClose={onClose} />
             ))}
           </div>
         </div>

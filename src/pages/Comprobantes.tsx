@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useDebounce } from '../hooks/useDebounce';
 import {
   FileText,
   Search,
@@ -108,6 +109,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
   const LIMIT = 20;
 
   const effectiveTenantId = tenantIdForzado ?? activeTenantId;
+  const debouncedSearch = useDebounce(search, 300);
 
   const load = useCallback(async (silent = false) => {
     if (!effectiveTenantId) {
@@ -127,7 +129,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
         xml_descargado: xmlFilter === '' ? undefined : xmlFilter === 'true',
         fecha_desde: fechaDesde || undefined,
         fecha_hasta: fechaHasta || undefined,
-        ruc_vendedor: search.match(/^\d/) ? search : undefined,
+        ruc_vendedor: debouncedSearch.match(/^\d/) ? debouncedSearch : undefined,
         modo: modoFilter || undefined,
       });
 
@@ -146,11 +148,11 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
       setLoading(false);
       setRefreshing(false);
     }
-  }, [effectiveTenantId, page, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, search, toastError]);
+  }, [effectiveTenantId, page, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, debouncedSearch, modoFilter, toastError]);
 
   useEffect(() => {
     setPage(1);
-  }, [effectiveTenantId, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, search]);
+  }, [effectiveTenantId, tipoFilter, xmlFilter, sifenFilter, sincronizarFilter, fechaDesde, fechaHasta, debouncedSearch]);
 
   useEffect(() => {
     void load();
@@ -357,7 +359,7 @@ export function Comprobantes({ tenantIdForzado, toastError, toastSuccess }: Comp
               <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
             </div>
             <div>
-              <Text className="mb-1 font-medium">Tipo de Operatión</Text>
+              <Text className="mb-1 font-medium">Tipo de Operación</Text>
               <Select value={modoFilter} onValueChange={(e) => setModoFilter(e as any)} enableClear={true}>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="ventas">Ventas (Emitidos)</SelectItem>

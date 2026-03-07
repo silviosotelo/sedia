@@ -118,7 +118,12 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         const de = await queryOne(
-            `SELECT * FROM sifen_de WHERE tenant_id = $1 AND id = $2`,
+            `SELECT id, tenant_id, cdc, tipo_documento, numero_documento, estado, moneda,
+                    total_pago, total_iva10, total_iva5, total_exento, fecha_emision,
+                    created_at, updated_at, sifen_codigo, sifen_mensaje,
+                    datos_receptor, datos_items, datos_impuestos, datos_adicionales,
+                    kude_pdf_key, de_referenciado_cdc
+             FROM sifen_de WHERE tenant_id = $1 AND id = $2`,
             [req.params.id, req.params.deId]
         );
         if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
@@ -222,7 +227,8 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         const lote = await queryOne(
-            `SELECT * FROM sifen_lote WHERE tenant_id = $1 AND id = $2`,
+            `SELECT id, tenant_id, numero_lote, estado, created_at, updated_at
+             FROM sifen_lote WHERE tenant_id = $1 AND id = $2`,
             [req.params.id, req.params.loteId]
         );
         if (!lote) throw new ApiError(404, 'NOT_FOUND', 'Lote no encontrado');

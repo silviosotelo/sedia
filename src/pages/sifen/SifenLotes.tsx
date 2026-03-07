@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Play, Search, Package } from 'lucide-react';
+import { RefreshCw, Play, Search, Package, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@tremor/react';
@@ -19,6 +19,7 @@ const LOTE_ESTADO_COLOR: Record<string, string> = {
 export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
     const [lotes, setLotes] = useState<SifenLote[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [expandedData, setExpandedData] = useState<any>(null);
     const [submitting, setSubmitting] = useState<string | null>(null);
@@ -26,11 +27,12 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
 
     const load = async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await api.sifen.listLotes(tenantId);
             setLotes(data);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            setError(err?.message || 'Error al cargar lotes SIFEN');
         } finally {
             setLoading(false);
         }
@@ -124,6 +126,25 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                     <TableBody>
                         {loading ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-10"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
+                        ) : error ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center py-10">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
+                                        <p className="text-sm text-zinc-500 max-w-sm">
+                                            {/plan|módulo|feature/i.test(error)
+                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
+                                                : error}
+                                        </p>
+                                        <button
+                                            onClick={load}
+                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+                                        >
+                                            Reintentar
+                                        </button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
                         ) : lotes.length === 0 ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-10 text-zinc-400 text-sm">No hay lotes creados.</TableCell></TableRow>
                         ) : (

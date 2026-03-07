@@ -20,6 +20,7 @@ export async function findTenantPlanInfo(tenantId: string): Promise<TenantPlanIn
 // In-memory cache for addon feature checks (avoid 1 DB query per authenticated request)
 const addonFeatureCache = new Map<string, { result: boolean; cachedAt: number }>();
 const ADDON_CACHE_TTL_MS = 60_000; // 60 seconds
+const ADDON_CACHE_MAX_SIZE = 500;
 
 export async function findAddonWithFeature(tenantId: string, feature: string): Promise<boolean> {
     const cacheKey = `${tenantId}:${feature}`;
@@ -39,6 +40,10 @@ export async function findAddonWithFeature(tenantId: string, feature: string): P
         [tenantId, feature]
     );
     const result = !!addon;
+    if (addonFeatureCache.size >= ADDON_CACHE_MAX_SIZE) {
+        const firstKey = addonFeatureCache.keys().next().value;
+        if (firstKey) addonFeatureCache.delete(firstKey);
+    }
     addonFeatureCache.set(cacheKey, { result, cachedAt: Date.now() });
     return result;
 }

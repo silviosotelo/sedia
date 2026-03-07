@@ -4,23 +4,27 @@ import { encrypt, decrypt } from './crypto.service';
 import { logAudit } from './audit.service';
 import { logger } from '../config/logger';
 
+// Transform empty strings to null for optional fields
+const emptyToNull = z.string().transform(v => v === '' ? null : v).nullable().optional();
+const emptyToNullDate = z.string().transform(v => v === '' ? null : v).nullable().optional();
+
 export const sifenConfigSchema = z.object({
     ambiente: z.enum(['HOMOLOGACION', 'PRODUCCION']).default('HOMOLOGACION'),
     ruc: z.string().min(3).max(20),
     dv: z.string().length(1),
     razon_social: z.string().min(3).max(255),
-    timbrado: z.string().max(20).optional().nullable(),
-    inicio_vigencia: z.string().optional().nullable(),
-    fin_vigencia: z.string().optional().nullable(),
+    timbrado: emptyToNull,
+    inicio_vigencia: emptyToNullDate,
+    fin_vigencia: emptyToNullDate,
     establecimiento: z.string().max(3).default('001'),
     punto_expedicion: z.string().max(3).default('001'),
-    cert_subject: z.string().optional().nullable(),
-    cert_serial: z.string().optional().nullable(),
-    cert_not_before: z.string().optional().nullable(),
-    cert_not_after: z.string().optional().nullable(),
-    cert_pem: z.string().optional().nullable(),
-    private_key: z.string().optional().nullable(),
-    passphrase: z.string().optional().nullable(),
+    cert_subject: emptyToNull,
+    cert_serial: emptyToNull,
+    cert_not_before: emptyToNullDate,
+    cert_not_after: emptyToNullDate,
+    cert_pem: emptyToNull,
+    private_key: emptyToNull,
+    passphrase: emptyToNull,
     ws_url_recibe_lote: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/async/recibe-lote.wsdl'),
     ws_url_consulta_lote: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/async/consulta-lote.wsdl'),
     ws_url_consulta: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/consultas/consulta.wsdl')
@@ -36,10 +40,19 @@ export interface SifenConfigData extends Omit<SifenConfigInput, 'private_key' | 
     updated_at: Date;
 }
 
+const configCache = new Map<string, { config: SifenConfigData; cachedAt: number }>();
+const CONFIG_CACHE_TTL_MS = 300_000; // 5 minutes
+const CONFIG_CACHE_MAX_SIZE = 100;
+
 export const sifenConfigService = {
     async getConfig(tenantId: string): Promise<SifenConfigData | null> {
+        const cached = configCache.get(tenantId);
+        if (cached && Date.now() - cached.cachedAt < CONFIG_CACHE_TTL_MS) {
+            return cached.config;
+        }
+
         const config = await queryOne<any>(
-            `SELECT 
+            `SELECT
         tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia,
         establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before,
         cert_not_after, cert_pem, ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta,
@@ -50,6 +63,15 @@ export const sifenConfigService = {
        WHERE tenant_id = $1`,
             [tenantId]
         );
+
+        if (config) {
+            if (configCache.size >= CONFIG_CACHE_MAX_SIZE) {
+                // Evict oldest entry
+                const oldestKey = configCache.keys().next().value;
+                if (oldestKey !== undefined) configCache.delete(oldestKey);
+            }
+            configCache.set(tenantId, { config: config as SifenConfigData, cachedAt: Date.now() });
+        }
 
         return config as SifenConfigData | null;
     },
@@ -161,6 +183,7 @@ export const sifenConfigService = {
                 detalles: { keysUpdated: !!privateKeyEnc || !!passphraseEnc }
             });
 
+            configCache.delete(tenantId); // Invalidate cache after update
             const configRes = await this.getConfig(tenantId);
             if (!configRes) throw new Error('Error retrieving config after upsert');
             return configRes;

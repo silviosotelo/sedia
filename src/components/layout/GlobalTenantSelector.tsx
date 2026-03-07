@@ -36,7 +36,7 @@ export function GlobalTenantSelector({ collapsed }: { collapsed?: boolean }) {
                     </div>
                     <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-zinc-900 truncate">
-                            {activeTenant?.nombre_fantasia || 'Mi Empresa123'}
+                            {activeTenant?.nombre_fantasia || 'Mi Empresa'}
                         </p>
                         <p className="text-[10px] text-zinc-500 font-medium tracking-tight mt-0.5">Empresa activa</p>
                     </div>

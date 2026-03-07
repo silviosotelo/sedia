@@ -10,7 +10,7 @@ export const sifenLoteService = {
      */
     async armarLote(tenantId: string): Promise<string | null> {
         const des = await query<any>(
-            `SELECT id, xml_signed FROM sifen_de
+            `SELECT id FROM sifen_de
              WHERE tenant_id = $1 AND estado = 'ENQUEUED' AND xml_signed IS NOT NULL
              ORDER BY created_at ASC LIMIT 50`,
             [tenantId]

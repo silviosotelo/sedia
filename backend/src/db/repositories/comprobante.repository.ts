@@ -152,23 +152,35 @@ export async function findComprobantesByTenant(
   const limit = pagination.limit;
   const offset = (pagination.page - 1) * pagination.limit;
 
-  const data = await query<Comprobante & { _total: string }>(
-    `SELECT c.*,
-            COUNT(*) OVER() AS _total,
-            COALESCE(ce_agg.etiquetas, '[]'::json) AS etiquetas
-     FROM comprobantes c
-     LEFT JOIN LATERAL (
-       SELECT json_agg(json_build_object('etiqueta', ce.etiqueta, 'color', ce.color)) AS etiquetas
-       FROM comprobante_etiquetas ce WHERE ce.comprobante_id = c.id
-     ) ce_agg ON true
-     ${where}
-     ORDER BY c.fecha_emision DESC
-     LIMIT $${i++} OFFSET $${i++}`,
-    [...params, limit, offset]
-  );
+  const dataParamIndex = i;
+  i += 2;
 
-  const total = data.length > 0 ? parseInt(data[0]._total, 10) : 0;
-  return { data, total };
+  const [rows, countResult] = await Promise.all([
+    query<Comprobante & { etiquetas: any }>(
+      `SELECT c.id, c.tenant_id, c.origen, c.ruc_vendedor, c.razon_social_vendedor,
+              c.cdc, c.numero_comprobante, c.tipo_comprobante, c.fecha_emision,
+              c.total_operacion, c.hash_unico, c.xml_url, c.xml_descargado_at,
+              c.nro_ot, c.sincronizar, c.sincronizar_actualizado_at,
+              c.sincronizar_actualizado_por, c.created_at, c.updated_at,
+              COALESCE(ce_agg.etiquetas, '[]'::json) AS etiquetas
+       FROM comprobantes c
+       LEFT JOIN LATERAL (
+         SELECT json_agg(json_build_object('etiqueta', ce.etiqueta, 'color', ce.color)) AS etiquetas
+         FROM comprobante_etiquetas ce WHERE ce.comprobante_id = c.id
+       ) ce_agg ON true
+       ${where}
+       ORDER BY c.fecha_emision DESC
+       LIMIT $${dataParamIndex} OFFSET $${dataParamIndex + 1}`,
+      [...params, limit, offset]
+    ),
+    query<{ total: string }>(
+      `SELECT COUNT(*) AS total FROM comprobantes c ${where}`,
+      params
+    ),
+  ]);
+
+  const total = countResult.length > 0 ? parseInt(countResult[0].total, 10) : 0;
+  return { data: rows, total };
 }
 
 export async function findComprobanteById(

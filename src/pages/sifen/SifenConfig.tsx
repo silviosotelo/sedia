@@ -15,6 +15,8 @@ interface Props {
 export function SifenConfigPage({ tenantId, toastSuccess, toastError }: Props) {
     const [saving, setSaving] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const [showAmbienteWarning, setShowAmbienteWarning] = useState(false);
     const [config, setConfig] = useState<Partial<SifenConfig> & {
         private_key?: string;
@@ -38,19 +40,21 @@ export function SifenConfigPage({ tenantId, toastSuccess, toastError }: Props) {
 
     useEffect(() => {
         const load = async () => {
+            setError(null);
+            setLoading(true);
             try {
                 const data = await api.sifen.getConfig(tenantId);
                 if (data && Object.keys(data).length > 0) {
                     setConfig(prev => ({ ...prev, ...data, private_key: '', passphrase: '' }));
                 }
-            } catch (err) {
-                console.error(err);
+            } catch (err: any) {
+                setError(err?.message || 'Error al cargar configuración SIFEN');
             } finally {
                 setLoading(false);
             }
         };
         load();
-    }, [tenantId]);
+    }, [tenantId, retryCount]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setConfig(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -84,6 +88,27 @@ export function SifenConfigPage({ tenantId, toastSuccess, toastError }: Props) {
     };
 
     if (loading) return <div className="py-20 flex justify-center"><Spinner /></div>;
+
+    if (error) {
+        const esPlanError = /plan|módulo|módulo|feature/i.test(error);
+        return (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+                <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+                <h3 className="text-lg font-semibold text-zinc-800 mb-2">No se pudo cargar</h3>
+                <p className="text-sm text-zinc-500 max-w-md">
+                    {esPlanError
+                        ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
+                        : error}
+                </p>
+                <button
+                    onClick={() => setRetryCount(c => c + 1)}
+                    className="mt-4 px-4 py-2 text-sm bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+                >
+                    Reintentar
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

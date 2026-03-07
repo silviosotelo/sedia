@@ -33,14 +33,14 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
   request.currentUser = usuario;
 }
 
-export function requireSuperAdmin(request: FastifyRequest, _reply: FastifyReply): void {
+export async function requireSuperAdmin(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
   if (request.currentUser?.rol.nombre !== 'super_admin') {
     throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede realizar esta acción');
   }
 }
 
 export function requirePermiso(permiso: string) {
-  return function (request: FastifyRequest, _reply: FastifyReply): void {
+  return async function (request: FastifyRequest, _reply: FastifyReply): Promise<void> {
     const u = request.currentUser;
     if (!u) {
       throw new ApiError(401, 'UNAUTHORIZED', 'No autenticado');

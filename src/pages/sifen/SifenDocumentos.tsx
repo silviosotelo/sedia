@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Search, Download, Eye, FileX, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RefreshCw, Search, Download, Eye, FileX, FileText, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useDebounce } from '../../hooks/useDebounce';
 import { Spinner } from '../../components/ui/Spinner';
 import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, Select, SelectItem, TextInput } from '@tremor/react';
 import { SifenEstadoBadge } from '../../components/sifen/SifenEstadoBadge';
+import { Modal } from '../../components/ui/Modal';
 import { SifenDE, SIFEN_TIPO_LABELS, SifenTipoDocumento } from '../../types';
 
 interface Props {
@@ -19,13 +21,20 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
     const [docs, setDocs] = useState<SifenDE[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [anularTarget, setAnularTarget] = useState<string | null>(null);
+    const [anularMotivo, setAnularMotivo] = useState('');
+    const [anulando, setAnulando] = useState(false);
     const [page, setPage] = useState(0);
+    const [search, setSearch] = useState('');
+    const debouncedSearch = useDebounce(search, 300);
     const [filters, setFilters] = useState({
-        estado: '', tipo: '', desde: '', hasta: '', search: '',
+        estado: '', tipo: '', desde: '', hasta: '',
     });
 
     const load = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const result = await api.sifen.listDe(tenantId, {
                 ...filters,
@@ -33,18 +42,18 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                 tipo: filters.tipo || undefined,
                 desde: filters.desde || undefined,
                 hasta: filters.hasta || undefined,
-                search: filters.search || undefined,
+                search: debouncedSearch || undefined,
                 limit: LIMIT,
                 offset: page * LIMIT,
             });
             setDocs(result.data);
             setTotal(result.total);
-        } catch (err) {
-            console.error(err);
+        } catch (err: any) {
+            setError(err?.message || 'Error al cargar documentos electrónicos');
         } finally {
             setLoading(false);
         }
-    }, [tenantId, filters, page]);
+    }, [tenantId, filters, debouncedSearch, page]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -59,16 +68,25 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
         }
     };
 
-    const handleAnular = async (deId: string, e: React.MouseEvent) => {
+    const handleAnularClick = (deId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const motivo = prompt('Motivo de anulación:');
-        if (!motivo) return;
+        setAnularTarget(deId);
+        setAnularMotivo('');
+    };
+
+    const handleAnularConfirm = async () => {
+        if (!anularTarget || !anularMotivo.trim()) return;
+        setAnulando(true);
         try {
-            await api.sifen.anularDe(tenantId, deId, motivo);
+            await api.sifen.anularDe(tenantId, anularTarget, anularMotivo.trim());
             toastSuccess?.('Anulación encolada.');
+            setAnularTarget(null);
+            setAnularMotivo('');
             load();
         } catch (err: any) {
             toastError?.(err?.message || 'Error encolando anulación.');
+        } finally {
+            setAnulando(false);
         }
     };
 
@@ -92,8 +110,8 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                         <input
                             className="pl-8 pr-3 py-2 w-full text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
                             placeholder="Buscar CDC, número, receptor..."
-                            value={filters.search}
-                            onChange={e => { setFilters(f => ({ ...f, search: e.target.value })); setPage(0); }}
+                            value={search}
+                            onChange={e => { setSearch(e.target.value); setPage(0); }}
                         />
                     </div>
                     <select
@@ -146,6 +164,25 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                     <TableBody>
                         {loading ? (
                             <TableRow><TableCell colSpan={7} className="text-center py-10"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
+                        ) : error ? (
+                            <TableRow>
+                                <TableCell colSpan={7} className="text-center py-10">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
+                                        <p className="text-sm text-zinc-500 max-w-sm">
+                                            {/plan|módulo|feature/i.test(error)
+                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
+                                                : error}
+                                        </p>
+                                        <button
+                                            onClick={load}
+                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
+                                        >
+                                            Reintentar
+                                        </button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
                         ) : docs.length === 0 ? (
                             <TableRow><TableCell colSpan={7} className="text-center py-10 text-zinc-400 text-sm">No hay documentos electrónicos.</TableCell></TableRow>
                         ) : (
@@ -190,7 +227,7 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                                                             <Download className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
-                                                    <button onClick={e => handleAnular(doc.id, e)} className="text-red-400 hover:text-red-600 p-1 rounded" title="Anular">
+                                                    <button onClick={e => handleAnularClick(doc.id, e)} className="text-red-400 hover:text-red-600 p-1 rounded" title="Anular">
                                                         <FileX className="w-3.5 h-3.5" />
                                                     </button>
                                                 </>
@@ -214,6 +251,56 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                     </div>
                 </div>
             )}
+
+            {/* Modal de anulación */}
+            <Modal
+                open={!!anularTarget}
+                onClose={() => { if (!anulando) { setAnularTarget(null); setAnularMotivo(''); } }}
+                title="Anular Documento Electrónico"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="secondary" disabled={anulando} onClick={() => { setAnularTarget(null); setAnularMotivo(''); }}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            color="red"
+                            loading={anulando}
+                            disabled={anulando || anularMotivo.trim().length < 10}
+                            onClick={handleAnularConfirm}
+                        >
+                            Confirmar Anulación
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-red-700">
+                            <p className="font-semibold">Esta acción es irreversible</p>
+                            <p className="mt-1">El documento será anulado ante la SET. Esta acción tiene efectos fiscales y legales.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="motivo-anulacion" className="text-sm font-medium text-zinc-700 block mb-1">
+                            Motivo de anulación (mínimo 10 caracteres)
+                        </label>
+                        <textarea
+                            id="motivo-anulacion"
+                            value={anularMotivo}
+                            onChange={e => setAnularMotivo(e.target.value)}
+                            className="w-full border border-zinc-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                            rows={3}
+                            placeholder="Describa el motivo de la anulación..."
+                            autoFocus
+                        />
+                        {anularMotivo.trim().length > 0 && anularMotivo.trim().length < 10 && (
+                            <p className="text-xs text-red-500 mt-1">{10 - anularMotivo.trim().length} caracteres más requeridos</p>
+                        )}
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }

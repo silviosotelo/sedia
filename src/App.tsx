@@ -1,35 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense, useMemo } from 'react';
 import { Shell } from './components/layout/Shell';
 import { ToastContainer } from './components/ui/Toast';
-import { Dashboard } from './pages/Dashboard';
-import { Tenants } from './pages/Tenants';
-import { Jobs } from './pages/Jobs';
-import { Comprobantes } from './pages/Comprobantes';
-import { Usuarios } from './pages/Usuarios';
-import { Roles } from './pages/Roles';
-import { Metricas } from './pages/Metricas';
-import { Notificaciones } from './pages/Notificaciones';
-import { Webhooks } from './pages/Webhooks';
-import { ApiTokens } from './pages/ApiTokens';
-import { Clasificacion } from './pages/Clasificacion';
-import { Alertas } from './pages/Alertas';
-import { Conciliacion } from './pages/Conciliacion';
-import { Billing } from './pages/Billing';
-import { Sifen } from './pages/Sifen';
-import { SifenDocumentosPage } from './pages/sifen/SifenDocumentos';
-import { SifenEmitirPage } from './pages/sifen/SifenEmitir';
-import { SifenNumeracionPage } from './pages/sifen/SifenNumeracion';
-import { SifenLotesPage } from './pages/sifen/SifenLotes';
-import { SifenMetricasPage } from './pages/sifen/SifenMetricas';
-import { SifenConfigPage } from './pages/sifen/SifenConfig';
-import { Auditoria } from './pages/Auditoria';
-import { Anomalias } from './pages/Anomalias';
-import { Configuracion } from './pages/Configuracion';
-import { WhiteLabel } from './pages/WhiteLabel';
-import { Procesadoras } from './pages/Procesadoras';
-import { CuentasBancarias } from './pages/CuentasBancarias';
-import { Bancos } from './pages/Bancos';
-import { Planes } from './pages/Planes';
 import { Login } from './pages/Login';
 import { PublicInvoice } from './pages/PublicInvoice';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -39,6 +10,37 @@ import { useToast } from './hooks/useToast';
 import { api, MOCK_MODE } from './lib/api';
 import type { Page } from './components/layout/Sidebar';
 import type { RolNombre } from './types';
+
+// Lazy-loaded page components for code splitting
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Tenants = lazy(() => import('./pages/Tenants').then(m => ({ default: m.Tenants })));
+const Jobs = lazy(() => import('./pages/Jobs').then(m => ({ default: m.Jobs })));
+const Comprobantes = lazy(() => import('./pages/Comprobantes').then(m => ({ default: m.Comprobantes })));
+const Usuarios = lazy(() => import('./pages/Usuarios').then(m => ({ default: m.Usuarios })));
+const Roles = lazy(() => import('./pages/Roles').then(m => ({ default: m.Roles })));
+const Metricas = lazy(() => import('./pages/Metricas').then(m => ({ default: m.Metricas })));
+const Notificaciones = lazy(() => import('./pages/Notificaciones').then(m => ({ default: m.Notificaciones })));
+const Webhooks = lazy(() => import('./pages/Webhooks').then(m => ({ default: m.Webhooks })));
+const ApiTokens = lazy(() => import('./pages/ApiTokens').then(m => ({ default: m.ApiTokens })));
+const Clasificacion = lazy(() => import('./pages/Clasificacion').then(m => ({ default: m.Clasificacion })));
+const Alertas = lazy(() => import('./pages/Alertas').then(m => ({ default: m.Alertas })));
+const Conciliacion = lazy(() => import('./pages/Conciliacion').then(m => ({ default: m.Conciliacion })));
+const Billing = lazy(() => import('./pages/Billing').then(m => ({ default: m.Billing })));
+const Sifen = lazy(() => import('./pages/Sifen').then(m => ({ default: m.Sifen })));
+const SifenDocumentosPage = lazy(() => import('./pages/sifen/SifenDocumentos').then(m => ({ default: m.SifenDocumentosPage })));
+const SifenEmitirPage = lazy(() => import('./pages/sifen/SifenEmitir').then(m => ({ default: m.SifenEmitirPage })));
+const SifenNumeracionPage = lazy(() => import('./pages/sifen/SifenNumeracion').then(m => ({ default: m.SifenNumeracionPage })));
+const SifenLotesPage = lazy(() => import('./pages/sifen/SifenLotes').then(m => ({ default: m.SifenLotesPage })));
+const SifenMetricasPage = lazy(() => import('./pages/sifen/SifenMetricas').then(m => ({ default: m.SifenMetricasPage })));
+const SifenConfigPage = lazy(() => import('./pages/sifen/SifenConfig').then(m => ({ default: m.SifenConfigPage })));
+const Auditoria = lazy(() => import('./pages/Auditoria').then(m => ({ default: m.Auditoria })));
+const Anomalias = lazy(() => import('./pages/Anomalias').then(m => ({ default: m.Anomalias })));
+const Configuracion = lazy(() => import('./pages/Configuracion').then(m => ({ default: m.Configuracion })));
+const WhiteLabel = lazy(() => import('./pages/WhiteLabel').then(m => ({ default: m.WhiteLabel })));
+const Procesadoras = lazy(() => import('./pages/Procesadoras').then(m => ({ default: m.Procesadoras })));
+const CuentasBancarias = lazy(() => import('./pages/CuentasBancarias').then(m => ({ default: m.CuentasBancarias })));
+const Bancos = lazy(() => import('./pages/Bancos').then(m => ({ default: m.Bancos })));
+const Planes = lazy(() => import('./pages/Planes').then(m => ({ default: m.Planes })));
 
 const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; permiso?: string }> = {
   dashboard: { roles: null },
@@ -76,6 +78,9 @@ interface NavParams {
   tenant_id?: string;
   action?: string;
 }
+
+// Use the shared PageLoader for lazy loading fallbacks
+import { PageLoader as PageSpinner } from './components/ui/Spinner';
 
 function AppInner() {
   const { user, loading: authLoading, isSuperAdmin, userTenantId, hasPermission } = useAuth();
@@ -149,6 +154,43 @@ function AppInner() {
     }
   }, [user, page, canAccessPage]);
 
+  const pageContent = useMemo(() => {
+    if (page === 'dashboard') return <Dashboard onNavigate={navigate} />;
+    if (page === 'tenants' && canAccessPage('tenants')) return (
+      <Tenants onNavigate={navigate} toastSuccess={success} toastError={error} initialTenantId={navParams.tenant_id} initialAction={navParams.action} />
+    );
+    if (page === 'jobs') return <Jobs toastError={error} />;
+    if (page === 'comprobantes') return (
+      <Comprobantes toastError={error} toastSuccess={success} tenantIdForzado={!isSuperAdmin && userTenantId ? userTenantId : undefined} />
+    );
+    if (page === 'usuarios' && canAccessPage('usuarios')) return <Usuarios toastError={error} toastSuccess={success} />;
+    if (page === 'roles' && canAccessPage('roles')) return <Roles toastSuccess={success} toastError={error} />;
+    if (page === 'metricas' && canAccessPage('metricas')) return <Metricas toastError={error} />;
+    if (page === 'notificaciones' && canAccessPage('notificaciones')) return <Notificaciones toastSuccess={success} toastError={error} />;
+    if (page === 'webhooks' && canAccessPage('webhooks')) return <Webhooks toastSuccess={success} toastError={error} />;
+    if (page === 'api-tokens' && canAccessPage('api-tokens')) return <ApiTokens toastSuccess={success} toastError={error} />;
+    if (page === 'clasificacion' && canAccessPage('clasificacion')) return <Clasificacion toastSuccess={success} toastError={error} />;
+    if (page === 'alertas' && canAccessPage('alertas')) return <Alertas toastSuccess={success} toastError={error} />;
+    if (page === 'conciliacion' && canAccessPage('conciliacion')) return <Conciliacion toastSuccess={success} toastError={error} />;
+    if (page === 'cuentas-bancarias' && canAccessPage('cuentas-bancarias')) return <CuentasBancarias toastSuccess={success} toastError={error} />;
+    if (page === 'bancos' && canAccessPage('bancos')) return <Bancos toastSuccess={success} toastError={error} />;
+    if (page === 'procesadoras' && canAccessPage('procesadoras')) return <Procesadoras toastSuccess={success} toastError={error} />;
+    if (page === 'planes' && canAccessPage('planes')) return <Planes toastSuccess={success} toastError={error} />;
+    if (page === 'billing' && canAccessPage('billing')) return <Billing toastSuccess={success} toastError={error} />;
+    if (page === 'sifen' && canAccessPage('sifen') && activeTenantId) return <SifenDocumentosPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen' && canAccessPage('sifen') && !activeTenantId) return <Sifen />;
+    if (page === 'sifen-emitir' && canAccessPage('sifen-emitir') && activeTenantId) return <SifenEmitirPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-numeracion' && canAccessPage('sifen-numeracion') && activeTenantId) return <SifenNumeracionPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-lotes' && canAccessPage('sifen-lotes') && activeTenantId) return <SifenLotesPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-metricas' && canAccessPage('sifen-metricas') && activeTenantId) return <SifenMetricasPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-config' && canAccessPage('sifen-config') && activeTenantId) return <SifenConfigPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'auditoria' && canAccessPage('auditoria')) return <Auditoria toastError={error} />;
+    if (page === 'anomalias' && canAccessPage('anomalias')) return <Anomalias toastSuccess={success} toastError={error} />;
+    if (page === 'configuracion' && canAccessPage('configuracion')) return <Configuracion toastSuccess={success} toastError={error} />;
+    if (page === 'white-label' && canAccessPage('white-label')) return <WhiteLabel toastSuccess={success} toastError={error} />;
+    return null;
+  }, [page, canAccessPage, success, error, navParams, isSuperAdmin, userTenantId, activeTenantId]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
@@ -174,103 +216,9 @@ function AppInner() {
         </div>
       )}
       <Shell current={page} onNavigate={navigate} apiStatus={apiStatus} mockMode={MOCK_MODE}>
-        {page === 'dashboard' && (
-          <Dashboard onNavigate={navigate} />
-        )}
-        {page === 'tenants' && canAccessPage('tenants') && (
-          <Tenants
-            onNavigate={navigate}
-            toastSuccess={success}
-            toastError={error}
-            initialTenantId={navParams.tenant_id}
-            initialAction={navParams.action}
-          />
-        )}
-        {page === 'jobs' && (
-          <Jobs toastError={error} />
-        )}
-        {page === 'comprobantes' && (
-          <Comprobantes
-            toastError={error}
-            toastSuccess={success}
-            tenantIdForzado={!isSuperAdmin && userTenantId ? userTenantId : undefined}
-          />
-        )}
-        {page === 'usuarios' && canAccessPage('usuarios') && (
-          <Usuarios toastError={error} toastSuccess={success} />
-        )}
-        {page === 'roles' && canAccessPage('roles') && (
-          <Roles toastSuccess={success} toastError={error} />
-        )}
-        {page === 'metricas' && canAccessPage('metricas') && (
-          <Metricas toastError={error} />
-        )}
-        {page === 'notificaciones' && canAccessPage('notificaciones') && (
-          <Notificaciones toastSuccess={success} toastError={error} />
-        )}
-        {page === 'webhooks' && canAccessPage('webhooks') && (
-          <Webhooks toastSuccess={success} toastError={error} />
-        )}
-        {page === 'api-tokens' && canAccessPage('api-tokens') && (
-          <ApiTokens toastSuccess={success} toastError={error} />
-        )}
-        {page === 'clasificacion' && canAccessPage('clasificacion') && (
-          <Clasificacion toastSuccess={success} toastError={error} />
-        )}
-        {page === 'alertas' && canAccessPage('alertas') && (
-          <Alertas toastSuccess={success} toastError={error} />
-        )}
-        {page === 'conciliacion' && canAccessPage('conciliacion') && (
-          <Conciliacion toastSuccess={success} toastError={error} />
-        )}
-        {page === 'cuentas-bancarias' && canAccessPage('cuentas-bancarias') && (
-          <CuentasBancarias toastSuccess={success} toastError={error} />
-        )}
-        {page === 'bancos' && canAccessPage('bancos') && (
-          <Bancos toastSuccess={success} toastError={error} />
-        )}
-        {page === 'procesadoras' && canAccessPage('procesadoras') && (
-          <Procesadoras toastSuccess={success} toastError={error} />
-        )}
-        {page === 'planes' && canAccessPage('planes') && (
-          <Planes toastSuccess={success} toastError={error} />
-        )}
-        {page === 'billing' && canAccessPage('billing') && (
-          <Billing toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen' && canAccessPage('sifen') && activeTenantId && (
-          <SifenDocumentosPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen' && canAccessPage('sifen') && !activeTenantId && (
-          <Sifen />
-        )}
-        {page === 'sifen-emitir' && canAccessPage('sifen-emitir') && activeTenantId && (
-          <SifenEmitirPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen-numeracion' && canAccessPage('sifen-numeracion') && activeTenantId && (
-          <SifenNumeracionPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen-lotes' && canAccessPage('sifen-lotes') && activeTenantId && (
-          <SifenLotesPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen-metricas' && canAccessPage('sifen-metricas') && activeTenantId && (
-          <SifenMetricasPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'sifen-config' && canAccessPage('sifen-config') && activeTenantId && (
-          <SifenConfigPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />
-        )}
-        {page === 'auditoria' && canAccessPage('auditoria') && (
-          <Auditoria toastError={error} />
-        )}
-        {page === 'anomalias' && canAccessPage('anomalias') && (
-          <Anomalias toastSuccess={success} toastError={error} />
-        )}
-        {page === 'configuracion' && canAccessPage('configuracion') && (
-          <Configuracion toastSuccess={success} toastError={error} />
-        )}
-        {page === 'white-label' && canAccessPage('white-label') && (
-          <WhiteLabel toastSuccess={success} toastError={error} />
-        )}
+        <Suspense fallback={<PageSpinner />}>
+          {pageContent}
+        </Suspense>
       </Shell>
       <ToastContainer toasts={toasts} onRemove={remove} />
     </>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ArrowRight, ArrowLeft, CheckCircle, Send } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Button, Card, TextInput, Select, SelectItem } from '@tremor/react';
@@ -46,7 +46,7 @@ export function SifenEmitirPage({ tenantId, onSuccess, toastSuccess, toastError 
         setReceptor(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const calcTotales = () => {
+    const totales = useMemo(() => {
         let total = 0, iva10 = 0, iva5 = 0, exento = 0;
         for (const item of items) {
             const sub = Number(item.cantidad) * Number(item.precio_unitario);
@@ -56,14 +56,13 @@ export function SifenEmitirPage({ tenantId, onSuccess, toastSuccess, toastError 
             else exento += sub;
         }
         return { total, iva10, iva5, exento };
-    };
+    }, [items]);
 
     const handleSubmit = async () => {
         if (!items.length) { toastError?.('Agregue al menos un ítem.'); return; }
         if (!receptor.razon_social) { toastError?.('Razón social del receptor es requerida.'); return; }
         if (esNcNd && !deReferenciado) { toastError?.('Ingrese el CDC del documento referenciado.'); return; }
 
-        const totales = calcTotales();
         const payload: SifenDECreateInput = {
             tipo_documento: tipoDoc,
             moneda,
@@ -93,7 +92,7 @@ export function SifenEmitirPage({ tenantId, onSuccess, toastSuccess, toastError 
         }
     };
 
-    const { total, iva10, iva5, exento } = calcTotales();
+    const { total, iva10, iva5, exento } = totales;
 
     return (
         <div className="max-w-3xl space-y-6">
@@ -283,7 +282,15 @@ export function SifenEmitirPage({ tenantId, onSuccess, toastSuccess, toastError 
                     Anterior
                 </Button>
                 {step < 4 ? (
-                    <Button icon={ArrowRight} iconPosition="right" onClick={() => setStep(s => s + 1)}>
+                    <Button icon={ArrowRight} iconPosition="right" onClick={() => {
+                        if (step === 2) {
+                            if (!receptor.razon_social?.trim()) { toastError?.('Razón social del receptor es requerida.'); return; }
+                            if (!receptor.ruc?.trim()) { toastError?.('RUC del receptor es requerido.'); return; }
+                            if (esNcNd && !deReferenciado.trim()) { toastError?.('CDC del documento referenciado es requerido.'); return; }
+                        }
+                        if (step === 3 && items.length === 0) { toastError?.('Agregue al menos un ítem.'); return; }
+                        setStep(s => s + 1);
+                    }}>
                         Siguiente
                     </Button>
                 ) : (

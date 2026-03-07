@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode, useMemo } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from './AuthContext';
 import type { Tenant } from '../types';
@@ -24,8 +24,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         isSuperAdmin ? savedGlobalTenantId : userTenantId
     );
 
-    const refreshTenants = async () => {
-        if (!user) return;
+    const refreshTenants = useCallback(async () => {
         setLoading(true);
         try {
             const data = await api.tenants.list();
@@ -35,21 +34,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
+    const userId = user?.id ?? null;
     useEffect(() => {
-        if (user) {
-            if (isSuperAdmin) {
-                refreshTenants();
-            } else if (userTenantId) {
-                // Just mock the tenant using userTenantId, or we could also fetch it.
-                // Actually api.tenants.list() returns their own tenant.
-                refreshTenants();
-            }
-        } else {
-            setTenants([]);
-        }
-    }, [user, isSuperAdmin, userTenantId]);
+        if (!userId) { setTenants([]); return; }
+        if (isSuperAdmin || userTenantId) { refreshTenants(); }
+    }, [userId, isSuperAdmin, userTenantId, refreshTenants]);
 
     useEffect(() => {
         if (isSuperAdmin && activeTenantIdState) {
@@ -86,15 +77,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return tenants.find(t => t.id === activeTenantIdState) || null;
     }, [tenants, activeTenantIdState]);
 
+    const contextValue = useMemo(() => ({
+        tenants,
+        activeTenant,
+        activeTenantId: activeTenantIdState,
+        setActiveTenantId: setActiveTenantIdState,
+        loading,
+        refreshTenants
+    }), [tenants, activeTenant, activeTenantIdState, loading, refreshTenants]);
+
     return (
-        <TenantContext.Provider value={{
-            tenants,
-            activeTenant,
-            activeTenantId: activeTenantIdState,
-            setActiveTenantId: setActiveTenantIdState,
-            loading,
-            refreshTenants
-        }}>
+        <TenantContext.Provider value={contextValue}>
             {children}
         </TenantContext.Provider>
     );
