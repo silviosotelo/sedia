@@ -1,7 +1,8 @@
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useState, useEffect, useCallback } from 'react';
 import { Key, Plus, Trash2, Copy, CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput } from '@tremor/react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { NoTenantState } from '../components/ui/NoTenantState';
@@ -37,19 +38,19 @@ function TokenRevealModal({ token, onClose }: { token: string; onClose: () => vo
         <div>
           <Text className="mb-1 font-medium">Token de acceso</Text>
           <div className="flex items-center gap-2">
-            <code className="flex-1 text-xs bg-zinc-900 text-emerald-400 p-3 rounded-lg font-mono break-all select-all flex items-center min-h-[44px]">{token}</code>
+            <code className="flex-1 text-xs bg-gray-900 text-emerald-400 p-3 rounded-lg font-mono break-all select-all flex items-center min-h-[44px]">{token}</code>
             <Button onClick={copy} variant="secondary" icon={copied ? CheckCircle : Copy} className={copied ? 'text-emerald-500' : ''}>
               {copied ? 'Copiado' : 'Copiar'}
             </Button>
           </div>
         </div>
-        <div className="text-xs text-tremor-content space-y-1">
-          <p className="font-medium text-tremor-content-strong">Cómo usar:</p>
-          <code className="block bg-tremor-background-subtle p-2 rounded font-mono text-[11px] text-tremor-content-emphasis break-all">
+        <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+          <p className="font-medium text-gray-900 dark:text-white">Cómo usar:</p>
+          <code className="block bg-gray-50 dark:bg-gray-800/60 p-2 rounded font-mono text-[11px] text-gray-800 dark:text-gray-200 break-all">
             Authorization: Bearer {token.slice(0, 20)}...
           </code>
         </div>
-        <div className="flex justify-end pt-2 border-t border-tremor-border">
+        <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-gray-700">
           <Button onClick={onClose}>Entendido, ya lo copié</Button>
         </div>
       </div>
@@ -62,6 +63,8 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
   const tenantId = activeTenantId ?? '';
   const [tokens, setTokens] = useState<ApiToken[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [nombre, setNombre] = useState('');
   const [expiraAt, setExpiraAt] = useState('');
@@ -73,9 +76,10 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
   const load = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
+    setError(null);
     try { setTokens(await api.apiTokens.list(tenantId)); }
-    catch { toastError('Error al cargar tokens'); } finally { setLoading(false); }
-  }, [tenantId, toastError]);
+    catch (e) { setError((e as Error).message || 'Error al cargar tokens'); } finally { setLoading(false); }
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -104,6 +108,18 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
 
   const isExpired = (expiraA: string | null) => expiraA ? new Date(expiraA) < new Date() : false;
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="API Tokens" subtitle="Tokens para acceso programático a tus comprobantes" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <Header title="API Tokens" subtitle="Tokens para acceso programático a tus comprobantes"
@@ -115,10 +131,10 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
         <NoTenantState message="Seleccioná una empresa para gestionar sus API tokens." />
       ) : (
         <>
-          <div className="mb-5 p-4 bg-tremor-background-subtle border border-tremor-border rounded-xl text-xs text-tremor-content space-y-1.5 shadow-sm">
-            <p className="font-semibold text-tremor-content-strong flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Autenticación</p>
-            <p>Incluí el token en el header <code className="font-mono bg-white border border-tremor-border px-1 py-0.5 rounded shadow-sm text-tremor-content-emphasis">Authorization: Bearer &lt;token&gt;</code></p>
-            <p>Endpoint: <code className="font-mono bg-white border border-tremor-border px-1 py-0.5 rounded shadow-sm text-tremor-content-emphasis">GET /api/public/tenants/:id/comprobantes</code></p>
+          <div className="mb-5 p-4 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl text-xs text-gray-600 dark:text-gray-400 space-y-1.5 shadow-sm">
+            <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" />Autenticación</p>
+            <p>Incluí el token en el header <code className="font-mono bg-white border border-gray-200 dark:border-gray-700 px-1 py-0.5 rounded shadow-sm text-gray-800 dark:text-gray-200">Authorization: Bearer &lt;token&gt;</code></p>
+            <p>Endpoint: <code className="font-mono bg-white border border-gray-200 dark:border-gray-700 px-1 py-0.5 rounded shadow-sm text-gray-800 dark:text-gray-200">GET /api/public/tenants/:id/comprobantes</code></p>
           </div>
 
           {loading && !tokens.length ? (
@@ -145,36 +161,36 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
                     const expired = isExpired(t.expira_at);
                     const inactive = !t.activo || expired;
                     return (
-                      <TableRow key={t.id} className="hover:bg-tremor-background-subtle">
+                      <TableRow key={t.id} className="hover:bg-gray-50 dark:bg-gray-800/60">
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Key className={cn('w-4 h-4 flex-shrink-0', inactive ? 'text-tremor-content-subtle' : 'text-tremor-content')} />
-                            <Text className={cn('font-medium', inactive ? 'text-tremor-content-subtle' : 'text-tremor-content-strong')}>{t.nombre}</Text>
+                            <Key className={cn('w-4 h-4 flex-shrink-0', inactive ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400')} />
+                            <Text className={cn('font-medium', inactive ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white')}>{t.nombre}</Text>
                           </div>
                         </TableCell>
-                        <TableCell><code className="text-xs font-mono bg-tremor-background-subtle px-2 py-1 rounded text-tremor-content-strong border border-tremor-border">{t.token_prefix}…</code></TableCell>
+                        <TableCell><code className="text-xs font-mono bg-gray-50 dark:bg-gray-800/60 px-2 py-1 rounded text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700">{t.token_prefix}…</code></TableCell>
                         <TableCell>
                           {expired ? <Badge variant="neutral" size="sm">Expirado</Badge>
                             : t.activo ? <div className="flex items-center gap-1.5"><CheckCircle className="w-4 h-4 text-emerald-500" /><Badge variant="success" size="sm">Activo</Badge></div>
-                              : <div className="flex items-center gap-1.5"><XCircle className="w-4 h-4 text-tremor-content-subtle" /><Badge variant="neutral" size="sm">Revocado</Badge></div>}
+                              : <div className="flex items-center gap-1.5"><XCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" /><Badge variant="neutral" size="sm">Revocado</Badge></div>}
                         </TableCell>
                         <TableCell>
-                          {t.ultimo_uso_at ? <Text className="text-xs text-tremor-content">{formatDateTime(t.ultimo_uso_at)}</Text> : <Text className="text-xs text-tremor-content-subtle">Nunca</Text>}
+                          {t.ultimo_uso_at ? <Text className="text-xs text-gray-600 dark:text-gray-400">{formatDateTime(t.ultimo_uso_at)}</Text> : <Text className="text-xs text-gray-400 dark:text-gray-500">Nunca</Text>}
                         </TableCell>
                         <TableCell>
                           {t.expira_at ? (
                             <div className="flex items-center gap-1.5">
-                              <Clock className={cn('w-4 h-4', expired ? 'text-rose-400' : 'text-tremor-content-subtle')} />
-                              <Text className={cn('text-xs', expired ? 'text-rose-500' : 'text-tremor-content')}>{formatDateTime(t.expira_at)}</Text>
+                              <Clock className={cn('w-4 h-4', expired ? 'text-rose-400' : 'text-gray-400 dark:text-gray-500')} />
+                              <Text className={cn('text-xs', expired ? 'text-rose-500' : 'text-gray-600 dark:text-gray-400')}>{formatDateTime(t.expira_at)}</Text>
                             </div>
-                          ) : <Text className="text-xs text-tremor-content-subtle">Sin expiración</Text>}
+                          ) : <Text className="text-xs text-gray-400 dark:text-gray-500">Sin expiración</Text>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 justify-end">
                             {t.activo && !expired && (
-                              <Button variant="light" color="gray" onClick={() => void handleRevoke(t.id)} disabled={revokingId === t.id} title="Revocar" loading={revokingId === t.id} icon={revokingId === t.id ? undefined : XCircle} />
+                              <Button variant="light" color="gray" onClick={() => void handleRevoke(t.id)} disabled={revokingId === t.id} title="Revocar" aria-label="Revocar" loading={revokingId === t.id} icon={revokingId === t.id ? undefined : XCircle} />
                             )}
-                            <Button variant="light" color="rose" onClick={() => setDeletingId(t.id)} title="Eliminar" icon={Trash2} />
+                            <Button variant="light" color="rose" onClick={() => setDeletingId(t.id)} title="Eliminar" aria-label="Eliminar" icon={Trash2} />
                           </div>
                         </TableCell>
                       </TableRow>
@@ -195,12 +211,12 @@ export function ApiTokens({ toastSuccess, toastError }: ApiTokensProps) {
                 <Text className="mb-1 font-medium">Fecha de expiración (opcional)</Text>
                 <input
                   type="date"
-                  className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+                  className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 dark:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
                   value={expiraAt}
                   onChange={(e) => setExpiraAt(e.target.value)}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+              <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <Button variant="secondary" onClick={() => { setShowForm(false); setNombre(''); setExpiraAt(''); }} disabled={saving}>Cancelar</Button>
                 <Button onClick={() => void handleCreate()} disabled={saving || !nombre.trim()} loading={saving} icon={saving ? undefined : Key}>
                   Generar token

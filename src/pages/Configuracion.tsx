@@ -1,12 +1,13 @@
-import { Card, Metric, Text, Grid, Title, Subtitle, TextInput, NumberInput, Button, TabGroup, TabList, Tab, Switch, Badge as TremorBadge, Textarea } from '@tremor/react';
+import { Card, Metric, Text, Grid, Title, TextInput, NumberInput, Button, TabGroup, TabList, Tab, Switch, Textarea } from '../components/ui/TailAdmin';
 import {
-  BarChart3, CheckCircle2, AlertCircle, Plus,
+  BarChart3,
   Cloud, Bell, Shield, Eye, EyeOff,
   HardDrive, Mail, Save, Database, Palette, CreditCard, Send
 } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { useState, useEffect, useCallback } from 'react';
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { api } from '../lib/api';
 import type { MetricsOverview, MetricsSaas } from '../types';
 
@@ -44,7 +45,7 @@ function PasswordInput({ value, onChange, placeholder, className }: {
       <button
         type="button"
         onClick={() => setShow(!show)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-600 z-10"
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400 z-10"
       >
         {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
       </button>
@@ -68,11 +69,11 @@ function StorageConfigForm({ config, onSave, saving }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
+      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <Cloud className="w-5 h-5 text-sky-500" />
           <div>
-            <Text className="font-semibold text-tremor-content-strong">Cloudflare R2</Text>
+            <Text className="font-semibold text-gray-900 dark:text-white">Cloudflare R2</Text>
             <Text className="text-xs">Almacenamiento de archivos (extractos, XMLs, exports)</Text>
           </div>
         </div>
@@ -82,27 +83,27 @@ function StorageConfigForm({ config, onSave, saving }: {
       {form.enabled && (
         <div className="space-y-4">
           <div>
-            <Text className="mb-1 font-medium text-tremor-content-strong">Account ID</Text>
+            <Text className="mb-1 font-medium text-gray-900 dark:text-white">Account ID</Text>
             <TextInput className="font-mono" value={form.account_id} onChange={(e) => setForm(f => ({ ...f, account_id: e.target.value }))} placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
             <Text className="text-[10px] mt-1">Encontralo en Cloudflare Dashboard &rarr; R2 &rarr; Overview</Text>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Access Key ID</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Access Key ID</Text>
               <PasswordInput value={form.access_key_id} onChange={(v) => setForm(f => ({ ...f, access_key_id: v }))} placeholder="R2 Access Key ID" />
             </div>
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Secret Access Key</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Secret Access Key</Text>
               <PasswordInput value={form.secret_access_key} onChange={(v) => setForm(f => ({ ...f, secret_access_key: v }))} placeholder="R2 Secret Access Key" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Nombre del Bucket</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Nombre del Bucket</Text>
               <TextInput value={form.bucket} onChange={(e) => setForm(f => ({ ...f, bucket: e.target.value }))} placeholder="sedia-storage" />
             </div>
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">URL Pública (opcional)</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">URL Pública (opcional)</Text>
               <TextInput value={form.public_url} onChange={(e) => setForm(f => ({ ...f, public_url: e.target.value }))} placeholder="https://files.tusitio.com" />
               <Text className="text-[10px] mt-1">Si usás un dominio custom para acceso público a R2</Text>
             </div>
@@ -130,16 +131,16 @@ function BancardConfigForm({ config, onSave, saving }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
-        <CreditCard className="w-5 h-5 text-tremor-brand" />
+      <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
+        <CreditCard className="w-5 h-5 text-brand-600 dark:text-brand-400" />
         <div>
-          <Text className="font-semibold text-tremor-content-strong">Bancard VPOS / QR</Text>
+          <Text className="font-semibold text-gray-900 dark:text-white">Bancard VPOS / QR</Text>
           <Text className="text-xs">Pasarela de pagos para cobro de suscripciones</Text>
         </div>
       </div>
 
       <div>
-        <Text className="mb-1 font-medium text-tremor-content-strong">Modo</Text>
+        <Text className="mb-1 font-medium text-gray-900 dark:text-white">Modo</Text>
         <div className="flex gap-2">
           <Button variant={form.mode === 'staging' ? 'primary' : 'secondary'} color={form.mode === 'staging' ? 'amber' : 'zinc'} onClick={() => setForm(f => ({ ...f, mode: 'staging' }))}>Staging (Pruebas)</Button>
           <Button variant={form.mode === 'production' ? 'primary' : 'secondary'} color={form.mode === 'production' ? 'emerald' : 'zinc'} onClick={() => setForm(f => ({ ...f, mode: 'production' }))}>Producción</Button>
@@ -147,12 +148,12 @@ function BancardConfigForm({ config, onSave, saving }: {
       </div>
 
       <div>
-        <Text className="mb-1 font-medium text-tremor-content-strong">Public Key (Commerce Code)</Text>
+        <Text className="mb-1 font-medium text-gray-900 dark:text-white">Public Key (Commerce Code)</Text>
         <PasswordInput value={form.public_key} onChange={(v) => setForm(f => ({ ...f, public_key: v }))} placeholder="Tu Public Key de Bancard" />
       </div>
 
       <div>
-        <Text className="mb-1 font-medium text-tremor-content-strong">Private Key</Text>
+        <Text className="mb-1 font-medium text-gray-900 dark:text-white">Private Key</Text>
         <PasswordInput value={form.private_key} onChange={(v) => setForm(f => ({ ...f, private_key: v }))} placeholder="Tu Private Key de Bancard" />
         <Text className="text-[10px] mt-1">Usado para validar webhooks de confirmación de pago</Text>
       </div>
@@ -186,11 +187,11 @@ function SmtpConfigForm({ config, onSave, saving, onTest, testing }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
+      <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <Mail className="w-5 h-5 text-blue-500" />
           <div>
-            <Text className="font-semibold text-tremor-content-strong">SMTP Global del Sistema</Text>
+            <Text className="font-semibold text-gray-900 dark:text-white">SMTP Global del Sistema</Text>
             <Text className="text-xs">Fallback cuando el tenant no tiene SMTP propio configurado</Text>
           </div>
         </div>
@@ -201,40 +202,40 @@ function SmtpConfigForm({ config, onSave, saving, onTest, testing }: {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <Text className="mb-1 font-medium text-tremor-content-strong">Host SMTP</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Host SMTP</Text>
               <TextInput value={form.host} onChange={(e) => setForm(f => ({ ...f, host: e.target.value }))} placeholder="smtp.example.com" />
             </div>
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Puerto</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Puerto</Text>
               <NumberInput value={form.port} min={1} max={65535} onChange={(e) => setForm(f => ({ ...f, port: Number(e.target.value) }))} />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Usuario SMTP</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Usuario SMTP</Text>
               <TextInput value={form.user} onChange={(e) => setForm(f => ({ ...f, user: e.target.value }))} placeholder="user@example.com" />
             </div>
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Contraseña</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Contraseña</Text>
               <PasswordInput value={form.password} onChange={(v) => setForm(f => ({ ...f, password: v }))} placeholder="Contraseña SMTP" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Email Remitente</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Email Remitente</Text>
               <TextInput type="email" value={form.from_email} onChange={(e) => setForm(f => ({ ...f, from_email: e.target.value }))} placeholder="noreply@tusitio.com" />
             </div>
             <div>
-              <Text className="mb-1 font-medium text-tremor-content-strong">Nombre Remitente</Text>
+              <Text className="mb-1 font-medium text-gray-900 dark:text-white">Nombre Remitente</Text>
               <TextInput value={form.from_name} onChange={(e) => setForm(f => ({ ...f, from_name: e.target.value }))} placeholder="Sistema" />
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-3 bg-tremor-background-subtle rounded-lg border border-tremor-border">
+          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
             <div>
-              <Text className="font-medium text-tremor-content-strong">TLS/SSL</Text>
+              <Text className="font-medium text-gray-900 dark:text-white">TLS/SSL</Text>
               <Text className="text-xs">Usar puerto 465 para SSL implícito, 587 para STARTTLS</Text>
             </div>
             <Switch checked={form.secure} onChange={(v) => setForm(f => ({ ...f, secure: v }))} />
@@ -282,29 +283,29 @@ function BrandingConfigForm({ settings, onSave, saving }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
-        <Palette className="w-5 h-5 text-tremor-brand" />
+      <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
+        <Palette className="w-5 h-5 text-brand-600 dark:text-brand-400" />
         <div>
-          <Text className="font-semibold text-tremor-content-strong">Identidad Visual del Sistema</Text>
+          <Text className="font-semibold text-gray-900 dark:text-white">Identidad Visual del Sistema</Text>
           <Text className="text-xs">Nombre, colores y logos mostrados en toda la plataforma</Text>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <Text className="mb-1 font-medium text-tremor-content-strong">Nombre del sistema</Text>
+          <Text className="mb-1 font-medium text-gray-900 dark:text-white">Nombre del sistema</Text>
           <TextInput value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="SEDIA" />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Text className="mb-1 font-medium text-tremor-content-strong">Color primario</Text>
+            <Text className="mb-1 font-medium text-gray-900 dark:text-white">Color primario</Text>
             <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={colorPrimary}
                 onChange={(e) => setColorPrimary(e.target.value)}
-                className="w-10 h-9 rounded border border-tremor-border cursor-pointer"
+                className="w-10 h-9 rounded border border-gray-200 dark:border-gray-700 cursor-pointer"
               />
               <TextInput
                 value={colorPrimary}
@@ -315,13 +316,13 @@ function BrandingConfigForm({ settings, onSave, saving }: {
             </div>
           </div>
           <div>
-            <Text className="mb-1 font-medium text-tremor-content-strong">Color secundario</Text>
+            <Text className="mb-1 font-medium text-gray-900 dark:text-white">Color secundario</Text>
             <div className="flex gap-2 items-center">
               <input
                 type="color"
                 value={colorSecondary}
                 onChange={(e) => setColorSecondary(e.target.value)}
-                className="w-10 h-9 rounded border border-tremor-border cursor-pointer"
+                className="w-10 h-9 rounded border border-gray-200 dark:border-gray-700 cursor-pointer"
               />
               <TextInput
                 value={colorSecondary}
@@ -334,20 +335,20 @@ function BrandingConfigForm({ settings, onSave, saving }: {
         </div>
 
         <div>
-          <Text className="mb-1 font-medium text-tremor-content-strong">URL del Logo</Text>
+          <Text className="mb-1 font-medium text-gray-900 dark:text-white">URL del Logo</Text>
           <TextInput value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://cdn.example.com/logo.svg" />
           {logoUrl && (
-            <div className="mt-2 p-3 bg-tremor-background-subtle rounded-lg border border-tremor-border">
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
               <img src={logoUrl} alt="Preview logo" className="max-h-12 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             </div>
           )}
         </div>
 
         <div>
-          <Text className="mb-1 font-medium text-tremor-content-strong">URL del Favicon</Text>
+          <Text className="mb-1 font-medium text-gray-900 dark:text-white">URL del Favicon</Text>
           <TextInput value={faviconUrl} onChange={(e) => setFaviconUrl(e.target.value)} placeholder="https://cdn.example.com/favicon.ico" />
           {faviconUrl && (
-            <div className="mt-2 p-3 bg-tremor-background-subtle rounded-lg border border-tremor-border">
+            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
               <img src={faviconUrl} alt="Preview favicon" className="max-h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             </div>
           )}
@@ -355,8 +356,8 @@ function BrandingConfigForm({ settings, onSave, saving }: {
       </div>
 
       {/* Preview */}
-      <div className="p-4 rounded-xl border-2 border-dashed border-tremor-border">
-        <Text className="text-xs font-semibold text-tremor-content mb-3 uppercase tracking-wider">Preview</Text>
+      <div className="p-4 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+        <Text className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3 uppercase tracking-wider">Preview</Text>
         <div className="flex items-center gap-3">
           {logoUrl && <img src={logoUrl} alt="Logo" className="h-8 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />}
           <span className="font-bold text-lg" style={{ color: colorPrimary }}>{brandName}</span>
@@ -390,10 +391,10 @@ function NotificationConfigForm({ config, onSave, saving }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
+      <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
         <Mail className="w-5 h-5 text-blue-500" />
         <div>
-          <Text className="font-semibold text-tremor-content-strong">Templates de Notificaciones</Text>
+          <Text className="font-semibold text-gray-900 dark:text-white">Templates de Notificaciones</Text>
           <Text className="text-xs">Plantillas de emails automáticos del sistema</Text>
         </div>
       </div>
@@ -408,7 +409,7 @@ function NotificationConfigForm({ config, onSave, saving }: {
         const meta = labels[key];
         return (
           <div key={key}>
-            <Text className="mb-1 font-medium text-tremor-content-strong">{meta.title}</Text>
+            <Text className="mb-1 font-medium text-gray-900 dark:text-white">{meta.title}</Text>
             <Textarea className="h-24 resize-y" value={form[key]} onChange={(e) => setForm(f => ({ ...f, [key]: e.target.value }))} placeholder={`Template HTML para ${meta.title.toLowerCase()}...`} />
             <Text className="text-[10px] mt-1">Variables: {meta.vars}</Text>
           </div>
@@ -427,6 +428,8 @@ function NotificationConfigForm({ config, onSave, saving }: {
 export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) {
   const [tab, setTab] = useState<Tab>('overview');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [overview, setOverview] = useState<MetricsOverview | null>(null);
   const [saasMetrics, setSaasMetrics] = useState<MetricsSaas | null>(null);
   const [systemConfig, setSystemConfig] = useState<SystemSetting[]>([]);
@@ -440,6 +443,7 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const [ov, sm, sc] = await Promise.all([
         api.metrics.overview(),
@@ -450,11 +454,11 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
       setSaasMetrics(sm);
       setSystemConfig(sc.data ?? []);
     } catch (err) {
-      toastError((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [toastError]);
+  }, [retryCount]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -497,6 +501,18 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
 
   if (loading && !overview) return <PageLoader />;
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Configuración del sistema" subtitle="Branding, integraciones y parámetros globales" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
+
   const tabs = [
     { id: 'overview',       label: 'Resumen',           icon: BarChart3  },
     { id: 'branding',       label: 'Branding',           icon: Palette    },
@@ -526,34 +542,54 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
       {/* ── Tab: Overview ──────────────────────────────────────────────── */}
       {tab === 'overview' && overview && (
         <div className="space-y-6">
-          <Grid numItemsSm={2} numItemsLg={4} className="gap-4">
-            <Card decoration="top" decorationColor="zinc">
-              <Text>Empresas totales</Text>
-              <Metric>{overview.tenants.total}</Metric>
-              <Text className="mt-1">{overview.tenants.activos} activas</Text>
-            </Card>
-            <Card decoration="top" decorationColor="sky">
-              <Text>Comprobantes</Text>
-              <Metric>{overview.comprobantes.total.toLocaleString('es-PY')}</Metric>
-              <Text className="mt-1">{overview.comprobantes.sin_sincronizar} pendientes</Text>
-            </Card>
-            <Card decoration="top" decorationColor="amber">
-              <Text>Jobs procesados</Text>
-              <Metric>{overview.jobs.total}</Metric>
-              <Text className="mt-1">{overview.jobs.fallidos} fallidos</Text>
-            </Card>
-            <Card decoration="top" decorationColor="emerald">
-              <Text>XMLs descargados</Text>
-              <Metric>{overview.xml.con_xml.toLocaleString('es-PY')}</Metric>
-              <Text className="mt-1">{overview.xml.sin_xml} pendientes</Text>
-            </Card>
-          </Grid>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Empresas totales</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-800">
+                  <Database className="w-4 h-4 text-zinc-600 dark:text-zinc-400" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{overview.tenants.total}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview.tenants.activos} activas</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Comprobantes</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-sky-100 dark:bg-sky-900/30">
+                  <BarChart3 className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{overview.comprobantes.total.toLocaleString('es-PY')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview.comprobantes.sin_sincronizar} pendientes</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Jobs procesados</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
+                  <HardDrive className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{overview.jobs.total}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview.jobs.fallidos} fallidos</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">XMLs descargados</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+                  <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{overview.xml.con_xml.toLocaleString('es-PY')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview.xml.sin_xml} pendientes</p>
+            </div>
+          </div>
 
           {saasMetrics && (
             <>
               {saasMetrics.xml_stats && (
                 <Card>
-                  <div className="flex items-center gap-2 mb-4 text-tremor-content-strong">
+                  <div className="flex items-center gap-2 mb-4 text-gray-900 dark:text-white">
                     <Database className="w-5 h-5" />
                     <Title>Estadísticas de XMLs</Title>
                   </div>
@@ -569,14 +605,14 @@ export function Configuracion({ toastSuccess, toastError }: ConfiguracionProps) 
               {saasMetrics.top_tenants.length > 0 && (
                 <Card>
                   <Title>Top empresas por comprobantes</Title>
-                  <div className="mt-4 divide-y divide-tremor-border">
+                  <div className="mt-4 divide-y divide-gray-200 dark:divide-gray-800">
                     {saasMetrics.top_tenants.slice(0, 10).map((t, i) => (
                       <div key={t.tenant_id} className="py-3 flex items-center gap-3">
                         <Text className="w-5 tabular-nums">{i + 1}</Text>
                         <div className="flex-1 min-w-0">
-                          <Text className="font-medium text-tremor-content-strong truncate">{t.nombre}</Text>
+                          <Text className="font-medium text-gray-900 dark:text-white truncate">{t.nombre}</Text>
                         </div>
-                        <Text className="font-semibold text-tremor-content-strong tabular-nums">
+                        <Text className="font-semibold text-gray-900 dark:text-white tabular-nums">
                           {t.total_comprobantes.toLocaleString('es-PY')}
                         </Text>
                       </div>

@@ -1,20 +1,37 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --brand-rgb: 24 24 27;
-  /* default zinc-900 */
+  --brand-rgb: 42 133 255;
+  --brand-primary: #2a85ff;
+  --brand-deep: #0069f6;
+  --brand-mild: #4996ff;
+  --brand-subtle: #2a85ff1a;
+  --brand-secondary-rgb: 245 245 245;
 }
 
+/* ================================================================
+   BASE LAYER — ECME style
+   ================================================================ */
 @layer base {
-
   *,
   *::before,
   *::after {
-    box-sizing: border-box;
+    border-color: theme('colors.gray.200');
+  }
+
+  .dark *,
+  .dark *::before,
+  .dark *::after {
+    border-color: theme('colors.gray.700');
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 
   html {
@@ -24,84 +41,309 @@
   }
 
   body {
-    @apply bg-zinc-50/50 text-zinc-900 font-sans selection:bg-zinc-900/10;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    @apply relative text-gray-500 dark:text-gray-400 text-sm bg-gray-100 dark:bg-gray-950 leading-normal font-medium;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
+  /* ECME heading hierarchy */
+  h1, .h1 { @apply text-4xl font-bold text-gray-900 dark:text-gray-100; }
+  h2, .h2 { @apply text-3xl font-bold text-gray-900 dark:text-gray-100; }
+  h3, .h3 { @apply text-2xl font-bold text-gray-900 dark:text-gray-100; }
+  h4, .h4 { @apply text-xl font-bold text-gray-900 dark:text-gray-100; }
+  h5, .h5 { @apply text-lg font-bold text-gray-900 dark:text-gray-100; }
+  h6, .h6 { @apply text-base font-semibold text-gray-900 dark:text-gray-100; }
 
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-zinc-300/80 rounded-full hover:bg-zinc-400 transition-colors;
+  hr {
+    @apply border-gray-200 dark:border-gray-600;
   }
 }
 
+/* ================================================================
+   COMPONENT LAYER — ECME design system
+   ================================================================ */
 @layer components {
+  /* --- Heading text utility --- */
+  .heading-text {
+    @apply text-gray-900 dark:text-gray-100;
+  }
 
+  /* --- Card system --- */
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-2xl;
+  }
 
-  /* Modals & Overlays */
+  .card-border {
+    @apply border border-gray-200 dark:border-gray-700;
+  }
+
+  .card-shadow {
+    @apply shadow-[0_0.125rem_0.25rem_rgba(0,0,0,0.08)] dark:shadow-[0_0.125rem_0.25rem_rgba(0,0,0,0.15),inset_0_0_0_0.0625rem_rgba(254,254,254,.1)];
+  }
+
+  .card-header {
+    @apply py-3 px-5;
+  }
+
+  .card-header-border {
+    @apply border-b border-gray-200 dark:border-gray-700 rounded-t-2xl;
+  }
+
+  .card-body {
+    @apply p-5;
+  }
+
+  .card-footer {
+    @apply py-3 px-5 rounded-b-2xl;
+  }
+
+  .card-footer-border {
+    @apply border-t border-gray-200 dark:border-gray-700;
+  }
+
+  /* --- ECME Input style (filled) --- */
+  .input {
+    @apply border border-gray-100 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 rounded-xl w-full py-2 px-3;
+    @apply focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)];
+    @apply focus:bg-transparent focus:dark:bg-transparent;
+    @apply appearance-none transition duration-150 ease-in-out;
+    @apply text-gray-800 dark:text-gray-100 font-semibold;
+    @apply placeholder:text-gray-400;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply read-only:focus:ring-0 read-only:focus:bg-gray-100 read-only:dark:focus:bg-gray-700;
+  }
+
+  .input-invalid {
+    @apply focus:ring-1 focus:ring-red-500 focus:border-red-500 focus:bg-transparent bg-red-500/10;
+  }
+
+  /* --- ECME Button base --- */
+  .button {
+    @apply font-bold outline-none whitespace-nowrap content-center;
+  }
+
+  .button-press-feedback {
+    @apply transition-transform active:scale-[0.98];
+  }
+
+  /* --- ECME Tag/Badge --- */
+  .tag {
+    @apply rounded-lg py-1 px-2.5 border items-center inline-flex text-xs font-semibold whitespace-nowrap;
+  }
+
+  /* --- ECME Table --- */
+  .table-default {
+    @apply table-auto min-w-full divide-y divide-gray-200 dark:divide-gray-700;
+
+    > thead > tr > th {
+      @apply px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-100;
+    }
+
+    > tbody {
+      @apply divide-y divide-gray-200 dark:divide-gray-700;
+
+      > tr > td {
+        @apply px-6 py-4;
+      }
+    }
+
+    > tfoot > tr > td {
+      @apply px-6 py-3 border-t border-gray-200 dark:border-gray-700;
+    }
+  }
+
+  .table-hover > tbody > tr:hover > * {
+    @apply bg-black/[.03] dark:bg-white/[.05];
+  }
+
+  .table-compact thead > tr > th {
+    @apply px-3 py-2 text-xs;
+  }
+  .table-compact tbody > tr > td {
+    @apply px-3 py-2;
+  }
+
+  .card-gutterless {
+    @apply p-0;
+  }
+
+  /* --- ECME Tabs --- */
+  .tab-list {
+    @apply flex items-center overflow-x-auto overflow-y-hidden;
+  }
+
+  .tab-list-underline {
+    @apply border-b border-gray-200 dark:border-gray-700;
+  }
+
+  .tab-nav {
+    @apply font-bold flex items-center justify-center text-gray-600 dark:text-gray-100 transition duration-200 ease-in-out cursor-pointer;
+  }
+
+  .tab-nav-underline {
+    @apply py-3 px-5 border-b-2 border-transparent;
+  }
+
+  .tab-nav-pill {
+    @apply py-2 px-5 mr-1 rounded-full;
+  }
+
+  /* --- ECME Dialog --- */
+  .dialog-content {
+    @apply p-6 rounded-2xl shadow-xl mx-4 my-8 sm:mx-0 sm:my-16 relative h-full bg-white dark:bg-gray-800;
+  }
+
+  .dialog-overlay {
+    @apply inset-0 fixed z-40 bg-black/60 dark:bg-black/80 backdrop-blur-md;
+    transition: all 0.15s ease-in-out;
+  }
+
+  /* --- ECME Switcher --- */
+  .switcher {
+    min-width: 2.75rem;
+    height: 1.5rem;
+    @apply inline-flex items-center relative rounded-3xl bg-gray-200 dark:bg-gray-600 cursor-pointer transition-colors ease-in-out duration-200;
+  }
+
+  /* --- Menu items (ECME style) --- */
+  .menu-item {
+    @apply cursor-pointer font-semibold px-3 py-2 rounded-lg flex items-center w-full whitespace-nowrap gap-x-2 transition-colors duration-150 text-gray-600 dark:text-gray-400;
+  }
+
+  .menu-item-hoverable {
+    @apply hover:text-gray-900 hover:bg-gray-100 dark:hover:text-gray-100 dark:hover:bg-gray-700;
+  }
+
+  .menu-item-active {
+    color: var(--brand-primary);
+    background-color: var(--brand-subtle);
+  }
+  .menu-item-active:hover {
+    color: var(--brand-primary);
+    background-color: var(--brand-subtle);
+  }
+
+  .menu-item-inactive {
+    @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700;
+  }
+
+  .menu-item-icon-active {
+    color: var(--brand-primary);
+  }
+
+  .menu-item-icon-inactive {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+
+  /* --- Dropdown sub-items --- */
+  .menu-dropdown-item {
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold;
+  }
+
+  .menu-dropdown-item-active {
+    color: var(--brand-primary);
+    background-color: var(--brand-subtle);
+  }
+
+  .menu-dropdown-item-inactive {
+    @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700;
+  }
+
+  .menu-collapse-item {
+    @apply cursor-pointer select-none font-semibold px-3 h-12 rounded-lg flex items-center justify-between transition-colors duration-200 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700;
+  }
+
+  .menu-collapse-item-active {
+    color: var(--brand-primary);
+    background-color: var(--brand-subtle);
+  }
+
+  /* --- ECME Header --- */
+  .header {
+    @apply bg-white flex z-[31] sticky top-0 w-full dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700;
+  }
+
+  .header-wrapper {
+    @apply flex relative items-center justify-between p-0 px-4 w-full;
+  }
+
+  .header-action {
+    @apply flex items-center gap-2;
+  }
+
+  .header-action-item {
+    @apply cursor-pointer p-2 rounded-full;
+  }
+
+  .header-action-item-hoverable {
+    @apply hover:bg-black/5 hover:text-gray-900 dark:hover:text-gray-100 dark:hover:bg-black/40 transition-colors duration-300 ease-in-out;
+  }
+
+  /* --- ECME Side nav --- */
+  .side-nav-bg {
+    @apply bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700;
+  }
+
+  /* --- Scrollbar utilities --- */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-600;
+  }
+
+  /* --- Toast --- */
   .toast-base {
-    @apply fixed bottom-5 right-5 z-50 flex items-start gap-3 px-4 py-3.5 rounded-xl border bg-white/95 backdrop-blur-md shadow-xl shadow-zinc-200/50 text-sm font-medium max-w-sm animate-pop-in;
+    @apply fixed bottom-5 right-5 z-50 flex items-start gap-3 px-4 py-3.5 rounded-xl border border-gray-200 bg-white/95 backdrop-blur-md shadow-lg text-sm font-medium max-w-sm animate-pop-in;
+  }
+  .dark .toast-base {
+    @apply bg-gray-800/95 border-gray-700 text-gray-100;
   }
 }
 
-/* Base custom animations (Native CSS instead of Framer Motion) */
+/* ================================================================
+   ANIMATIONS
+   ================================================================ */
 @keyframes popIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.95) translateY(10px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+  0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
 }
-
 .animate-pop-in {
   animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes fadeIn {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
-
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
-/* Base custom animations */
 @keyframes slideDown {
-  0% {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
-
 .animate-slide-down {
   animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Fix for Tremor Selects inside Modals. Portals need higher z-index than modal's fixed overlay */
+/* ================================================================
+   PORTALS z-index
+   ================================================================ */
 div[data-radix-portal],
 div[data-headlessui-portal],
 #headlessui-portal-root {
@@ -109,107 +351,9 @@ div[data-headlessui-portal],
   position: relative;
 }
 
-/* Global override for Tremor TabList to match Sedia's custom white/black pills */
-.tremor-TabList-root,
-div[role="tablist"] {
-  background-color: white !important;
-  border: 1px solid #e4e4e7 !important;
-  border-radius: 0.75rem !important;
-  padding: 0.25rem !important;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
-}
-
-.tremor-Tab-root,
-button[role="tab"] {
-  color: #71717a !important;
-  border-radius: 0.5rem !important;
-  transition: all 0.2s ease !important;
-}
-
-.tremor-Tab-root:hover:not([data-headlessui-state="selected"]):not([aria-selected="true"]),
-button[role="tab"]:hover:not([aria-selected="true"]) {
-  background-color: #f4f4f5 !important;
-  color: #18181b !important;
-  border-color: transparent !important;
-}
-
-/* Active state for Tabs using brand RGB */
-.tremor-Tab-root[aria-selected="true"],
-.tremor-Tab-root[data-state="active"],
-.tremor-Tab-root[data-headlessui-state*="selected"],
-button[role="tab"][aria-selected="true"] {
-  background-color: rgb(var(--brand-rgb)) !important;
-  color: white !important;
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
-  border-color: transparent !important;
-}
-
-.tremor-Tab-root[aria-selected="true"]:hover,
-.tremor-Tab-root[data-state="active"]:hover,
-.tremor-Tab-root[data-headlessui-state*="selected"]:hover,
-button[role="tab"][aria-selected="true"]:hover {
-  background-color: rgb(var(--brand-rgb)) !important;
-  color: white !important;
-  border-color: transparent !important;
-}
-
-/* Strict Switch Overrides to match User's precise dimensions (h-5 w-9 with 3.5 thumb) */
-.tremor-Switch-switch,
-button[role="switch"] {
-  height: 1.25rem !important;
-  /* h-5 */
-  width: 2.25rem !important;
-  /* w-9 */
-  background-color: #d4d4d8 !important;
-  /* bg-zinc-300 */
-  border-color: transparent !important;
-  border-radius: 9999px !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  padding: 0 !important;
-  flex-shrink: 0 !important;
-}
-
-.tremor-Switch-switch[data-headlessui-state*="checked"],
-.tremor-Switch-switch[aria-checked="true"],
-button[role="switch"][aria-checked="true"] {
-  background-color: rgb(var(--brand-rgb)) !important;
-  /* Maps to bg-zinc-900 if no brand is set */
-  border-color: transparent !important;
-}
-
-/* Switch thumb */
-.tremor-Switch-switch .tremor-Switch-round,
-button[role="switch"] span:not(.sr-only) {
-  height: 0.875rem !important;
-  /* h-3.5 */
-  width: 0.875rem !important;
-  /* w-3.5 */
-  background-color: white !important;
-  border: none !important;
-  border-radius: 9999px !important;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  --tw-translate-x: 0.125rem !important;
-  /* Base unchecked translation */
-  transform: translateX(var(--tw-translate-x)) !important;
-  /* Re-apply transform using the variable so tailwind handles the rest */
-}
-
-/* Hide Tremor's extra background span that causes double bubbles */
-.tremor-Switch-switch .tremor-Switch-background {
-  display: none !important;
-}
-
-/* Checked state translation */
-.tremor-Switch-switch[data-headlessui-state*="checked"] .tremor-Switch-round,
-.tremor-Switch-switch[aria-checked="true"] .tremor-Switch-round,
-button[role="switch"][aria-checked="true"] span:not(.sr-only) {
-  --tw-translate-x: 1.25rem !important;
-  /* 20px translation */
-}
-
-/* Accessibility: respect user motion preferences */
+/* ================================================================
+   ACCESSIBILITY
+   ================================================================ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -218,5 +362,13 @@ button[role="switch"][aria-checked="true"] span:not(.sr-only) {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .animate-pop-in,
+  .animate-fade-in,
+  .animate-slide-down {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

@@ -19,9 +19,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const [tenants, setTenants] = useState<Tenant[]>([]);
     const [loading, setLoading] = useState(false);
 
-    const savedGlobalTenantId = localStorage.getItem('sedia_global_tenant_id');
-    const [activeTenantIdState, setActiveTenantIdState] = useState<string | null>(
-        isSuperAdmin ? savedGlobalTenantId : userTenantId
+    const [activeTenantIdState, setActiveTenantIdState] = useState<string | null>(() =>
+        isSuperAdmin ? localStorage.getItem('sedia_global_tenant_id') : userTenantId
     );
 
     const refreshTenants = useCallback(async () => {
@@ -58,11 +57,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }, [isSuperAdmin, userTenantId, activeTenantIdState]);
 
     // Handle default selection if not selected and list loaded, or if cached ID is invalid
+    const PLATFORM_TENANT_ID = 'ffffffff-ffff-ffff-ffff-ffffff000000';
     useEffect(() => {
         if (tenants.length > 0) {
             if (!activeTenantIdState) {
                 setActiveTenantIdState(tenants[0].id);
-            } else {
+            } else if (activeTenantIdState !== PLATFORM_TENANT_ID) {
+                // Don't reset platform tenant — it's valid but not in the API list
                 const exists = tenants.some(t => t.id === activeTenantIdState);
                 if (!exists) {
                     const userTenantExists = tenants.some(t => t.id === userTenantId);

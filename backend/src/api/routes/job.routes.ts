@@ -216,4 +216,38 @@ export async function jobRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ success: true, data: job });
   });
+
+  app.post<{ Params: { id: string } }>('/jobs/:id/retry', async (req, reply) => {
+    const u = req.currentUser!;
+
+    if (!u.permisos.includes('jobs:ejecutar_sync') && u.rol.nombre !== 'super_admin') {
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para reintentar jobs');
+    }
+
+    const job = await findJobById(req.params.id);
+    if (!job) {
+      throw new ApiError(404, 'NOT_FOUND', 'Job no encontrado');
+    }
+
+    if (u.rol.nombre !== 'super_admin' && job.tenant_id !== u.tenant_id) {
+      throw new ApiError(403, 'API_ERROR', 'Acceso denegado');
+    }
+
+    if (job.estado !== 'FAILED') {
+      throw new ApiError(409, 'API_ERROR', 'Solo se pueden reintentar jobs fallidos');
+    }
+
+    const newJob = await createJob({
+      tenant_id: job.tenant_id,
+      tipo_job: job.tipo_job,
+      payload: job.payload,
+      next_run_at: new Date(),
+    });
+
+    return reply.status(202).send({
+      success: true,
+      message: 'Job reintentado exitosamente',
+      data: { job_id: newJob.id },
+    });
+  });
 }

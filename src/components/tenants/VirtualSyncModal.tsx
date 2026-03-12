@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Spinner } from '../ui/Spinner';
-import { Button, Select, SelectItem, TextInput } from '@tremor/react';
+import { Button, Select, SelectItem, TextInput } from '../ui/TailAdmin';
 
 interface VirtualSyncModalProps {
   open: boolean;
@@ -56,17 +56,17 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
     >
       <div className="space-y-4">
         {/* Toggle Periodo */}
-        <div className={`p-4 rounded-xl border transition-colors ${!useControl ? 'bg-zinc-50 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-zinc-200'}`}>
+        <div className={`p-4 rounded-xl border transition-colors ${!useControl ? 'bg-gray-50 dark:bg-gray-800 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-gray-200 dark:border-gray-700'}`}>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-medium text-zinc-900">Sincronización por período</p>
-              <p className="text-xs text-zinc-500">Descarga masiva de facturas virtuales</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Sincronización por período</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Descarga masiva de facturas virtuales</p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => { setUsePeriodo(!usePeriodo); setUseControl(false); }}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${usePeriodo && !useControl ? 'bg-emerald-500' : 'bg-zinc-300'
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${usePeriodo && !useControl ? 'bg-emerald-500' : 'bg-gray-300'
                   }`}
               >
                 <span
@@ -77,14 +77,14 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
             </div>
           </div>
 
-          <div className="text-xs text-zinc-500 mb-3">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-3">
             {usePeriodo && !useControl ? 'Período específico' : 'Por defecto sincroniza el mes actual'}
           </div>
 
           {!useControl && usePeriodo && (
-            <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-zinc-200/60">
+            <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/60">
               <div>
-                <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Mes</label>
+                <label className="text-xs font-medium text-gray-900 dark:text-white mb-1 block">Mes</label>
                 <Select
                   value={mes.toString()}
                   onValueChange={(v) => setMes(Number(v))}
@@ -97,7 +97,7 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
                 </Select>
               </div>
               <div>
-                <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Año</label>
+                <label className="text-xs font-medium text-gray-900 dark:text-white mb-1 block">Año</label>
                 <Select
                   value={anio.toString()}
                   onValueChange={(v) => setAnio(Number(v))}
@@ -114,17 +114,17 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
         </div>
 
         {/* Toggle Control Number */}
-        <div className={`p-4 rounded-xl border transition-colors ${useControl ? 'bg-zinc-50 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-zinc-200'}`}>
+        <div className={`p-4 rounded-xl border transition-colors ${useControl ? 'bg-gray-50 dark:bg-gray-800 border-emerald-500/20 ring-1 ring-emerald-500/20' : 'bg-white border-gray-200 dark:border-gray-700'}`}>
           <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-medium text-zinc-900">Sincronización exacta</p>
-              <p className="text-xs text-zinc-500">Por número de control hexadecimal</p>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Sincronización exacta</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Por número de control hexadecimal</p>
             </div>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => { setUseControl(!useControl); setUsePeriodo(false); }}
-                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useControl ? 'bg-emerald-500' : 'bg-zinc-300'
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${useControl ? 'bg-emerald-500' : 'bg-gray-300'
                   }`}
               >
                 <span
@@ -136,8 +136,8 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
           </div>
 
           {useControl && (
-            <div className="mt-4 pt-3 border-t border-zinc-200/60">
-              <label className="text-xs font-medium text-tremor-content-strong mb-1 block">Número de control</label>
+            <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700/60">
+              <label className="text-xs font-medium text-gray-900 dark:text-white mb-1 block">Número de control</label>
               <TextInput
                 placeholder="Ej: 3a4b5c6d7e8f..."
                 value={numeroControl}
@@ -147,7 +147,7 @@ export function VirtualSyncModal({ open, onClose, onSubmit, tenantName, loading 
           )}
         </div>
 
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-gray-400 dark:text-gray-500">
           Se encolara un job <span className="font-mono font-medium">SYNC_FACTURAS_VIRTUALES</span> que
           navegara a Marangatu para descargar las facturas virtuales como receptor.
         </p>

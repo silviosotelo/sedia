@@ -20,7 +20,8 @@ export type EventoNotificacion =
   | 'PLAN_LIMITE_80'
   | 'PLAN_LIMITE_100'
   | 'ANOMALIA_DETECTADA'
-  | 'ADDON_EXPIRANDO';
+  | 'ADDON_EXPIRANDO'
+  | 'SIFEN_CONTINGENCIA_REGULARIZADA';
 
 interface NotifContext {
   tenantId: string;
@@ -132,6 +133,7 @@ function isEventoHabilitado(evento: EventoNotificacion, extra: ExtraConfig): boo
     case 'PLAN_LIMITE_100': return true;
     case 'ANOMALIA_DETECTADA': return true;
     case 'ADDON_EXPIRANDO': return true;
+    case 'SIFEN_CONTINGENCIA_REGULARIZADA': return true;
     default: return false;
   }
 }
@@ -154,6 +156,7 @@ function buildSubject(evento: EventoNotificacion, tenantNombre: string): string 
     PLAN_LIMITE_100: `[${tenantNombre}] ALERTA: Límite de comprobantes alcanzado`,
     ANOMALIA_DETECTADA: `[${tenantNombre}] Nueva anomalía detectada en comprobantes`,
     ADDON_EXPIRANDO: `[${tenantNombre}] Módulo add-on próximo a vencer`,
+    SIFEN_CONTINGENCIA_REGULARIZADA: `[${tenantNombre}] Contingencia SIFEN regularizada`,
   };
   return subjects[evento] ?? `[${tenantNombre}] Notificación SIFEN`;
 }
@@ -182,6 +185,7 @@ function buildHtml(
     PLAN_LIMITE_100: { bg: '#fef2f2', border: '#dc2626', icon: '&#10007;', title: 'Límite de comprobantes alcanzado' },
     ANOMALIA_DETECTADA: { bg: '#fff7ed', border: '#ea580c', icon: '&#9888;', title: 'Anomalía Detectada' },
     ADDON_EXPIRANDO: { bg: '#fefce8', border: '#ca8a04', icon: '&#9889;', title: 'Add-on próximo a vencer' },
+    SIFEN_CONTINGENCIA_REGULARIZADA: { bg: '#f0fdf4', border: '#16a34a', icon: '&#10003;', title: 'Contingencia Regularizada' },
   };
 
   const c = colorMap[evento];
@@ -190,96 +194,65 @@ function buildHtml(
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
     .map(([k, v]) => `
       <tr>
-        <td style="padding:6px 12px;font-size:12px;color:#6b7280;border-bottom:1px solid #f3f4f6;width:40%">
+        <td style="padding:10px 16px;font-size:13px;color:#6b7280;border-bottom:1px solid #f3f4f6;width:40%">
           ${k.replace(/_/g, ' ')}
         </td>
-        <td style="padding:6px 12px;font-size:12px;color:#111827;border-bottom:1px solid #f3f4f6;font-family:monospace;word-break:break-all">
+        <td style="padding:10px 16px;font-size:13px;color:#111827;border-bottom:1px solid #f3f4f6;font-family:monospace;word-break:break-all">
           ${String(v)}
         </td>
       </tr>`)
     .join('');
 
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${c.title}</title>
-</head>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 16px">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+  // Determine header gradient based on event type category
+  const isSuccess = ['SYNC_OK', 'SIFEN_DE_APROBADO', 'SIFEN_ANULACION_OK', 'SIFEN_CONTINGENCIA_REGULARIZADA'].includes(evento);
+  const isError = ['SYNC_FAIL', 'XML_FAIL', 'ORDS_FAIL', 'SIFEN_DE_RECHAZADO', 'SIFEN_LOTE_ERROR', 'PLAN_LIMITE_100'].includes(evento);
+  const isWarning = ['JOB_STUCK', 'SIFEN_CERT_EXPIRANDO', 'PLAN_LIMITE_80', 'ANOMALIA_DETECTADA', 'ADDON_EXPIRANDO'].includes(evento);
 
-          <!-- Header -->
-          <tr>
-            <td style="background:#18181b;border-radius:8px 8px 0 0;padding:24px 32px">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td>
-                    <span style="font-size:16px;font-weight:700;color:#ffffff;letter-spacing:-0.02em">
-                      SET Comprobantes
-                    </span>
-                    <span style="font-size:12px;color:#a1a1aa;margin-left:8px">Sistema de Automatizacion</span>
-                  </td>
-                  <td align="right">
-                    <span style="font-size:11px;color:#71717a">${now}</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+  const gradient = isSuccess
+    ? 'linear-gradient(135deg,#059669 0%,#047857 100%)'
+    : isError
+      ? 'linear-gradient(135deg,#dc2626 0%,#b91c1c 100%)'
+      : isWarning
+        ? 'linear-gradient(135deg,#d97706 0%,#b45309 100%)'
+        : 'linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%)';
 
-          <!-- Alert banner -->
-          <tr>
-            <td style="background:${c.bg};border-left:4px solid ${c.border};border-right:1px solid #e5e7eb;padding:20px 32px">
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="vertical-align:top;padding-right:12px">
-                    <span style="font-size:20px;color:${c.border}">${c.icon}</span>
-                  </td>
-                  <td>
-                    <p style="margin:0;font-size:16px;font-weight:600;color:#111827">${c.title}</p>
-                    <p style="margin:4px 0 0;font-size:13px;color:#6b7280">Empresa: <strong>${tenantNombre}</strong></p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+  const body = `
+    <!-- Header accent -->
+    <td style="background:${gradient};padding:32px 40px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td>
+            <span style="display:inline-block;background:rgba(255,255,255,0.2);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.1em">
+              ${c.icon} ${evento.replace(/_/g, ' ')}
+            </span>
+            <h1 style="margin:12px 0 0;font-size:22px;font-weight:800;color:#ffffff;line-height:1.3">
+              ${c.title}
+            </h1>
+            <p style="margin:6px 0 0;font-size:13px;color:rgba(255,255,255,0.8)">
+              ${tenantNombre} &mdash; ${now}
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:32px 40px">
+      ${detailRows ? `
+      <p style="margin:0 0 12px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.08em">Detalles</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        ${detailRows}
+      </table>` : ''}
 
-          <!-- Body -->
-          <tr>
-            <td style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;padding:24px 32px">
-              ${detailRows ? `
-              <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#374151;text-transform:uppercase;letter-spacing:0.05em">Detalles</p>
-              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #f3f4f6;border-radius:6px;overflow:hidden">
-                ${detailRows}
-              </table>` : ''}
+      <p style="margin:${detailRows ? '24px' : '0'} 0 0;font-size:12px;color:#a1a1aa;border-top:1px solid #f3f4f6;padding-top:16px;line-height:1.5">
+        Este es un mensaje automatico de SEDIA.
+        Para configurar estas notificaciones, acceda a
+        <strong>Automatizacion &rarr; Notificaciones</strong> en la plataforma.
+      </p>
+    </td>
+  `;
 
-              <p style="margin:${detailRows ? '20px' : '0'} 0 0;font-size:12px;color:#9ca3af;border-top:1px solid #f3f4f6;padding-top:16px">
-                Este es un mensaje automatico del sistema SET Comprobantes.
-                Para configurar o desactivar estas notificaciones, acceda a la seccion
-                <strong>Integraciones</strong> en la configuracion de su empresa.
-              </p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;padding:16px 32px;text-align:center">
-              <p style="margin:0;font-size:11px;color:#9ca3af">
-                SET Comprobantes &mdash; Sistema de Automatizacion Fiscal Paraguay
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+  return emailShell(c.title, body);
 }
 
 async function logNotification(params: {
@@ -486,27 +459,11 @@ export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<bool
 
     const asunto = `Factura Electrónica - ${tenant.nombre_fantasia}`;
     const publicUrl = `${ctx.urlBase}/public/invoice/${ctx.hash}`;
-    const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-</head>
-<body style="margin:0;padding:20px;font-family:sans-serif;color:#333;">
-  <div style="max-width:600px;margin:0 auto;border:1px solid #ddd;border-radius:8px;padding:20px;">
-    <h2 style="color:#2563eb;">Factura Electrónica</h2>
-    <p>Hola <strong>${ctx.nombreCliente}</strong>,</p>
-    <p>Le informamos que se ha generado un nuevo comprobante electrónico de <strong>${tenant.nombre_fantasia}</strong> a su nombre.</p>
-    <p>Puede visualizar y descargar su factura en formato PDF (KUDE) o XML ingresando al siguiente enlace de forma segura:</p>
-    <div style="text-align:center;margin:30px 0;">
-      <a href="${publicUrl}" style="background-color:#2563eb;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;display:inline-block;">Ver Comprobante</a>
-    </div>
-    <p style="font-size:12px;color:#777;border-top:1px solid #eee;padding-top:10px;margin-top:20px;">
-      Este comprobante fue emitido a través de SEDIA - Sistema de Facturación Electrónica.<br>
-      Por favor no responda a este correo.
-    </p>
-  </div>
-</body>
-</html>`;
+    const html = buildFacturaHtml({
+      nombreCliente: ctx.nombreCliente,
+      nombreEmpresa: tenant.nombre_fantasia,
+      publicUrl,
+    });
 
     const transporter = buildTransporter(smtp);
     await transporter.sendMail({
@@ -534,6 +491,70 @@ export async function enviarFacturaEmail(ctx: FacturaEmailContext): Promise<bool
   }
 }
 
+export interface SifenEmailContext {
+  tenantId: string;
+  email: string;
+  deId: string;
+  cdc: string;
+  numero: string;
+  tipoDocumento: string;
+  totalPago: number;
+  receptorNombre: string;
+}
+
+export async function enviarSifenDeEmail(ctx: SifenEmailContext): Promise<boolean> {
+  try {
+    const [tenant, config] = await Promise.all([
+      findTenantById(ctx.tenantId),
+      findTenantConfig(ctx.tenantId),
+    ]);
+
+    if (!tenant || !tenant.activo) return false;
+    if (!config) return false;
+
+    const extra = (config.extra_config ?? {}) as ExtraConfig;
+    const smtp = getSmtpConfig(extra);
+    if (!smtp) {
+      logger.warn('SMTP no configurado para tenant. No se puede enviar email SIFEN.', { tenantId: ctx.tenantId });
+      return false;
+    }
+
+    const asunto = `Documento Electrónico ${ctx.numero} - ${tenant.nombre_fantasia}`;
+    const html = buildSifenDeHtml({
+      receptorNombre: ctx.receptorNombre,
+      nombreEmpresa: tenant.nombre_fantasia,
+      tipoDocumento: ctx.tipoDocumento,
+      numero: ctx.numero,
+      cdc: ctx.cdc,
+      totalPago: ctx.totalPago,
+    });
+
+    const transporter = buildTransporter(smtp);
+    await transporter.sendMail({
+      from: `"${smtp.fromName}" <${smtp.from}>`,
+      to: ctx.email,
+      subject: asunto,
+      html,
+    });
+
+    await logNotification({
+      tenantId: ctx.tenantId,
+      evento: 'FACTURA_ENVIADA',
+      destinatario: ctx.email,
+      asunto,
+      estado: 'SENT',
+      metadata: { deId: ctx.deId, cdc: ctx.cdc },
+      sentAt: new Date(),
+    });
+
+    return true;
+  } catch (err) {
+    const msg = (err as Error).message;
+    logger.error('Error enviando email SIFEN DE', { error: msg, ctx });
+    return false;
+  }
+}
+
 /**
  * Envía una notificación SIFEN al administrador del tenant.
  * Usa el SMTP configurado por el tenant. No lanza errores — solo loguea.
@@ -551,6 +572,190 @@ export async function enviarNotificacionSifen(
       tenantId, evento, error: (err as Error).message
     });
   }
+}
+
+// ═══════════════════════════════════════
+// EMAIL TEMPLATE BUILDERS
+// ═══════════════════════════════════════
+
+function emailShell(title: string, bodyContent: string): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 16px">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+
+          <!-- Logo / Brand -->
+          <tr>
+            <td align="center" style="padding:0 0 24px">
+              <span style="font-size:22px;font-weight:800;color:#18181b;letter-spacing:-0.03em">SEDIA</span>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#ffffff;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,0.08);overflow:hidden">
+              ${bodyContent}
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 32px;text-align:center">
+              <p style="margin:0 0 4px;font-size:11px;color:#a1a1aa">
+                SEDIA — Plataforma de Gestion Fiscal
+              </p>
+              <p style="margin:0;font-size:11px;color:#a1a1aa">
+                Este es un mensaje automatico. Por favor no responda a este correo.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function buildFacturaHtml(ctx: {
+  nombreCliente: string;
+  nombreEmpresa: string;
+  publicUrl: string;
+}): string {
+  const body = `
+    <!-- Header accent -->
+    <td style="background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);padding:32px 40px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td>
+            <span style="display:inline-block;background:rgba(255,255,255,0.2);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.1em">
+              Factura Electronica
+            </span>
+            <h1 style="margin:12px 0 0;font-size:24px;font-weight:800;color:#ffffff;line-height:1.2">
+              Nuevo comprobante disponible
+            </h1>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:32px 40px">
+      <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
+        Hola <strong style="color:#111827">${ctx.nombreCliente}</strong>,
+      </p>
+      <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6">
+        Le informamos que <strong style="color:#111827">${ctx.nombreEmpresa}</strong> ha emitido un comprobante electronico a su nombre. Puede visualizarlo y descargarlo en formato PDF (KUDE) o XML desde el siguiente enlace:
+      </p>
+
+      <!-- CTA Button -->
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="padding:8px 0 32px">
+            <a href="${ctx.publicUrl}" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:-0.01em">
+              Ver Comprobante
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Info box -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;border-radius:12px;overflow:hidden">
+        <tr>
+          <td style="padding:16px 20px">
+            <p style="margin:0;font-size:12px;color:#71717a;line-height:1.5">
+              <strong style="color:#52525b">Emisor:</strong> ${ctx.nombreEmpresa}<br>
+              Si no reconoce este documento, puede ignorar este mensaje.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  `;
+
+  return emailShell('Factura Electronica', body);
+}
+
+function buildSifenDeHtml(ctx: {
+  receptorNombre: string;
+  nombreEmpresa: string;
+  tipoDocumento: string;
+  numero: string;
+  cdc: string;
+  totalPago: number;
+}): string {
+  const totalFormatted = Number(ctx.totalPago).toLocaleString('es-PY');
+
+  const body = `
+    <!-- Header accent -->
+    <td style="background:linear-gradient(135deg,#059669 0%,#047857 100%);padding:32px 40px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td>
+            <span style="display:inline-block;background:rgba(255,255,255,0.2);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;color:#ffffff;text-transform:uppercase;letter-spacing:0.1em">
+              SIFEN
+            </span>
+            <h1 style="margin:12px 0 0;font-size:24px;font-weight:800;color:#ffffff;line-height:1.2">
+              Documento Electronico
+            </h1>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:32px 40px">
+      <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
+        Hola <strong style="color:#111827">${ctx.receptorNombre}</strong>,
+      </p>
+      <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6">
+        Se ha emitido un documento electronico de <strong style="color:#111827">${ctx.nombreEmpresa}</strong> con los siguientes datos:
+      </p>
+
+      <!-- Document details card -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        <tr>
+          <td style="padding:16px 20px;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Tipo</span><br>
+            <span style="font-size:14px;font-weight:600;color:#111827">${ctx.tipoDocumento}</span>
+          </td>
+          <td style="padding:16px 20px;border-bottom:1px solid #e5e7eb;text-align:right">
+            <span style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Numero</span><br>
+            <span style="font-size:14px;font-weight:600;color:#111827;font-family:monospace">${ctx.numero}</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:16px 20px;border-bottom:1px solid #e5e7eb">
+            <span style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">CDC</span><br>
+            <span style="font-size:12px;color:#374151;font-family:monospace;word-break:break-all">${ctx.cdc}</span>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:20px;text-align:center;background:#ffffff">
+            <span style="font-size:11px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em">Total</span><br>
+            <span style="font-size:28px;font-weight:800;color:#111827;letter-spacing:-0.02em">${totalFormatted}</span>
+            <span style="font-size:14px;font-weight:600;color:#6b7280"> Gs.</span>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;line-height:1.5">
+        Emisor: <strong>${ctx.nombreEmpresa}</strong>.
+        Si no reconoce este documento, puede ignorar este mensaje.
+      </p>
+    </td>
+  `;
+
+  return emailShell('Documento Electronico', body);
 }
 
 // ═══════════════════════════════════════

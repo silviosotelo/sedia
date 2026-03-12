@@ -132,22 +132,26 @@ export class OrdsService {
       endpoint: tenantConfig.ords_endpoint_facturas,
     });
 
+    const startMs = Date.now();
     const result = await sendWithRetry(
       axiosInstance,
       tenantConfig.ords_endpoint_facturas,
       payload
     );
+    const elapsedMs = Date.now() - startMs;
 
     if (result.success) {
       await updateEnvioOrdsSuccess(envioId, result.data as Record<string, unknown> ?? {});
       logger.info('Comprobante enviado exitosamente a ORDS', {
         comprobante_id: comprobante.id,
+        elapsed_ms: elapsedMs,
       });
     } else {
       await updateEnvioOrdsFailed(envioId, result.error ?? 'Error desconocido');
       logger.warn('Fallo al enviar comprobante a ORDS', {
         comprobante_id: comprobante.id,
         error: result.error,
+        elapsed_ms: elapsedMs,
       });
     }
 

@@ -1,7 +1,8 @@
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, Search, Edit2, Trash2 } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, Switch } from '@tremor/react';
+import { TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, Switch } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -47,50 +48,45 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
     };
 
     return (
-        <div className="space-y-3 mt-4 border-t border-tremor-border pt-4">
+        <div className="space-y-3 mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
             <div className="flex items-center justify-between">
                 <Text className="font-medium">Mapeo Avanzado de CSV</Text>
                 <Button type="button" variant="light" onClick={addColumn} icon={Plus} className="text-xs h-7">
                     Agregar Columna
                 </Button>
             </div>
-            <Text className="text-xs text-tremor-content-subtle">Configurá cómo leer las columnas del extracto bancario de este banco.</Text>
+            <Text className="text-xs text-gray-400 dark:text-gray-500">Configurá cómo leer las columnas del extracto bancario de este banco.</Text>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {columns.map((col, idx) => (
-                    <div key={idx} className="flex gap-2 items-start bg-tremor-background-subtle p-2 rounded-lg border border-tremor-border">
-                        <select
-                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-1"
-                            value={col.targetField}
-                            onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
-                        >
-                            <option value="">Destino SEDIA...</option>
-                            {COMMON_TARGET_FIELDS.map(f => (
-                                <option key={f.value} value={f.value}>{f.label}</option>
-                            ))}
-                        </select>
-                        <input
-                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-[1.5]"
+                    <div key={idx} className="flex gap-2 items-start bg-gray-50 dark:bg-gray-800/60 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex-1">
+                            <Select value={col.targetField} onValueChange={v => updateColumn(idx, 'targetField', v)} placeholder="Destino SEDIA...">
+                                <SelectItem value="">Destino SEDIA...</SelectItem>
+                                {COMMON_TARGET_FIELDS.map(f => (
+                                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                                ))}
+                            </Select>
+                        </div>
+                        <TextInput
+                            className="flex-[1.5]"
                             placeholder="Ej: importe, monto neto"
                             value={(col.exactMatchHeaders || []).join(', ')}
                             onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
                             title="Nombres de columnas del CSV (separados por coma)"
                         />
-                        <select
-                            className="w-28 rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none"
-                            value={col.format || ''}
-                            onChange={(e) => updateColumn(idx, 'format', e.target.value)}
-                            title="Formato Especial"
-                        >
-                            <option value="">Normal</option>
-                            <option value="MONTO">Monto</option>
-                            <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
-                        </select>
+                        <div className="w-28">
+                            <Select value={col.format || ''} onValueChange={v => updateColumn(idx, 'format', v)}>
+                                <SelectItem value="">Normal</SelectItem>
+                                <SelectItem value="MONTO">Monto</SelectItem>
+                                <SelectItem value="DATE_DDMMYYYY">DD/MM/YYYY</SelectItem>
+                            </Select>
+                        </div>
                         <Button type="button" variant="light" color="rose" onClick={() => removeColumn(idx)} className="h-7 w-7 p-0" icon={Trash2} />
                     </div>
                 ))}
                 {columns.length === 0 && (
-                    <Text className="text-center py-4 text-xs text-tremor-content-subtle">
+                    <Text className="text-center py-4 text-xs text-gray-400 dark:text-gray-500">
                         Usará mapeo automático predeterminado si no se configuran columnas.
                     </Text>
                 )}
@@ -102,6 +98,8 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
 export function Bancos({ toastSuccess, toastError }: BancosProps) {
     const [banks, setBanks] = useState<Bank[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -125,15 +123,16 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
 
     const loadBanks = useCallback(async () => {
         setLoading(true);
+        setError(null);
         try {
             const data = await api.bank.listBanks();
             setBanks(data);
         } catch (err) {
-            toastError('Error al cargar bancos');
+            setError((err as Error).message || 'Error al cargar bancos');
         } finally {
             setLoading(false);
         }
-    }, [toastError]);
+    }, [retryCount]);
 
     useEffect(() => {
         void loadBanks();
@@ -200,6 +199,18 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
 
     if (loading) return <PageLoader />;
 
+    if (error) {
+        return (
+            <div className="space-y-6">
+                <Header title="Catálogo de Bancos" subtitle="Gestioná los bancos disponibles para las cuentas de los clientes" />
+                <ErrorState
+                    message={error}
+                    onRetry={() => setRetryCount(c => c + 1)}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="animate-fade-in">
             <Header
@@ -208,7 +219,11 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                 onRefresh={loadBanks}
                 refreshing={loading}
                 actions={
-                    <Button onClick={handleOpenCreate} icon={Plus}>
+                    <Button
+                        onClick={handleOpenCreate}
+                        icon={Plus}
+                        style={{ backgroundColor: 'rgb(var(--brand-rgb))', borderColor: 'rgb(var(--brand-rgb))' }}
+                    >
                         Nuevo Banco
                     </Button>
                 }
@@ -225,18 +240,22 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
 
             {!filtered.length ? (
                 <EmptyState
-                    icon={<Landmark className="w-8 h-8 text-tremor-content-subtle" />}
+                    icon={<Landmark className="w-8 h-8 text-gray-400 dark:text-gray-500" />}
                     title="No se encontraron bancos"
                     description={searchTerm ? 'Probá con otros términos de búsqueda.' : 'Cargá el primer banco al sistema.'}
                     action={!searchTerm && (
-                        <Button onClick={handleOpenCreate} icon={Plus}>
+                        <Button
+                            onClick={handleOpenCreate}
+                            icon={Plus}
+                            style={{ backgroundColor: 'rgb(var(--brand-rgb))', borderColor: 'rgb(var(--brand-rgb))' }}
+                        >
                             Crear Banco
                         </Button>
                     )}
                 />
             ) : (
-                <Card className="p-0 overflow-hidden">
-                    <Table>
+                <div className="card card-border overflow-hidden">
+                    <div className="overflow-x-auto"><table className="table-default w-full">
                         <TableHead>
                             <TableRow>
                                 <TableHeaderCell>Nombre</TableHeaderCell>
@@ -248,17 +267,17 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                         </TableHead>
                         <TableBody>
                             {filtered.map((bank) => (
-                                <TableRow key={bank.id} className="hover:bg-tremor-background-subtle">
+                                <TableRow key={bank.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
                                     <TableCell>
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-lg bg-tremor-background-subtle flex items-center justify-center">
-                                                <Landmark className="w-4 h-4 text-tremor-content" />
+                                            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'rgb(var(--brand-rgb) / 0.08)' }}>
+                                                <Landmark className="w-4 h-4" style={{ color: 'rgb(var(--brand-rgb))' }} />
                                             </div>
-                                            <Text className="font-medium text-tremor-content-strong">{bank.nombre}</Text>
+                                            <Text className="font-medium text-gray-900 dark:text-white">{bank.nombre}</Text>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <code className="text-xs font-mono bg-tremor-background-subtle px-2 py-1 rounded text-tremor-content-strong border border-tremor-border">{bank.codigo}</code>
+                                        <code className="text-xs font-mono bg-gray-50 dark:bg-gray-800/60 px-2 py-1 rounded text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700">{bank.codigo}</code>
                                     </TableCell>
                                     <TableCell className="text-center">
                                         <Text>{bank.pais}</Text>
@@ -289,8 +308,8 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                                 </TableRow>
                             ))}
                         </TableBody>
-                    </Table>
-                </Card>
+                    </table></div>
+                </div>
             )}
 
             <Modal
@@ -315,7 +334,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                             value={form.codigo}
                             onChange={(e) => setForm({ ...form, codigo: e.target.value.toUpperCase() })}
                         />
-                        <Text className="text-[10px] text-tremor-content-subtle mt-1">Se usa para machear extractos bancarios.</Text>
+                        <Text className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">Se usa para machear extractos bancarios.</Text>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -343,7 +362,7 @@ export function Bancos({ toastSuccess, toastError }: BancosProps) {
                         value={form.csv_mapping}
                         onChange={(v) => setForm({ ...form, csv_mapping: Object.keys(v.columns).length > 0 ? v : null })}
                     />
-                    <div className="flex justify-end gap-3 pt-4 border-t border-tremor-border">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <Button variant="secondary" onClick={() => setShowModal(false)} disabled={saving}>Cancelar</Button>
                         <Button onClick={() => void handleSave()} disabled={saving} loading={saving} icon={saving ? undefined : Landmark}>
                             {selectedBank ? 'Guardar Cambios' : 'Crear Banco'}

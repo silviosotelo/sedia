@@ -13,6 +13,7 @@ export interface SolveCaptchaOptions {
  * Retorna el g-recaptcha-response token listo para inyectar en el formulario.
  */
 export async function resolverCaptcha(opts: SolveCaptchaOptions): Promise<string> {
+  const startMs = Date.now();
   logger.debug('Enviando reCAPTCHA a SolveCaptcha', {
     pageUrl: opts.pageUrl,
   });
@@ -30,9 +31,10 @@ export async function resolverCaptcha(opts: SolveCaptchaOptions): Promise<string
     throw new Error(`SolveCaptcha: token inválido recibido: ${String(token)}`);
   }
 
-  logger.debug('Captcha resuelto por SolveCaptcha SDK', {
-    token_prefix: token.substring(0, 20) + '...',
+  const elapsedMs = Date.now() - startMs;
+  logger.info('Captcha resuelto por SolveCaptcha SDK', {
     captcha_id: res.id,
+    elapsed_ms: elapsedMs,
   });
 
   return token;

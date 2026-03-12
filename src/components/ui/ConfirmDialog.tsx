@@ -1,5 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
-import { Button } from '@tremor/react';
+import { Button } from './TailAdmin';
 import { Modal } from './Modal';
 
 interface ConfirmDialogProps {
@@ -49,7 +49,7 @@ export function ConfirmDialog({
         <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
           <AlertTriangle className="w-4 h-4 text-amber-500" />
         </div>
-        <p className="text-sm text-tremor-content pt-1.5">{description}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400 pt-1.5">{description}</p>
       </div>
     </Modal>
   );

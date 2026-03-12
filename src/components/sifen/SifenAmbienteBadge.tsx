@@ -1,4 +1,4 @@
-import { Badge } from '@tremor/react';
+import { Badge } from '../ui/TailAdmin';
 import { SifenAmbiente } from '../../types';
 
 export function SifenAmbienteBadge({ ambiente }: { ambiente: SifenAmbiente }) {

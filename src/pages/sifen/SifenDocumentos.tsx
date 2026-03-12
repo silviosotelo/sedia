@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Search, Download, Eye, FileX, FileText, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Search, Download, FileX, FileText, AlertTriangle, Link2 } from 'lucide-react';
+import { ErrorState } from '../../components/ui/ErrorState';
 import { api } from '../../lib/api';
 import { useDebounce } from '../../hooks/useDebounce';
 import { Spinner } from '../../components/ui/Spinner';
-import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, Select, SelectItem, TextInput } from '@tremor/react';
+import { Button, Card, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, Select, SelectItem, TextInput } from '../../components/ui/TailAdmin';
 import { SifenEstadoBadge } from '../../components/sifen/SifenEstadoBadge';
 import { Modal } from '../../components/ui/Modal';
-import { SifenDE, SIFEN_TIPO_LABELS, SifenTipoDocumento } from '../../types';
+import { Pagination } from '../../components/ui/Pagination';
+import { SifenDE, SIFEN_TIPO_LABELS } from '../../types';
+import { Header } from '../../components/layout/Header';
 
 interface Props {
     tenantId: string;
@@ -25,12 +28,17 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
     const [anularTarget, setAnularTarget] = useState<string | null>(null);
     const [anularMotivo, setAnularMotivo] = useState('');
     const [anulando, setAnulando] = useState(false);
-    const [page, setPage] = useState(0);
+    const [page, setPage] = useState(1);
     const [search, setSearch] = useState('');
     const debouncedSearch = useDebounce(search, 300);
     const [filters, setFilters] = useState({
         estado: '', tipo: '', desde: '', hasta: '',
     });
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkEmitting, setBulkEmitting] = useState(false);
+    const [vincularTarget, setVincularTarget] = useState<string | null>(null);
+    const [vincularComprobanteId, setVincularComprobanteId] = useState('');
+    const [vinculando, setVinculando] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -44,7 +52,7 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                 hasta: filters.hasta || undefined,
                 search: debouncedSearch || undefined,
                 limit: LIMIT,
-                offset: page * LIMIT,
+                offset: (page - 1) * LIMIT,
             });
             setDocs(result.data);
             setTotal(result.total);
@@ -90,68 +98,223 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
         }
     };
 
+    const selectableDocs = docs.filter(d => d.estado === 'DRAFT' || d.estado === 'ERROR');
+    const allSelectableSelected = selectableDocs.length > 0 && selectableDocs.every(d => selectedIds.has(d.id));
+    const someSelected = selectedIds.size > 0;
+    const allSelectedAreEmittable = someSelected && [...selectedIds].every(id => {
+        const doc = docs.find(d => d.id === id);
+        return doc && (doc.estado === 'DRAFT' || doc.estado === 'ERROR');
+    });
+
+    const toggleSelectAll = () => {
+        if (allSelectableSelected) {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                selectableDocs.forEach(d => next.delete(d.id));
+                return next;
+            });
+        } else {
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                selectableDocs.forEach(d => next.add(d.id));
+                return next;
+            });
+        }
+    };
+
+    const toggleSelectRow = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const handleBulkSign = async () => {
+        if (selectedIds.size === 0) return;
+        setBulkEmitting(true);
+        let successCount = 0;
+        let errorCount = 0;
+        for (const id of selectedIds) {
+            try {
+                await api.sifen.signDe(tenantId, id);
+                successCount++;
+            } catch {
+                errorCount++;
+            }
+        }
+        setBulkEmitting(false);
+        setSelectedIds(new Set());
+        if (successCount > 0) {
+            toastSuccess?.(`${successCount} documento${successCount !== 1 ? 's' : ''} encolado${successCount !== 1 ? 's' : ''} para emisión.${errorCount > 0 ? ` ${errorCount} con error.` : ''}`);
+        } else {
+            toastError?.(`No se pudo encolar ningún documento. ${errorCount} error${errorCount !== 1 ? 'es' : ''}.`);
+        }
+        load();
+    };
+
+    const handleVincularConfirm = async () => {
+        if (!vincularTarget || !vincularComprobanteId.trim()) return;
+        setVinculando(true);
+        try {
+            await api.sifen.vincularComprobante(tenantId, vincularTarget, vincularComprobanteId.trim());
+            toastSuccess?.('Documento vinculado a comprobante exitosamente.');
+            setVincularTarget(null);
+            setVincularComprobanteId('');
+            load();
+        } catch (err: any) {
+            toastError?.(err?.message || 'Error vinculando comprobante.');
+        } finally {
+            setVinculando(false);
+        }
+    };
+
     const totalPages = Math.ceil(total / LIMIT);
+
+    const handleExport = () => {
+        const headers = ['fecha_emision', 'tipo_documento', 'numero_documento', 'receptor_nombre', 'total_pago', 'estado', 'cdc'];
+        const rows = docs.map(doc => [
+            new Date(doc.fecha_emision).toLocaleDateString('es-PY'),
+            SIFEN_TIPO_LABELS[doc.tipo_documento] || `Tipo ${doc.tipo_documento}`,
+            doc.numero_documento || '',
+            doc.receptor_nombre || doc.datos_receptor?.razon_social || '',
+            doc.total_pago != null ? Number(doc.total_pago).toLocaleString('es-PY') : '',
+            doc.estado,
+            doc.cdc || '',
+        ]);
+        const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sifen-documentos-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    if (error) {
+        return (
+            <div className="space-y-4">
+                <Header title="Documentos Electrónicos" subtitle="Documentos electrónicos SIFEN" />
+                <ErrorState
+                    message={/plan|módulo|feature/i.test(error) ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.' : error}
+                    onRetry={load}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-bold text-zinc-900">Documentos Electrónicos</h2>
-                    <p className="text-sm text-zinc-500">{total} documentos registrados</p>
-                </div>
-                <Button variant="secondary" icon={RefreshCw} size="xs" onClick={load}>Actualizar</Button>
-            </div>
+            <Header
+                title="Documentos Electrónicos"
+                subtitle={`${total} documentos registrados`}
+                onRefresh={load}
+                refreshing={loading}
+                actions={
+                    <Button icon={Download} variant="secondary" size="xs" disabled={docs.length === 0} onClick={handleExport}>
+                        Exportar
+                    </Button>
+                }
+            />
 
             {/* Filtros */}
             <Card className="p-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
-                        <input
-                            className="pl-8 pr-3 py-2 w-full text-xs border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400"
-                            placeholder="Buscar CDC, número, receptor..."
-                            value={search}
-                            onChange={e => { setSearch(e.target.value); setPage(0); }}
-                        />
-                    </div>
-                    <select
-                        className="border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    <TextInput
+                        icon={Search}
+                        placeholder="Buscar CDC, número, receptor..."
+                        value={search}
+                        onChange={e => { setSearch(e.target.value); setPage(1); setSelectedIds(new Set()); }}
+                    />
+                    <Select
                         value={filters.estado}
-                        onChange={e => { setFilters(f => ({ ...f, estado: e.target.value })); setPage(0); }}
+                        onValueChange={v => { setFilters(f => ({ ...f, estado: v })); setPage(1); setSelectedIds(new Set()); }}
+                        placeholder="Todos los estados"
                     >
-                        <option value="">Todos los estados</option>
-                        <option value="DRAFT">Borrador</option>
-                        <option value="APPROVED">Aprobado</option>
-                        <option value="REJECTED">Rechazado</option>
-                        <option value="ENQUEUED">Encolado</option>
-                        <option value="SENT">Enviado</option>
-                        <option value="CANCELLED">Anulado</option>
-                        <option value="ERROR">Error</option>
-                    </select>
-                    <select
-                        className="border border-zinc-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        <SelectItem value="">Todos los estados</SelectItem>
+                        <SelectItem value="DRAFT">Borrador</SelectItem>
+                        <SelectItem value="APPROVED">Aprobado</SelectItem>
+                        <SelectItem value="REJECTED">Rechazado</SelectItem>
+                        <SelectItem value="ENQUEUED">Encolado</SelectItem>
+                        <SelectItem value="SENT">Enviado</SelectItem>
+                        <SelectItem value="CANCELLED">Anulado</SelectItem>
+                        <SelectItem value="ERROR">Error</SelectItem>
+                    </Select>
+                    <Select
                         value={filters.tipo}
-                        onChange={e => { setFilters(f => ({ ...f, tipo: e.target.value })); setPage(0); }}
+                        onValueChange={v => { setFilters(f => ({ ...f, tipo: v })); setPage(1); setSelectedIds(new Set()); }}
+                        placeholder="Todos los tipos"
                     >
-                        <option value="">Todos los tipos</option>
-                        <option value="1">Factura</option>
-                        <option value="4">Autofactura</option>
-                        <option value="5">Nota Crédito</option>
-                        <option value="6">Nota Débito</option>
-                    </select>
+                        <SelectItem value="">Todos los tipos</SelectItem>
+                        <SelectItem value="1">Factura</SelectItem>
+                        <SelectItem value="4">Autofactura</SelectItem>
+                        <SelectItem value="5">Nota Crédito</SelectItem>
+                        <SelectItem value="6">Nota Débito</SelectItem>
+                    </Select>
                     <div className="flex gap-2">
-                        <input type="date" className="flex-1 border border-zinc-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        <input type="date" className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-sm shadow-sm focus:outline-none focus:ring-2" style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties}
                             value={filters.desde} onChange={e => setFilters(f => ({ ...f, desde: e.target.value }))} />
-                        <input type="date" className="flex-1 border border-zinc-200 rounded-lg px-2 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        <input type="date" className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-sm shadow-sm focus:outline-none focus:ring-2" style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties}
                             value={filters.hasta} onChange={e => setFilters(f => ({ ...f, hasta: e.target.value }))} />
                     </div>
                 </div>
             </Card>
 
-            <Card className="overflow-hidden p-0">
-                <Table>
+            <div className="card card-border overflow-hidden">
+                {someSelected && (
+                    <div
+                        className="flex items-center justify-between px-4 py-2.5 gap-3"
+                        style={{ backgroundColor: 'rgb(var(--brand-rgb))', color: 'white' }}
+                    >
+                        <span className="text-sm font-medium">
+                            {selectedIds.size} documento{selectedIds.size !== 1 ? 's' : ''} seleccionado{selectedIds.size !== 1 ? 's' : ''}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            {allSelectedAreEmittable && (
+                                <Button
+                                    size="xs"
+                                    variant="secondary"
+                                    loading={bulkEmitting}
+                                    disabled={bulkEmitting}
+                                    onClick={handleBulkSign}
+                                    className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                                >
+                                    Emitir seleccionados
+                                </Button>
+                            )}
+                            <Button
+                                size="xs"
+                                variant="secondary"
+                                disabled={bulkEmitting}
+                                onClick={() => setSelectedIds(new Set())}
+                                className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                            >
+                                Deseleccionar todo
+                            </Button>
+                        </div>
+                    </div>
+                )}
+                <div className="overflow-x-auto">
+                <table className="table-default w-full">
                     <TableHead>
                         <TableRow>
+                            <TableHeaderCell className="w-10">
+                                <input
+                                    type="checkbox"
+                                    checked={allSelectableSelected}
+                                    onChange={toggleSelectAll}
+                                    disabled={selectableDocs.length === 0}
+                                    className="rounded"
+                                    style={{ accentColor: 'rgb(var(--brand-rgb))' }}
+                                    aria-label="Seleccionar todos los documentos emitibles de esta página"
+                                />
+                            </TableHeaderCell>
                             <TableHeaderCell>Tipo</TableHeaderCell>
                             <TableHeaderCell>Nro.</TableHeaderCell>
                             <TableHeaderCell>Receptor</TableHeaderCell>
@@ -163,37 +326,33 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                     </TableHead>
                     <TableBody>
                         {loading ? (
-                            <TableRow><TableCell colSpan={7} className="text-center py-10"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
-                        ) : error ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
-                                        <p className="text-sm text-zinc-500 max-w-sm">
-                                            {/plan|módulo|feature/i.test(error)
-                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
-                                                : error}
-                                        </p>
-                                        <button
-                                            onClick={load}
-                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
+                            <TableRow><TableCell colSpan={8} className="text-center py-10"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
                         ) : docs.length === 0 ? (
-                            <TableRow><TableCell colSpan={7} className="text-center py-10 text-zinc-400 text-sm">No hay documentos electrónicos.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={8} className="text-center py-10 text-gray-400 dark:text-gray-500 text-sm">No hay documentos electrónicos.</TableCell></TableRow>
                         ) : (
-                            docs.map(doc => (
+                            docs.map(doc => {
+                                const isSelectable = doc.estado === 'DRAFT' || doc.estado === 'ERROR';
+                                const isSelected = selectedIds.has(doc.id);
+                                return (
                                 <TableRow
                                     key={doc.id}
-                                    className="cursor-pointer hover:bg-zinc-50"
+                                    className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
                                     onClick={() => onDetalle?.(doc.id)}
                                 >
+                                    <TableCell onClick={e => e.stopPropagation()}>
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            disabled={!isSelectable}
+                                            onChange={() => {}}
+                                            onClick={e => isSelectable ? toggleSelectRow(doc.id, e) : e.stopPropagation()}
+                                            className="rounded"
+                                            style={{ accentColor: 'rgb(var(--brand-rgb))' }}
+                                            aria-label={`Seleccionar documento ${doc.numero_documento || doc.id}`}
+                                        />
+                                    </TableCell>
                                     <TableCell>
-                                        <div className="text-[11px] font-medium text-zinc-700">{SIFEN_TIPO_LABELS[doc.tipo_documento] || `Tipo ${doc.tipo_documento}`}</div>
+                                        <div className="text-[11px] font-medium text-gray-700 dark:text-gray-300">{SIFEN_TIPO_LABELS[doc.tipo_documento] || `Tipo ${doc.tipo_documento}`}</div>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">
                                         {doc.numero_documento || '—'}
@@ -207,7 +366,7 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                                     <TableCell>
                                         <SifenEstadoBadge estado={doc.estado} />
                                     </TableCell>
-                                    <TableCell className="text-xs text-zinc-500">
+                                    <TableCell className="text-xs text-gray-500 dark:text-gray-400">
                                         {new Date(doc.fecha_emision).toLocaleDateString('es-PY')}
                                     </TableCell>
                                     <TableCell onClick={e => e.stopPropagation()}>
@@ -219,15 +378,25 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                                             )}
                                             {doc.estado === 'APPROVED' && (
                                                 <>
-                                                    <button onClick={() => api.sifen.downloadXml(tenantId, doc.id)} className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar XML">
+                                                    <button onClick={() => api.sifen.downloadXml(tenantId, doc.id)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 p-1 rounded" title="Descargar XML" aria-label="Descargar XML">
                                                         <FileText className="w-3.5 h-3.5" />
                                                     </button>
                                                     {doc.tiene_kude && (
-                                                        <button onClick={() => api.sifen.downloadKude(tenantId, doc.id)} className="text-zinc-500 hover:text-zinc-700 p-1 rounded" title="Descargar KUDE PDF">
+                                                        <button onClick={() => api.sifen.downloadKude(tenantId, doc.id)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:text-gray-300 p-1 rounded" title="Descargar KUDE PDF" aria-label="Descargar KUDE PDF">
                                                             <Download className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
-                                                    <button onClick={e => handleAnularClick(doc.id, e)} className="text-red-400 hover:text-red-600 p-1 rounded" title="Anular">
+                                                    {!doc.comprobante_id && (
+                                                        <button
+                                                            onClick={e => { e.stopPropagation(); setVincularTarget(doc.id); setVincularComprobanteId(''); }}
+                                                            className="text-blue-400 hover:text-blue-600 p-1 rounded"
+                                                            title="Vincular a comprobante"
+                                                            aria-label="Vincular a comprobante"
+                                                        >
+                                                            <Link2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button onClick={e => handleAnularClick(doc.id, e)} className="text-red-400 hover:text-red-600 p-1 rounded" title="Anular" aria-label="Anular">
                                                         <FileX className="w-3.5 h-3.5" />
                                                     </button>
                                                 </>
@@ -235,22 +404,16 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                );
+                            })
                         )}
                     </TableBody>
-                </Table>
-            </Card>
+                </table>
+                </div>
+            </div>
 
             {/* Paginación */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between text-xs text-zinc-500">
-                    <span>Página {page + 1} de {totalPages} ({total} docs)</span>
-                    <div className="flex gap-2">
-                        <Button variant="secondary" size="xs" icon={ChevronLeft} disabled={page === 0} onClick={() => setPage(p => p - 1)}>Anterior</Button>
-                        <Button variant="secondary" size="xs" iconPosition="right" icon={ChevronRight} disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Siguiente</Button>
-                    </div>
-                </div>
-            )}
+            <Pagination page={page} totalPages={totalPages} total={total} limit={LIMIT} onPageChange={p => { setPage(p); setSelectedIds(new Set()); }} />
 
             {/* Modal de anulación */}
             <Modal
@@ -283,14 +446,14 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                         </div>
                     </div>
                     <div>
-                        <label htmlFor="motivo-anulacion" className="text-sm font-medium text-zinc-700 block mb-1">
+                        <label htmlFor="motivo-anulacion" className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
                             Motivo de anulación (mínimo 10 caracteres)
                         </label>
                         <textarea
                             id="motivo-anulacion"
                             value={anularMotivo}
                             onChange={e => setAnularMotivo(e.target.value)}
-                            className="w-full border border-zinc-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
+                            className="w-full border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg p-3 text-sm focus:ring-2 focus:ring-red-200 focus:border-red-400 outline-none"
                             rows={3}
                             placeholder="Describa el motivo de la anulación..."
                             autoFocus
@@ -298,6 +461,49 @@ export function SifenDocumentosPage({ tenantId, onDetalle, toastSuccess, toastEr
                         {anularMotivo.trim().length > 0 && anularMotivo.trim().length < 10 && (
                             <p className="text-xs text-red-500 mt-1">{10 - anularMotivo.trim().length} caracteres más requeridos</p>
                         )}
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Modal de vinculación */}
+            <Modal
+                open={!!vincularTarget}
+                onClose={() => { if (!vinculando) { setVincularTarget(null); setVincularComprobanteId(''); } }}
+                title="Vincular a Comprobante"
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="secondary" disabled={vinculando} onClick={() => { setVincularTarget(null); setVincularComprobanteId(''); }}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            loading={vinculando}
+                            disabled={vinculando || !vincularComprobanteId.trim()}
+                            onClick={handleVincularConfirm}
+                            style={{ backgroundColor: 'rgb(var(--brand-rgb))', borderColor: 'rgb(var(--brand-rgb))' }}
+                        >
+                            Vincular
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <Link2 className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-blue-700">
+                            <p>Vinculá este documento electrónico a un comprobante existente en el sistema para mantener la trazabilidad.</p>
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="comprobante-id" className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">
+                            ID del Comprobante
+                        </label>
+                        <TextInput
+                            id="comprobante-id"
+                            value={vincularComprobanteId}
+                            onChange={e => setVincularComprobanteId(e.target.value)}
+                            placeholder="UUID del comprobante a vincular"
+                        />
                     </div>
                 </div>
             </Modal>

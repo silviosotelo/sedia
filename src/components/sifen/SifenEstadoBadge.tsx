@@ -1,4 +1,4 @@
-import { Badge } from '@tremor/react';
+import { Badge } from '../ui/TailAdmin';
 import { SifenDEEstado } from '../../types';
 
 const ESTADO_CONFIG: Record<SifenDEEstado, { color: string; label: string }> = {
@@ -10,8 +10,9 @@ const ESTADO_CONFIG: Record<SifenDEEstado, { color: string; label: string }> = {
     SENT:      { color: 'blue',    label: 'Enviado' },
     APPROVED:  { color: 'emerald', label: 'Aprobado' },
     REJECTED:  { color: 'red',     label: 'Rechazado' },
-    CANCELLED: { color: 'stone',   label: 'Anulado' },
-    ERROR:     { color: 'rose',    label: 'Error' },
+    CANCELLED:    { color: 'stone',   label: 'Anulado' },
+    ERROR:        { color: 'rose',    label: 'Error' },
+    CONTINGENCIA: { color: 'amber',   label: 'Contingencia' },
 };
 
 export function SifenEstadoBadge({ estado }: { estado: string }) {

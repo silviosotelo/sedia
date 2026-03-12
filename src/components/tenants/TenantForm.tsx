@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, HelpCircle } from 'lucide-react';
 import { Spinner } from '../ui/Spinner';
 import { cn } from '../../lib/utils';
-import { Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab } from '@tremor/react';
+import { Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab } from '../ui/TailAdmin';
 import { api } from '../../lib/api';
 import type { TenantWithConfig, AuthType } from '../../types';
 
@@ -61,12 +61,12 @@ interface FieldProps {
 function Field({ label, required, hint, error, children }: FieldProps) {
   return (
     <div>
-      <label className="text-xs font-medium text-tremor-content-strong mb-1 block">
+      <label className="text-xs font-medium text-gray-900 dark:text-white mb-1 block">
         {label}
         {required && <span className="text-rose-500 ml-0.5">*</span>}
         {hint && (
           <span className="ml-1 inline-flex" title={hint}>
-            <HelpCircle className="w-3 h-3 text-zinc-300 inline" />
+            <HelpCircle className="w-3 h-3 text-gray-300 dark:text-gray-600 inline" />
           </span>
         )}
       </label>
@@ -102,7 +102,7 @@ function PasswordInput({
       <button
         type="button"
         onClick={() => setShow((v) => !v)}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400"
       >
         {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
       </button>
@@ -122,17 +122,17 @@ function Toggle({
   description?: string;
 }) {
   return (
-    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-zinc-200 bg-zinc-50">
+    <div className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
       <div>
-        <p className="text-xs font-medium text-zinc-700">{label}</p>
-        {description && <p className="text-xs text-zinc-400 mt-0.5">{description}</p>}
+        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</p>
+        {description && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{description}</p>}
       </div>
       <button
         type="button"
         onClick={() => onChange(!value)}
         className={cn(
           'relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ml-4',
-          value ? 'bg-zinc-900' : 'bg-zinc-300'
+          value ? 'bg-gray-900' : 'bg-gray-300'
         )}
       >
         <span
@@ -328,7 +328,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
 
         {tab === 'marangatu' && (
           <>
-            <div className="text-xs text-zinc-500 p-3 bg-zinc-50 rounded-lg border border-zinc-200">
+            <div className="text-xs text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
               Credenciales para acceso al portal Marangatu SET Paraguay. Las contraseñas se
               cifran con AES-256 antes de almacenarse.
             </div>
@@ -441,7 +441,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
         {tab === 'integraciones' && (
           <>
             <section>
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                 Resolución de CAPTCHA
               </h3>
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
@@ -464,8 +464,8 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               </Field>
             </section>
 
-            <div className="border-t border-zinc-100 pt-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                 Servidor de Correo (SMTP)
               </h3>
               {smtpConfigured && (
@@ -535,11 +535,11 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
               </div>
             </div>
 
-            <div className="border-t border-zinc-100 pt-4">
-              <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
                 Notificaciones por Email
               </h3>
-              <p className="text-xs text-zinc-400 mb-3">
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
                 Define qué eventos envían un correo al email de contacto del tenant.
               </p>
               <div className="space-y-2">
@@ -587,11 +587,11 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
                 min={5}
                 max={1440}
               />
-              <p className="text-xs text-zinc-400 mt-1">Mínimo 5 minutos. Default: 60</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Mínimo 5 minutos. Default: 60</p>
             </Field>
 
-            <div className="pt-4 border-t border-zinc-100">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Scheduler de sincronización</p>
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Scheduler de sincronización</p>
               <div className="space-y-3">
                 <Toggle
                   value={form.config.scheduler_habilitado}
@@ -601,18 +601,14 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Hora inicio">
-                    <TextInput
-                      type="time"
-                      value={form.config.scheduler_hora_inicio}
-                      onChange={(e) => setConfig('scheduler_hora_inicio', e.target.value)}
-                    />
+                    <input type="time" value={form.config.scheduler_hora_inicio} onChange={(e) => setConfig('scheduler_hora_inicio', e.target.value)}
+                      className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-sm shadow-card dark:bg-gray-800 focus:outline-none focus:ring-2"
+                      style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties} />
                   </Field>
                   <Field label="Hora fin">
-                    <TextInput
-                      type="time"
-                      value={form.config.scheduler_hora_fin}
-                      onChange={(e) => setConfig('scheduler_hora_fin', e.target.value)}
-                    />
+                    <input type="time" value={form.config.scheduler_hora_fin} onChange={(e) => setConfig('scheduler_hora_fin', e.target.value)}
+                      className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-2 text-sm shadow-card dark:bg-gray-800 focus:outline-none focus:ring-2"
+                      style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties} />
                   </Field>
                 </div>
                 <Field label="Días de la semana" hint="Días en los que se ejecuta la sincronización automática">
@@ -638,10 +634,10 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
                             setConfig('scheduler_dias_semana', dias);
                           }}
                           className={cn(
-                            'px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors',
+                            'px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors button-press-feedback',
                             active
-                              ? 'bg-zinc-900 text-white border-zinc-900'
-                              : 'bg-white text-zinc-500 border-zinc-200 hover:border-zinc-400'
+                              ? 'bg-gray-900 text-white border-gray-900'
+                              : 'bg-white text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-400'
                           )}
                         >
                           {label}
@@ -656,7 +652,7 @@ export function TenantForm({ initialData, onSubmit, loading }: TenantFormProps) 
         )}
       </div>
 
-      <div className="pt-5 mt-5 border-t border-zinc-100 flex justify-end gap-3">
+      <div className="pt-5 mt-5 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-3">
         <Button type="submit" disabled={loading} size="lg" icon={loading ? () => <Spinner size="xs" /> : undefined}>
           {initialData ? 'Guardar cambios' : 'Crear empresa'}
         </Button>

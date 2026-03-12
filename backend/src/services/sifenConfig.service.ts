@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { z } from 'zod';
 import { query, queryOne } from '../db/connection';
 import { encrypt, decrypt } from './crypto.service';
@@ -25,9 +28,14 @@ export const sifenConfigSchema = z.object({
     cert_pem: emptyToNull,
     private_key: emptyToNull,
     passphrase: emptyToNull,
-    ws_url_recibe_lote: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/async/recibe-lote.wsdl'),
-    ws_url_consulta_lote: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/async/consulta-lote.wsdl'),
-    ws_url_consulta: z.string().url().default('https://sifen-homologacion.set.gov.py/de/ws/consultas/consulta.wsdl')
+    ws_url_recibe_lote: z.string().url().default('https://sifen-test.set.gov.py/de/ws/async/recibe-lote.wsdl'),
+    ws_url_consulta_lote: z.string().url().default('https://sifen-test.set.gov.py/de/ws/async/consulta-lote.wsdl'),
+    ws_url_consulta: z.string().url().default('https://sifen-test.set.gov.py/de/ws/consultas/consulta.wsdl'),
+    ws_url_recibe: z.string().url().default('https://sifen-test.set.gov.py/de/ws/sync/recibe.wsdl'),
+    ws_url_evento: z.string().url().default('https://sifen-test.set.gov.py/de/ws/eventos/evento.wsdl'),
+    ws_url_consulta_ruc: z.string().url().default('https://sifen-test.set.gov.py/de/ws/consultas/consulta-ruc.wsdl'),
+    id_csc: emptyToNull,
+    csc: emptyToNull,
 });
 
 export type SifenConfigInput = z.infer<typeof sifenConfigSchema>;
@@ -36,13 +44,82 @@ export interface SifenConfigData extends Omit<SifenConfigInput, 'private_key' | 
     tenant_id: string;
     has_private_key: boolean;
     has_passphrase: boolean;
+    has_cert_r2: boolean;
+    cert_r2_key: string | null;
+    cert_filename: string | null;
+    cert_uploaded_at: Date | null;
     created_at: Date;
     updated_at: Date;
 }
 
+export interface CertFileResult {
+    filePath: string;
+    password: string;
+    cleanup: () => void;
+}
+
+// ─── Config cache ────────────────────────────────────────────────────────────
+
 const configCache = new Map<string, { config: SifenConfigData; cachedAt: number }>();
 const CONFIG_CACHE_TTL_MS = 300_000; // 5 minutes
 const CONFIG_CACHE_MAX_SIZE = 100;
+
+// ─── Cert buffer cache ───────────────────────────────────────────────────────
+// Avoids re-downloading the PFX from R2 on every signing operation.
+// Entry stores the raw PFX bytes, not a temp file path — the file is created
+// fresh per request so concurrent workers cannot race on cleanup.
+
+interface CertCacheEntry {
+    buffer: Buffer;
+    password: string;
+    cachedAt: number;
+}
+
+const certCache = new Map<string, CertCacheEntry>();
+const CERT_CACHE_TTL_MS = 300_000; // 5 minutes
+
+function evictCertCache() {
+    const now = Date.now();
+    for (const [k, v] of certCache) {
+        if (now - v.cachedAt > CERT_CACHE_TTL_MS) certCache.delete(k);
+    }
+}
+
+// ─── Internal R2 download helper ─────────────────────────────────────────────
+// StorageService does not expose a download-to-buffer method, so we reach into
+// the same @aws-sdk/client-s3 pattern used by the rest of the codebase.
+
+async function downloadR2ToBuffer(r2Key: string): Promise<Buffer> {
+    // Access the private S3 client on the singleton via dynamic require to avoid
+    // coupling — we replicate the pattern used elsewhere in the codebase.
+    const { S3Client: S3, GetObjectCommand: GetObj } = await import('@aws-sdk/client-s3');
+
+    const accountId  = process.env.R2_ACCOUNT_ID       ?? '';
+    const accessKey  = process.env.R2_ACCESS_KEY_ID     ?? '';
+    const secretKey  = process.env.R2_SECRET_ACCESS_KEY ?? '';
+    const bucket     = process.env.R2_BUCKET_NAME       ?? 'sedia-storage';
+
+    if (!accountId || !accessKey || !secretKey) {
+        throw new Error('R2 credentials not configured — cannot download certificate');
+    }
+
+    const client = new S3({
+        region: 'auto',
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+    });
+
+    const resp = await client.send(new GetObj({ Bucket: bucket, Key: r2Key }));
+
+    if (!resp.Body) throw new Error(`R2 returned empty body for key: ${r2Key}`);
+
+    // resp.Body is a Readable/ReadableStream in Node.js — collect chunks
+    const chunks: Buffer[] = [];
+    for await (const chunk of resp.Body as AsyncIterable<Uint8Array>) {
+        chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+}
 
 export const sifenConfigService = {
     async getConfig(tenantId: string): Promise<SifenConfigData | null> {
@@ -56,8 +133,11 @@ export const sifenConfigService = {
         tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia,
         establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before,
         cert_not_after, cert_pem, ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta,
+        ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc,
         (private_key_enc IS NOT NULL) as has_private_key,
         (passphrase_enc IS NOT NULL) as has_passphrase,
+        (cert_r2_key IS NOT NULL)    as has_cert_r2,
+        cert_r2_key, cert_filename, cert_uploaded_at,
         created_at, updated_at
        FROM sifen_config
        WHERE tenant_id = $1`,
@@ -66,7 +146,6 @@ export const sifenConfigService = {
 
         if (config) {
             if (configCache.size >= CONFIG_CACHE_MAX_SIZE) {
-                // Evict oldest entry
                 const oldestKey = configCache.keys().next().value;
                 if (oldestKey !== undefined) configCache.delete(oldestKey);
             }
@@ -76,7 +155,13 @@ export const sifenConfigService = {
         return config as SifenConfigData | null;
     },
 
-    async upsertConfig(tenantId: string, userId: string | null, data: SifenConfigInput, ipAddress: string | null = null, userAgent: string | null = null): Promise<SifenConfigData> {
+    async upsertConfig(
+        tenantId: string,
+        userId: string | null,
+        data: SifenConfigInput,
+        ipAddress: string | null = null,
+        userAgent: string | null = null
+    ): Promise<SifenConfigData> {
         const parsedData = sifenConfigSchema.parse(data);
 
         let privateKeyEnc: string | null = null;
@@ -90,85 +175,63 @@ export const sifenConfigService = {
             passphraseEnc = encrypt(parsedData.passphrase);
         }
 
-        // Extract values that should not be in the direct query or require extraction
-
         try {
+            const baseFields = [
+                tenantId, parsedData.ambiente, parsedData.ruc, parsedData.dv, parsedData.razon_social,
+                parsedData.timbrado, parsedData.inicio_vigencia, parsedData.fin_vigencia, parsedData.establecimiento,
+                parsedData.punto_expedicion, parsedData.cert_subject, parsedData.cert_serial,
+                parsedData.cert_not_before, parsedData.cert_not_after, parsedData.cert_pem,
+                parsedData.ws_url_recibe_lote, parsedData.ws_url_consulta_lote, parsedData.ws_url_consulta,
+                parsedData.ws_url_recibe, parsedData.ws_url_evento, parsedData.ws_url_consulta_ruc,
+                parsedData.id_csc, parsedData.csc,
+            ];
+
+            const baseColumns = `tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia,
+            establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before, cert_not_after, cert_pem,
+            ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta,
+            ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc`;
+
+            const baseSet = `ambiente = EXCLUDED.ambiente, ruc = EXCLUDED.ruc, dv = EXCLUDED.dv,
+            razon_social = EXCLUDED.razon_social, timbrado = EXCLUDED.timbrado,
+            inicio_vigencia = EXCLUDED.inicio_vigencia, fin_vigencia = EXCLUDED.fin_vigencia,
+            establecimiento = EXCLUDED.establecimiento, punto_expedicion = EXCLUDED.punto_expedicion,
+            cert_subject = EXCLUDED.cert_subject, cert_serial = EXCLUDED.cert_serial,
+            cert_not_before = EXCLUDED.cert_not_before, cert_not_after = EXCLUDED.cert_not_after,
+            cert_pem = EXCLUDED.cert_pem, ws_url_recibe_lote = EXCLUDED.ws_url_recibe_lote,
+            ws_url_consulta_lote = EXCLUDED.ws_url_consulta_lote, ws_url_consulta = EXCLUDED.ws_url_consulta,
+            ws_url_recibe = EXCLUDED.ws_url_recibe, ws_url_evento = EXCLUDED.ws_url_evento,
+            ws_url_consulta_ruc = EXCLUDED.ws_url_consulta_ruc, id_csc = EXCLUDED.id_csc, csc = EXCLUDED.csc`;
+
             if (privateKeyEnc || passphraseEnc) {
-                // If keys are provided, we update them
+                const n = baseFields.length;
                 await query(
-                    `INSERT INTO sifen_config (
-            tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia, 
-            establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before, cert_not_after, cert_pem, 
-            ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta, private_key_enc, passphrase_enc
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
-          )
-          ON CONFLICT (tenant_id) DO UPDATE SET
-            ambiente = EXCLUDED.ambiente,
-            ruc = EXCLUDED.ruc,
-            dv = EXCLUDED.dv,
-            razon_social = EXCLUDED.razon_social,
-            timbrado = EXCLUDED.timbrado,
-            inicio_vigencia = EXCLUDED.inicio_vigencia,
-            fin_vigencia = EXCLUDED.fin_vigencia,
-            establecimiento = EXCLUDED.establecimiento,
-            punto_expedicion = EXCLUDED.punto_expedicion,
-            cert_subject = EXCLUDED.cert_subject,
-            cert_serial = EXCLUDED.cert_serial,
-            cert_not_before = EXCLUDED.cert_not_before,
-            cert_not_after = EXCLUDED.cert_not_after,
-            cert_pem = EXCLUDED.cert_pem,
-            ws_url_recibe_lote = EXCLUDED.ws_url_recibe_lote,
-            ws_url_consulta_lote = EXCLUDED.ws_url_consulta_lote,
-            ws_url_consulta = EXCLUDED.ws_url_consulta,
-            private_key_enc = COALESCE(EXCLUDED.private_key_enc, sifen_config.private_key_enc),
-            passphrase_enc = COALESCE(EXCLUDED.passphrase_enc, sifen_config.passphrase_enc),
-            updated_at = NOW()`,
-                    [
-                        tenantId, parsedData.ambiente, parsedData.ruc, parsedData.dv, parsedData.razon_social,
-                        parsedData.timbrado, parsedData.inicio_vigencia, parsedData.fin_vigencia, parsedData.establecimiento,
-                        parsedData.punto_expedicion, parsedData.cert_subject, parsedData.cert_serial,
-                        parsedData.cert_not_before, parsedData.cert_not_after, parsedData.cert_pem,
-                        parsedData.ws_url_recibe_lote, parsedData.ws_url_consulta_lote, parsedData.ws_url_consulta,
-                        privateKeyEnc, passphraseEnc
-                    ]
+                    `INSERT INTO sifen_config (${baseColumns}, private_key_enc, passphrase_enc)
+                     VALUES (${baseFields.map((_, i) => `$${i + 1}`).join(',')}, $${n + 1}, $${n + 2})
+                     ON CONFLICT (tenant_id) DO UPDATE SET ${baseSet},
+                       private_key_enc = COALESCE(EXCLUDED.private_key_enc, sifen_config.private_key_enc),
+                       passphrase_enc  = COALESCE(EXCLUDED.passphrase_enc,  sifen_config.passphrase_enc),
+                       -- Preserve R2 cert columns — upsertConfig never touches them
+                       cert_r2_key       = sifen_config.cert_r2_key,
+                       cert_password_enc = sifen_config.cert_password_enc,
+                       cert_filename     = sifen_config.cert_filename,
+                       cert_uploaded_at  = sifen_config.cert_uploaded_at,
+                       updated_at = NOW()`,
+                    [...baseFields, privateKeyEnc, passphraseEnc]
                 );
             } else {
-                // If no keys provided, we don't COALESCE them, we just update all other fields without touching them
                 await query(
-                    `INSERT INTO sifen_config (
-            tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia, 
-            establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before, cert_not_after, cert_pem, 
-            ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-          )
-          ON CONFLICT (tenant_id) DO UPDATE SET
-            ambiente = EXCLUDED.ambiente,
-            ruc = EXCLUDED.ruc,
-            dv = EXCLUDED.dv,
-            razon_social = EXCLUDED.razon_social,
-            timbrado = EXCLUDED.timbrado,
-            inicio_vigencia = EXCLUDED.inicio_vigencia,
-            fin_vigencia = EXCLUDED.fin_vigencia,
-            establecimiento = EXCLUDED.establecimiento,
-            punto_expedicion = EXCLUDED.punto_expedicion,
-            cert_subject = EXCLUDED.cert_subject,
-            cert_serial = EXCLUDED.cert_serial,
-            cert_not_before = EXCLUDED.cert_not_before,
-            cert_not_after = EXCLUDED.cert_not_after,
-            cert_pem = EXCLUDED.cert_pem,
-            ws_url_recibe_lote = EXCLUDED.ws_url_recibe_lote,
-            ws_url_consulta_lote = EXCLUDED.ws_url_consulta_lote,
-            ws_url_consulta = EXCLUDED.ws_url_consulta,
-            updated_at = NOW()`,
-                    [
-                        tenantId, parsedData.ambiente, parsedData.ruc, parsedData.dv, parsedData.razon_social,
-                        parsedData.timbrado, parsedData.inicio_vigencia, parsedData.fin_vigencia, parsedData.establecimiento,
-                        parsedData.punto_expedicion, parsedData.cert_subject, parsedData.cert_serial,
-                        parsedData.cert_not_before, parsedData.cert_not_after, parsedData.cert_pem,
-                        parsedData.ws_url_recibe_lote, parsedData.ws_url_consulta_lote, parsedData.ws_url_consulta
-                    ]
+                    `INSERT INTO sifen_config (${baseColumns})
+                     VALUES (${baseFields.map((_, i) => `$${i + 1}`).join(',')})
+                     ON CONFLICT (tenant_id) DO UPDATE SET ${baseSet},
+                       -- Preserve R2 cert columns and existing key columns on plain upsert
+                       private_key_enc   = sifen_config.private_key_enc,
+                       passphrase_enc    = sifen_config.passphrase_enc,
+                       cert_r2_key       = sifen_config.cert_r2_key,
+                       cert_password_enc = sifen_config.cert_password_enc,
+                       cert_filename     = sifen_config.cert_filename,
+                       cert_uploaded_at  = sifen_config.cert_uploaded_at,
+                       updated_at = NOW()`,
+                    baseFields
                 );
             }
 
@@ -183,7 +246,7 @@ export const sifenConfigService = {
                 detalles: { keysUpdated: !!privateKeyEnc || !!passphraseEnc }
             });
 
-            configCache.delete(tenantId); // Invalidate cache after update
+            configCache.delete(tenantId);
             const configRes = await this.getConfig(tenantId);
             if (!configRes) throw new Error('Error retrieving config after upsert');
             return configRes;
@@ -203,7 +266,154 @@ export const sifenConfigService = {
 
         return {
             privateKey: config.private_key_enc ? decrypt(config.private_key_enc) : null,
-            passphrase: config.passphrase_enc ? decrypt(config.passphrase_enc) : null
+            passphrase: config.passphrase_enc  ? decrypt(config.passphrase_enc)  : null,
         };
-    }
+    },
+
+    /**
+     * Returns whether this tenant has an R2-stored PFX certificate.
+     */
+    async hasCertR2(tenantId: string): Promise<boolean> {
+        const row = await queryOne<{ cert_r2_key: string | null }>(
+            `SELECT cert_r2_key FROM sifen_config WHERE tenant_id = $1`,
+            [tenantId]
+        );
+        return !!row?.cert_r2_key;
+    },
+
+    /**
+     * Downloads the PFX from R2, writes it to a temp file, and returns the path
+     * along with the decrypted password and a cleanup callback.
+     *
+     * The PFX bytes are cached in memory for CERT_CACHE_TTL_MS to avoid repeated
+     * R2 downloads during batch signing operations. The temp file is always
+     * created fresh so concurrent workers get independent paths.
+     *
+     * Usage:
+     *   const { filePath, password, cleanup } = await sifenConfigService.getCertFilePath(tenantId);
+     *   try {
+     *     await xmlsign.signXML(xml, filePath, password, true);
+     *   } finally {
+     *     cleanup();
+     *   }
+     */
+    async getCertFilePath(tenantId: string): Promise<CertFileResult> {
+        // Evict stale entries on each call (low-overhead since map is small)
+        evictCertCache();
+
+        // Check memory cache first
+        const cached = certCache.get(tenantId);
+        const now = Date.now();
+
+        let pfxBuffer: Buffer;
+        let password: string;
+
+        if (cached && now - cached.cachedAt < CERT_CACHE_TTL_MS) {
+            pfxBuffer = cached.buffer;
+            password  = cached.password;
+        } else {
+            // Fetch cert metadata from DB
+            const row = await queryOne<{
+                cert_r2_key: string | null;
+                cert_password_enc: string | null;
+            }>(
+                `SELECT cert_r2_key, cert_password_enc FROM sifen_config WHERE tenant_id = $1`,
+                [tenantId]
+            );
+
+            if (!row?.cert_r2_key) {
+                throw new Error(`Tenant ${tenantId} does not have an R2 certificate configured`);
+            }
+            if (!row.cert_password_enc) {
+                throw new Error(`Tenant ${tenantId} certificate password is not stored`);
+            }
+
+            password  = decrypt(row.cert_password_enc);
+            pfxBuffer = await downloadR2ToBuffer(row.cert_r2_key);
+
+            certCache.set(tenantId, { buffer: pfxBuffer, password, cachedAt: now });
+            logger.info('sifenConfig: PFX downloaded from R2 and cached', { tenantId, r2Key: row.cert_r2_key });
+        }
+
+        // Write to a unique temp file — each caller gets its own path
+        const tmpFile = path.join(os.tmpdir(), `sifen_cert_${tenantId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pfx`);
+        fs.writeFileSync(tmpFile, pfxBuffer);
+
+        const cleanup = () => {
+            try {
+                fs.unlinkSync(tmpFile);
+            } catch {
+                // Best-effort — file may have already been removed
+            }
+        };
+
+        return { filePath: tmpFile, password, cleanup };
+    },
+
+    /**
+     * Stores certificate metadata after a successful upload to R2.
+     * Called by the certificate upload route handler — not by regular config saves.
+     */
+    async saveCertMetadata(tenantId: string, userId: string | null, params: {
+        r2Key: string;
+        passwordEnc: string;
+        filename: string;
+        certSubject: string | null;
+        certSerial: string | null;
+        certNotBefore: Date | null;
+        certNotAfter: Date | null;
+        certPem: string | null;
+    }, ipAddress: string | null = null, userAgent: string | null = null): Promise<void> {
+        await query(
+            `UPDATE sifen_config SET
+               cert_r2_key       = $2,
+               cert_password_enc = $3,
+               cert_filename     = $4,
+               cert_uploaded_at  = NOW(),
+               cert_subject      = $5,
+               cert_serial       = $6,
+               cert_not_before   = $7,
+               cert_not_after    = $8,
+               cert_pem          = $9,
+               updated_at        = NOW()
+             WHERE tenant_id = $1`,
+            [
+                tenantId,
+                params.r2Key,
+                params.passwordEnc,
+                params.filename,
+                params.certSubject,
+                params.certSerial,
+                params.certNotBefore?.toISOString() ?? null,
+                params.certNotAfter?.toISOString()  ?? null,
+                params.certPem,
+            ]
+        );
+
+        // Invalidate both caches
+        configCache.delete(tenantId);
+        certCache.delete(tenantId);
+
+        await logAudit({
+            tenant_id: tenantId,
+            usuario_id: userId,
+            accion: 'SIFEN_CERT_UPLOADED',
+            entidad_tipo: 'sifen_config',
+            entidad_id: tenantId,
+            ip_address: ipAddress,
+            user_agent: userAgent,
+            detalles: {
+                r2Key: params.r2Key,
+                filename: params.filename,
+                certSubject: params.certSubject,
+                certSerial: params.certSerial,
+                certNotAfter: params.certNotAfter?.toISOString(),
+            }
+        });
+    },
+
+    invalidateCache(tenantId: string): void {
+        configCache.delete(tenantId);
+        certCache.delete(tenantId);
+    },
 };

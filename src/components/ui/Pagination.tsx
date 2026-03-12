@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button, Text } from '@tremor/react';
+import { Button, Text } from './TailAdmin';
 
 interface PaginationProps {
   page: number;
@@ -29,7 +29,7 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
   }
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-tremor-border">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700">
       <Text>{from}–{to} de {total}</Text>
       <div className="flex items-center gap-1">
         <Button
@@ -41,7 +41,7 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
         />
         {pages.map((p, i) =>
           p === '...' ? (
-            <span key={`dots-${i}`} className="px-2 text-xs text-tremor-content">
+            <span key={`dots-${i}`} className="px-2 text-xs text-gray-600 dark:text-gray-400">
               …
             </span>
           ) : (

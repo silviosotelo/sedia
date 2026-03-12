@@ -1,7 +1,8 @@
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, CheckCircle2, XCircle, ChevronRight, Briefcase, Calendar } from 'lucide-react';
-import { Card, Text, Button, Select, SelectItem, NumberInput, TabGroup, TabList, Tab } from '@tremor/react';
+import { Card, Text, Button, Select, SelectItem, NumberInput, TabGroup, TabList, Tab } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Badge } from '../components/ui/Badge';
 import { useTenant } from '../contexts/TenantContext';
@@ -69,19 +70,19 @@ function RunModal({
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Text className="mb-1 font-medium">Desde</Text>
-            <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+            <input type="date" className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 dark:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
               value={form.periodo_desde}
               onChange={(e) => setForm((f) => ({ ...f, periodo_desde: e.target.value }))} />
           </div>
           <div>
             <Text className="mb-1 font-medium">Hasta</Text>
-            <input type="date" className="w-full rounded-md border border-tremor-border bg-white px-3 py-2 text-sm text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+            <input type="date" className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 dark:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
               value={form.periodo_hasta}
               onChange={(e) => setForm((f) => ({ ...f, periodo_hasta: e.target.value }))} />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+        <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
           <Button variant="secondary" onClick={onClose} disabled={creating}>Cancelar</Button>
           <Button
             onClick={() => void handleCreate()}
@@ -168,7 +169,7 @@ function ManualMatchModal({
       size="lg"
       footer={
         <div className="flex items-center justify-between w-full">
-          <Text className="text-sm">Total asignado: <strong className="text-tremor-content-strong">{fmtGs(totalAsignado)}</strong></Text>
+          <Text className="text-sm">Total asignado: <strong className="text-gray-900 dark:text-white">{fmtGs(totalAsignado)}</strong></Text>
           <div className="flex gap-3">
             <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
             <Button
@@ -188,10 +189,10 @@ function ManualMatchModal({
           comprobantes.map((c) => {
             const checked = allocations.find((a) => a.comprobante_id === c.id);
             return (
-              <Card key={c.id} className={`p-4 flex items-center gap-4 transition-colors ${checked ? 'ring-2 ring-tremor-brand bg-tremor-brand-faint' : 'hover:bg-tremor-background-subtle'}`}>
-                <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="w-5 h-5 rounded border-gray-300 text-tremor-brand focus:ring-tremor-brand" />
+              <Card key={c.id} className={`p-4 flex items-center gap-4 transition-colors ${checked ? 'ring-2 ring-brand-500 bg-brand-50 dark:bg-brand-900/20' : 'hover:bg-gray-50 dark:bg-gray-800/60'}`}>
+                <input type="checkbox" checked={!!checked} onChange={() => toggleInvoice(c)} className="w-5 h-5 rounded border-gray-300 text-brand-600 dark:text-brand-400 focus:ring-brand-500" />
                 <div className="flex-1 min-w-0">
-                  <Text className="text-sm font-semibold truncate text-tremor-content-strong">{c.numero_comprobante || 'S/N'}</Text>
+                  <Text className="text-sm font-semibold truncate text-gray-900 dark:text-white">{c.numero_comprobante || 'S/N'}</Text>
                   <Text className="text-xs mt-0.5">{formatDate(c.fecha_emision)} • {fmtGs(Number(c.total_operacion) || 0)}</Text>
                 </div>
                 {checked && (
@@ -220,6 +221,8 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
   const tenantId = activeTenantId ?? '';
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [runs, setRuns] = useState<ReconciliationRun[]>([]);
   const [selectedRun, setSelectedRun] = useState<ReconciliationRun | null>(null);
@@ -231,6 +234,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
   const loadAll = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
+    setError(null);
     try {
       const [accs, rns] = await Promise.all([
         api.bank.listAccounts(tenantId),
@@ -239,11 +243,11 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
       setAccounts(accs);
       setRuns(rns);
     } catch (err) {
-      toastError((err as Error).message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [tenantId, toastError]);
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
 
@@ -290,6 +294,18 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
 
   if (loading && runs.length === 0) return <PageLoader />;
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Procesos de Conciliación" subtitle="Cotejo de movimientos bancarios contra comprobantes" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in space-y-6">
       <Header
@@ -317,7 +333,7 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
         />
       ) : (
         <Card className="p-0 overflow-hidden transition-all duration-300">
-          <div className="divide-y divide-tremor-border">
+          <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {runs.map((run) => {
               const summary = run.summary as {
                 total?: number; conciliados?: number;
@@ -327,11 +343,11 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                 <div key={run.id} className="animate-fade-in">
                   <button
                     onClick={() => setSelectedRun(selectedRun?.id === run.id ? null : run)}
-                    className="w-full text-left px-6 py-5 flex items-center gap-4 hover:bg-tremor-background-subtle transition-colors"
+                    className="w-full text-left px-6 py-5 flex items-center gap-4 hover:bg-gray-50 dark:bg-gray-800/60 transition-colors"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <Text className="text-base font-semibold text-tremor-content-strong">
+                        <Text className="text-base font-semibold text-gray-900 dark:text-white">
                           {formatDate(run.periodo_desde)} – {formatDate(run.periodo_hasta)}
                         </Text>
                         <Badge
@@ -343,17 +359,17 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                       </div>
                       {summary.total != null && (
                         <Text className="text-xs mt-1.5 flex gap-3">
-                          <span><b className="text-tremor-content-strong">{summary.conciliados ?? 0}</b> conciliados</span>
-                          <span><b className="text-tremor-content-strong">{summary.sin_match_banco ?? 0}</b> sin banco</span>
-                          <span><b className="text-tremor-content-strong">{summary.sin_match_comprobante ?? 0}</b> sin cpte.</span>
+                          <span><b className="text-gray-900 dark:text-white">{summary.conciliados ?? 0}</b> conciliados</span>
+                          <span><b className="text-gray-900 dark:text-white">{summary.sin_match_banco ?? 0}</b> sin banco</span>
+                          <span><b className="text-gray-900 dark:text-white">{summary.sin_match_comprobante ?? 0}</b> sin cpte.</span>
                         </Text>
                       )}
                     </div>
-                    <ChevronRight className={`w-5 h-5 text-tremor-content-subtle transition-transform duration-200 ${selectedRun?.id === run.id ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`w-5 h-5 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${selectedRun?.id === run.id ? 'rotate-90' : ''}`} />
                   </button>
 
                   {selectedRun?.id === run.id && (
-                    <div className="bg-tremor-background-subtle border-t border-tremor-border p-8 animate-slide-down">
+                    <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-200 dark:border-gray-700 p-8 animate-slide-down">
                       <TabGroup
                         index={matchTab === 'conciliados' ? 0 : matchTab === 'sin_banco' ? 1 : 2}
                         onIndexChange={(idx) => setMatchTab(idx === 0 ? 'conciliados' : idx === 1 ? 'sin_banco' : 'sin_comprobante')}
@@ -401,9 +417,9 @@ export function Conciliacion({ toastSuccess, toastError }: { toastSuccess: (m: s
                                     {m.estado}
                                   </Badge>
                                   <div>
-                                    <Text className="text-sm font-semibold text-tremor-content-strong">{m.tipo_match || 'Coincidencia detectada'}</Text>
+                                    <Text className="text-sm font-semibold text-gray-900 dark:text-white">{m.tipo_match || 'Coincidencia detectada'}</Text>
                                     <Text className="text-xs mt-1 flex items-center gap-3">
-                                      <span className="font-mono text-[11px] uppercase tracking-tight bg-tremor-background-subtle border border-tremor-border px-1.5 py-0.5 rounded">
+                                      <span className="font-mono text-[11px] uppercase tracking-tight bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 rounded">
                                         Dif mto: {fmtGs(m.diferencia_monto)}
                                       </span>
                                       <span>•</span>

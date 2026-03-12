@@ -34,7 +34,7 @@ export interface UpsertTenantConfigInput {
 
 export async function findAllTenants(): Promise<Tenant[]> {
   return query<Tenant>(
-    'SELECT * FROM tenants ORDER BY nombre_fantasia ASC'
+    `SELECT * FROM tenants WHERE id != 'ffffffff-ffff-ffff-ffff-ffffff000000' ORDER BY nombre_fantasia ASC`
   );
 }
 
@@ -54,7 +54,7 @@ export async function findTenantByRuc(ruc: string): Promise<Tenant | null> {
 
 export async function findActiveTenants(): Promise<Tenant[]> {
   return query<Tenant>(
-    'SELECT * FROM tenants WHERE activo = TRUE ORDER BY nombre_fantasia ASC'
+    `SELECT * FROM tenants WHERE activo = TRUE AND id != 'ffffffff-ffff-ffff-ffff-ffffff000000' ORDER BY nombre_fantasia ASC`
   );
 }
 

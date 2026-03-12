@@ -18,6 +18,7 @@ import { TenantConfig } from '../types';
 import { decrypt } from './crypto.service';
 import { parseVirtualInvoiceHtml, virtualInvoiceToDetallesXml } from './virtual-invoice-parser';
 import { DetallesXml } from '../types';
+import { SyncTimer } from './timing.service';
 
 export interface VirtualComprobanteRow {
   numero_comprobante: string;
@@ -110,8 +111,8 @@ export class MarangatuVirtualService {
   private async newPage(): Promise<Page> {
     if (!this.browser) throw new Error('Browser no inicializado. Llamar openBrowser() primero.');
     const page = await this.browser.newPage();
-    page.setDefaultTimeout(config.puppeteer.timeoutMs);
-    page.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
+    page.setDefaultTimeout(15000);
+    page.setDefaultNavigationTimeout(15000);
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
       '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -119,7 +120,7 @@ export class MarangatuVirtualService {
     return page;
   }
 
-  private async waitForAngular(page: Page, extraDelayMs = 400): Promise<void> {
+  private async waitForAngular(page: Page, extraDelayMs = 150): Promise<void> {
     await page.waitForFunction(
       () => {
         try {
@@ -133,7 +134,7 @@ export class MarangatuVirtualService {
           return true;
         }
       },
-      { timeout: config.puppeteer.timeoutMs }
+      { timeout: 15000 }
     );
     await new Promise((r) => setTimeout(r, extraDelayMs));
   }
@@ -159,16 +160,22 @@ export class MarangatuVirtualService {
     const loginUrl = `${tenantConfig.marangatu_base_url}/eset/login`;
     logger.debug('Virtual: navegando al login de Marangatu', { url: loginUrl });
 
-    await page.goto(loginUrl, { waitUntil: 'networkidle2' });
-    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: 10000 });
 
-    await page.click(SELECTORS.login.usuario, { clickCount: 3 });
-    await page.type(SELECTORS.login.usuario, tenantConfig.usuario_marangatu, { delay: 40 });
-    await page.click(SELECTORS.login.clave);
-    await page.type(SELECTORS.login.clave, tenantConfig.clave_marangatu, { delay: 40 });
+    await page.evaluate(
+      (userSel: string, passSel: string, user: string, pass: string) => {
+        const userEl = document.querySelector(userSel) as HTMLInputElement;
+        const passEl = document.querySelector(passSel) as HTMLInputElement;
+        if (userEl) { userEl.value = user; userEl.dispatchEvent(new Event('input', { bubbles: true })); }
+        if (passEl) { passEl.value = pass; passEl.dispatchEvent(new Event('input', { bubbles: true })); }
+      },
+      SELECTORS.login.usuario, SELECTORS.login.clave,
+      tenantConfig.usuario_marangatu, tenantConfig.clave_marangatu
+    );
 
     await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }),
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
       page.click(SELECTORS.login.submit),
     ]);
 
@@ -195,12 +202,11 @@ export class MarangatuVirtualService {
   ): Promise<Page> {
     const baseUrl = tenantConfig.marangatu_base_url;
 
-    logger.debug('Virtual: buscando "Facturacion Y Timbrado" en el menu');
-    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: config.puppeteer.timeoutMs });
+    logger.debug('Virtual: buscando "Consultar Comprobantes" en el menu');
+    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: 10000 });
     await page.click(SELECTORS.menu.busqueda);
-    await page.type(SELECTORS.menu.busqueda, 'Consultar Comprobantes Virtuales', { delay: 50 });
+    await page.type(SELECTORS.menu.busqueda, 'Consultar Comprobantes', { delay: 20 });
 
-    logger.debug('Virtual: esperando resultado de busqueda');
     await page.waitForFunction(
       () => {
         const items = Array.from(document.querySelectorAll('.list-group-item'));
@@ -208,9 +214,8 @@ export class MarangatuVirtualService {
           el.textContent?.toLowerCase().includes('consultar comprobantes virtuales')
         );
       },
-      { timeout: config.puppeteer.timeoutMs }
+      { timeout: 15000 }
     );
-    await new Promise((r) => setTimeout(r, 400));
 
     const consultaUrl = `${baseUrl}/eset/bd/virtual/consulta/consultarDocumentosVirtuales.do`;
 
@@ -220,7 +225,7 @@ export class MarangatuVirtualService {
         (t: import('puppeteer').Target) =>
           t.url().includes('consultarDocumentosVirtuales') ||
           t.url().includes('consulta/consultar'),
-        { timeout: config.puppeteer.timeoutMs }
+        { timeout: 15000 }
       ),
       page.evaluate(() => {
         const items = Array.from(document.querySelectorAll('.list-group-item'));
@@ -241,19 +246,16 @@ export class MarangatuVirtualService {
       }),
     ]);
 
-    const targetResult = newTarget[0];
-    const consultaPage = await targetResult.page();
+    const consultaPage = await newTarget[0].page();
     if (!consultaPage) throw new Error('No se pudo obtener la pestana de consulta virtual');
 
-    await consultaPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
-    await consultaPage.setDefaultTimeout(config.puppeteer.timeoutMs);
-    await consultaPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
-    await consultaPage.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-      '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    );
+    // No waitForNavigation — wait for Angular to settle instead.
+    // waitForNavigation would wait for a second navigation that never happens,
+    // wasting 30s on timeout.
+    consultaPage.setDefaultTimeout(15000);
+    consultaPage.setDefaultNavigationTimeout(15000);
 
-    await this.waitForAngular(consultaPage, 600);
+    await this.waitForAngular(consultaPage);
     logger.info('Virtual: pagina de consulta de documentos virtuales abierta');
     return consultaPage;
   }
@@ -267,18 +269,18 @@ export class MarangatuVirtualService {
     const anio = options.anio ?? now.getFullYear();
 
     logger.debug('Virtual: seleccionando condicion = RECEPTOR');
-    await page.waitForSelector(SELECTORS.virtual.condicion, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.waitForSelector(SELECTORS.virtual.condicion, { visible: true, timeout: 10000 });
     await this.angularSelect(page, SELECTORS.virtual.condicion, 'RECEPTOR');
-    await this.waitForAngular(page, 300);
+    await this.waitForAngular(page, 100);
 
     logger.debug('Virtual: seleccionando tipo = FACTURA');
-    await page.waitForSelector(SELECTORS.virtual.tipoComprobante, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.waitForSelector(SELECTORS.virtual.tipoComprobante, { visible: true, timeout: 10000 });
     await this.angularSelect(page, SELECTORS.virtual.tipoComprobante, 'FACTURA');
-    await this.waitForAngular(page, 300);
+    await this.waitForAngular(page, 100);
 
     if (options.numeroControl) {
       logger.debug('Virtual: completando numero de control', { numeroControl: options.numeroControl });
-      await page.waitForSelector(SELECTORS.virtual.numeroControl, { visible: true, timeout: config.puppeteer.timeoutMs });
+      await page.waitForSelector(SELECTORS.virtual.numeroControl, { visible: true, timeout: 10000 });
       await page.click(SELECTORS.virtual.numeroControl, { clickCount: 3 });
       await page.type(SELECTORS.virtual.numeroControl, options.numeroControl, { delay: 30 });
     } else {
@@ -288,7 +290,7 @@ export class MarangatuVirtualService {
 
       logger.debug('Virtual: completando periodo', { desde: primerDia, hasta: ultimoDia });
 
-      await page.waitForSelector(SELECTORS.virtual.fechaDesde, { visible: true, timeout: config.puppeteer.timeoutMs });
+      await page.waitForSelector(SELECTORS.virtual.fechaDesde, { visible: true, timeout: 10000 });
       await page.evaluate((sel: string, val: string) => {
         const el = document.querySelector(sel) as HTMLInputElement | null;
         if (!el) return;
@@ -298,7 +300,7 @@ export class MarangatuVirtualService {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.dispatchEvent(new Event('blur', { bubbles: true }));
       }, SELECTORS.virtual.fechaDesde, primerDia);
-      await this.waitForAngular(page, 200);
+      await this.waitForAngular(page, 100);
 
       await page.evaluate((sel: string, val: string) => {
         const el = document.querySelector(sel) as HTMLInputElement | null;
@@ -309,14 +311,14 @@ export class MarangatuVirtualService {
         el.dispatchEvent(new Event('change', { bubbles: true }));
         el.dispatchEvent(new Event('blur', { bubbles: true }));
       }, SELECTORS.virtual.fechaHasta, ultimoDia);
-      await this.waitForAngular(page, 200);
+      await this.waitForAngular(page, 100);
     }
 
     logger.debug('Virtual: click en Busqueda');
-    await page.waitForSelector(SELECTORS.virtual.btnBusqueda, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.waitForSelector(SELECTORS.virtual.btnBusqueda, { visible: true, timeout: 10000 });
     await page.click(SELECTORS.virtual.btnBusqueda);
 
-    await this.waitForAngular(page, 1000);
+    await this.waitForAngular(page, 200);
 
     const hasResults = await page.evaluate(() => {
       const table = document.querySelector('table.table-primary');
@@ -393,7 +395,7 @@ export class MarangatuVirtualService {
       this.browser!.waitForTarget(
         (t: import('puppeteer').Target) =>
           t.url().includes('consultarDocumentoVirtual'),
-        { timeout: config.puppeteer.timeoutMs }
+        { timeout: 15000 }
       ),
       consultaPage.evaluate((url: string) => {
         window.open(url, '_blank');
@@ -408,15 +410,15 @@ export class MarangatuVirtualService {
     }
 
     try {
-      await detailPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
-      await detailPage.setDefaultTimeout(config.puppeteer.timeoutMs);
+      // No waitForNavigation — wait for the specific element instead.
+      detailPage.setDefaultTimeout(15000);
 
       await detailPage.waitForFunction(
         () => {
           const el = document.querySelector('.vista-previa-documento');
           return el && el.innerHTML.trim().length > 50;
         },
-        { timeout: config.puppeteer.timeoutMs }
+        { timeout: 15000 }
       );
 
       const previewHtml = await detailPage.evaluate(() => {
@@ -486,10 +488,10 @@ export class MarangatuVirtualService {
         const active = document.querySelector('ul.pagination li.page-item.active a.page-link');
         return active ? parseInt(active.textContent?.trim() ?? '0', 10) === expected : false;
       },
-      { timeout: config.puppeteer.timeoutMs },
+      { timeout: 15000 },
       siguiente
     );
-    await this.waitForAngular(page, 600);
+    await this.waitForAngular(page, 250);
     return true;
   }
 
@@ -514,15 +516,21 @@ export class MarangatuVirtualService {
       clave_marangatu: decrypt(tenantConfig.clave_marangatu_encrypted),
     };
 
+    const timer = new SyncTimer('SYNC_FACTURAS_VIRTUALES', tenantId);
+
     try {
+      timer.step('abrir_browser');
       await this.openBrowser();
       const loginPage = await this.newPage();
 
+      timer.step('login_marangatu');
       logger.info('Virtual: iniciando login', { tenant_id: tenantId });
       await this.loginMarangatu(loginPage, decryptedConfig);
 
+      timer.step('navegacion_consulta');
       const consultaPage = await this.navegarAConsultaVirtuales(loginPage, tenantConfig);
 
+      timer.step('buscar_facturas');
       await this.buscarFacturasVirtuales(consultaPage, options);
 
       const hasTable = await consultaPage.evaluate(() =>
@@ -530,9 +538,11 @@ export class MarangatuVirtualService {
       );
       if (!hasTable) {
         logger.info('Virtual: sin resultados', { tenant_id: tenantId });
+        await timer.end('SUCCESS', { total_found: 0, processed: 0 });
         return result;
       }
 
+      timer.step('extraccion_y_procesamiento');
       let hasMore = true;
       while (hasMore) {
         const filas = await this.extraerFilasConImporte(consultaPage);
@@ -571,7 +581,19 @@ export class MarangatuVirtualService {
         errores: result.errors.length,
       });
 
+      await timer.end('SUCCESS', {
+        total_found: result.total_found,
+        processed: result.processed,
+        errors: result.errors.length,
+      });
+
       return result;
+    } catch (err) {
+      await timer.end('ERROR', {
+        total_found: result.total_found,
+        processed: result.processed,
+      }, (err as Error).message);
+      throw err;
     } finally {
       await this.closeBrowser();
     }

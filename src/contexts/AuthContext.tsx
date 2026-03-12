@@ -33,8 +33,8 @@ import { BASE_URL } from '../lib/api';
 
 const DEFAULT_BRANDING = {
   nombre_app: 'SEDIA',
-  color_primario: '#18181b',
-  color_secundario: '#f4f4f5',
+  color_primario: '#2a85ff',
+  color_secundario: '#f5f5f5',
   logo_url: '',
   favicon_url: '',
 };
@@ -106,16 +106,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const fetchMe = useCallback(async (t: string) => {
+  const fetchMe = useCallback(async (t: string, signal?: AbortSignal) => {
     try {
       const res = await fetch(`${BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${t}` },
+        signal,
       });
       if (!res.ok) throw new Error('Token inválido');
       const data = await res.json() as { data: Usuario & { billing_status?: 'ACTIVE' | 'PAST_DUE' | 'CANCELED' } };
       setUser(data.data);
       if (data.data.billing_status) setBillingStatus(data.data.billing_status);
-    } catch {
+    } catch (err) {
+      // Ignore abort errors — component unmounted or token changed
+      if (err instanceof Error && err.name === 'AbortError') return;
       localStorage.removeItem(TOKEN_KEY);
       setToken(null);
       setUser(null);
@@ -123,14 +126,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     if (token) {
       // Fetch user first, then branding (avoids double branding call)
-      void fetchMe(token)
+      void fetchMe(token, controller.signal)
         .then(() => refreshBranding())
         .finally(() => setLoading(false));
     } else {
       void refreshBranding().finally(() => setLoading(false));
     }
+    return () => controller.abort();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -152,11 +157,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (branding.color_primario) {
         document.documentElement.style.setProperty('--brand-rgb', hexToRgb(branding.color_primario));
       }
-    } catch (e) {
-      document.documentElement.style.setProperty('--brand-rgb', '24 24 27'); // zinc-900 fallback
+    } catch {
+      document.documentElement.style.setProperty('--brand-rgb', '42 133 255');
+    }
+    try {
+      if (branding.color_secundario) {
+        document.documentElement.style.setProperty('--brand-secondary-rgb', hexToRgb(branding.color_secundario));
+      }
+    } catch {
+      document.documentElement.style.setProperty('--brand-secondary-rgb', '244 244 245');
     }
 
     if (branding.nombre_app) document.title = branding.nombre_app;
+
+    // Apply favicon dynamically
+    if (branding.favicon_url) {
+      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = branding.favicon_url;
+    }
   }, [branding]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -211,11 +234,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user.plan_features?.[feature] === true;
   }, [user]);
 
-  const isSuperAdmin = user?.rol.nombre === 'super_admin';
-  const isAdminEmpresa = user?.rol.nombre === 'admin_empresa' || isSuperAdmin;
-  const isUsuarioEmpresa = user?.rol.nombre === 'usuario_empresa';
-  const isReadonly = user?.rol.nombre === 'readonly';
-  const userTenantId = user?.tenant_id ?? null;
+  // Memoize derived boolean flags so contextValue only changes when user does
+  const isSuperAdmin = useMemo(() => user?.rol.nombre === 'super_admin' || false, [user]);
+  const isAdminEmpresa = useMemo(() => user?.rol.nombre === 'admin_empresa' || user?.rol.nombre === 'super_admin' || false, [user]);
+  const isUsuarioEmpresa = useMemo(() => user?.rol.nombre === 'usuario_empresa' || false, [user]);
+  const isReadonly = useMemo(() => user?.rol.nombre === 'readonly' || false, [user]);
+  const userTenantId = useMemo(() => user?.tenant_id ?? null, [user]);
 
   const contextValue = useMemo(() => ({
     user, token, loading, login, logout,

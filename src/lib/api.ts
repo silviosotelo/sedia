@@ -88,9 +88,12 @@ async function handleApiError(res: Response): Promise<never> {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const url = `${BASE_URL}${path}`;
+  const method = options?.method?.toUpperCase();
+  const needsBody = (method === 'POST' || method === 'PUT' || method === 'PATCH') && !options?.body;
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
     ...options,
+    ...(needsBody ? { body: '{}' } : {}),
   });
 
   if (!res.ok) {
@@ -176,6 +179,8 @@ export const api = {
         body: JSON.stringify(body || {}),
       }).then((r) => ({ job_id: r.data.job_id, tipo_job: 'SYNC_FACTURAS_VIRTUALES', estado: 'PENDING' }));
     },
+    retry: (jobId: string): Promise<{ job_id: string }> =>
+      request<{ data: { job_id: string } }>(`/jobs/${jobId}/retry`, { method: 'POST' }).then((r) => r.data),
   },
 
   comprobantes: {
@@ -661,6 +666,34 @@ export const api = {
 
     getInvoiceHistory: (tenantId: string): Promise<any[]> =>
       request<{ data: any[] }>(`/tenants/${tenantId}/billing/history`).then((r) => r.data ?? []),
+
+    // Datos fiscales
+    getDatosFiscales: (tenantId: string): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/billing/datos-fiscales`).then((r) => r.data),
+
+    updateDatosFiscales: (tenantId: string, data: { ruc: string; dv: string; razon_social: string; direccion?: string; email_factura?: string; telefono?: string; tipo_contribuyente?: number }): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/billing/datos-fiscales`, { method: 'PUT', body: JSON.stringify(data) }).then((r) => r.data),
+
+    // Addon checkout
+    checkoutAddon: (tenantId: string, addonId: string, method: 'vpos' | 'qr'): Promise<any> =>
+      request<{ data: any }>(`/tenants/${tenantId}/addons/${addonId}/checkout`, { method: 'POST', body: JSON.stringify({ method }) }).then((r) => r.data),
+
+    // Payment methods
+    listPaymentMethods: (): Promise<any[]> =>
+      request<{ data: any[] }>('/payment-methods').then((r) => r.data ?? []),
+
+    createPaymentMethod: (body: { codigo: string; nombre: string; descripcion?: string; tipo?: string; config?: Record<string, unknown>; orden?: number }): Promise<any> =>
+      request<{ data: any }>('/payment-methods', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+
+    updatePaymentMethod: (id: string, body: Partial<{ nombre: string; descripcion: string; tipo: string; config: Record<string, unknown>; activo: boolean; orden: number }>): Promise<any> =>
+      request<{ data: any }>(`/payment-methods/${id}`, { method: 'PUT', body: JSON.stringify(body) }).then((r) => r.data),
+
+    deletePaymentMethod: (id: string): Promise<void> =>
+      request<void>(`/payment-methods/${id}`, { method: 'DELETE' }),
+
+    // Manual payment confirmation (super admin)
+    confirmPayment: (invoiceId: string, referencia?: string): Promise<void> =>
+      request<void>(`/billing/invoices/${invoiceId}/confirm-payment`, { method: 'POST', body: JSON.stringify({ referencia }) }),
   },
 
   audit: {
@@ -795,6 +828,82 @@ export const api = {
       return downloadWithAuth(api.sifen.downloadKudeUrl(tenantId, deId), `kude-${deId}.pdf`);
     },
 
+    // Envío sincrónico
+    enviarSincrono: (tenantId: string, deId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/enviar-sincrono`, { method: 'POST' }),
+
+    // Consultar DE en SET
+    consultarDe: (tenantId: string, deId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/consultar`, { method: 'POST' }),
+
+    // Enviar email con KUDE
+    enviarEmail: (tenantId: string, deId: string, email?: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/enviar-email`, { method: 'POST', body: JSON.stringify({ email }) }),
+
+    // Vincular con comprobante
+    vincularComprobante: (tenantId: string, deId: string, comprobanteId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/vincular`, { method: 'POST', body: JSON.stringify({ comprobante_id: comprobanteId }) }),
+
+    // Historial de estados
+    getHistorial: (tenantId: string, deId: string) =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/sifen/de/${deId}/historial`).then((r) => r.data ?? []),
+
+    // Detectar duplicados
+    detectarDuplicados: (tenantId: string, receptor: any, monto: number, fechaEmision: string) =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/sifen/de/detectar-duplicados`, {
+        method: 'POST', body: JSON.stringify({ receptor, monto, fecha_emision: fechaEmision })
+      }).then((r) => r.data ?? []),
+
+    // Emitir en contingencia
+    emitirContingencia: (tenantId: string, deId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/emitir-contingencia`, { method: 'POST' }),
+
+    // Consultas SET
+    consultarRuc: (tenantId: string, ruc: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/consulta-ruc?ruc=${encodeURIComponent(ruc)}`).then((r) => r.data),
+    consultarDePorCdc: (tenantId: string, cdc: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/consulta-de?cdc=${encodeURIComponent(cdc)}`).then((r) => r.data),
+
+    // Eventos
+    listEventos: (tenantId: string, params?: { de_id?: string; cdc?: string; tipo_evento?: string; origen?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.de_id) q.set('de_id', params.de_id);
+      if (params?.cdc) q.set('cdc', params.cdc);
+      if (params?.tipo_evento) q.set('tipo_evento', params.tipo_evento);
+      if (params?.origen) q.set('origen', params.origen);
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      const qs = q.toString();
+      return request<{ data: any[]; total: number }>(`/tenants/${tenantId}/sifen/eventos${qs ? `?${qs}` : ''}`).then((r) => ({ data: r.data ?? [], total: r.total ?? 0 }));
+    },
+    getEvento: (tenantId: string, eventoId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/eventos/${eventoId}`).then((r) => r.data),
+    crearInutilizacion: (tenantId: string, body: { tipo_documento: string; desde: string; hasta: string; establecimiento?: string; punto_expedicion?: string; motivo?: string }) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/eventos/inutilizacion`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+    crearConformidad: (tenantId: string, cdc: string, motivo?: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/eventos/conformidad`, { method: 'POST', body: JSON.stringify({ cdc, motivo }) }).then((r) => r.data),
+    crearDisconformidad: (tenantId: string, cdc: string, motivo: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/eventos/disconformidad`, { method: 'POST', body: JSON.stringify({ cdc, motivo }) }).then((r) => r.data),
+    crearDesconocimiento: (tenantId: string, cdc: string, motivo: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/eventos/desconocimiento`, { method: 'POST', body: JSON.stringify({ cdc, motivo }) }).then((r) => r.data),
+
+    // Contingencia
+    getContingenciaActiva: (tenantId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/contingencia/activa`).then((r) => r.data),
+    listContingencias: (tenantId: string, params?: { limit?: number; offset?: number }) => {
+      const q = new URLSearchParams();
+      if (params?.limit) q.set('limit', String(params.limit));
+      if (params?.offset) q.set('offset', String(params.offset));
+      const qs = q.toString();
+      return request<{ data: { data: any[]; total: number } }>(`/tenants/${tenantId}/sifen/contingencias${qs ? `?${qs}` : ''}`).then((r) => r.data?.data ?? []);
+    },
+    activarContingencia: (tenantId: string, motivo: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/contingencia/activar`, { method: 'POST', body: JSON.stringify({ motivo }) }).then((r) => r.data),
+    desactivarContingencia: (tenantId: string, contId: string) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/contingencia/${contId}/desactivar`, { method: 'POST' }).then((r) => r.data),
+    regularizarContingencia: (tenantId: string, contId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/contingencia/${contId}/regularizar`, { method: 'POST' }),
+
     // Lotes
     listLotes: (tenantId: string, params?: { limit?: number; offset?: number }) => {
       const q = new URLSearchParams();
@@ -820,6 +929,28 @@ export const api = {
       const qs = q.toString();
       return request<{ data: any }>(`/tenants/${tenantId}/sifen/metrics${qs ? `?${qs}` : ''}`).then((r) => r.data);
     },
+    getMetricsAvanzadas: (tenantId: string, params?: { desde?: string; hasta?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.desde) q.set('desde', params.desde);
+      if (params?.hasta) q.set('hasta', params.hasta);
+      const qs = q.toString();
+      return request<{ data: any }>(`/tenants/${tenantId}/sifen/metrics/avanzadas${qs ? `?${qs}` : ''}`).then((r) => r.data);
+    },
+  },
+
+  onboarding: {
+    getStatus: (tenantId: string): Promise<{
+      marangatu_configured: boolean;
+      sifen_cert: boolean;
+      numeraciones: number;
+      users: number;
+      comprobantes: number;
+      des_emitidos: number;
+      webhooks: number;
+    }> =>
+      request<{ data: { marangatu_configured: boolean; sifen_cert: boolean; numeraciones: number; users: number; comprobantes: number; des_emitidos: number; webhooks: number } }>(
+        `/tenants/${tenantId}/onboarding-status`
+      ).then((r) => r.data),
   },
 
   // Métodos genéricos para facilitar migraciones y nuevas rutas

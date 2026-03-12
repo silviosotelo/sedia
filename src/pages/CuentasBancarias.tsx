@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Landmark, Plus, Upload } from 'lucide-react';
-import { Card, Text, Button, Select, SelectItem, TextInput, Badge } from '@tremor/react';
+import { Card, Text, Button, Select, SelectItem, TextInput, Badge } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -26,20 +27,20 @@ function AccountCard({
     return (
         <Card
             onClick={onSelect}
-            className={`cursor-pointer transition-all ${selected ? 'ring-2 ring-tremor-brand border-transparent shadow-md bg-tremor-brand-faint' : 'hover:border-tremor-content-subtle'}`}
+            className={`cursor-pointer transition-all ${selected ? 'ring-2 ring-brand-500 border-transparent shadow-md bg-brand-50 dark:bg-brand-900/20' : 'hover:border-gray-300 dark:border-gray-600'}`}
         >
             <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-tremor-background-subtle rounded-xl flex items-center justify-center">
-                    <Landmark className="w-5 h-5 text-tremor-content" />
+                <div className="w-10 h-10 bg-gray-50 dark:bg-gray-800/60 rounded-xl flex items-center justify-center">
+                    <Landmark className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 </div>
                 <Badge color={account.activo ? 'emerald' : 'zinc'} size="sm">
                     {account.activo ? 'Activa' : 'Inactiva'}
                 </Badge>
             </div>
-            <Text className="text-base font-semibold text-tremor-content-strong">{account.alias}</Text>
+            <Text className="text-base font-semibold text-gray-900 dark:text-white">{account.alias}</Text>
             <Text className="text-sm mt-1">{account.bank_nombre ?? '—'} · {account.moneda}</Text>
             {account.numero_cuenta && (
-                <Text className="text-xs font-mono mt-2 bg-white border border-tremor-border px-2 py-1 rounded inline-block">
+                <Text className="text-xs font-mono mt-2 bg-white border border-gray-200 dark:border-gray-700 px-2 py-1 rounded inline-block">
                     {account.numero_cuenta}
                 </Text>
             )}
@@ -119,14 +120,14 @@ function UploadModal({
                 <div
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
-                    className="border-2 border-dashed border-tremor-border rounded-2xl p-8 text-center hover:border-tremor-content-subtle transition-all cursor-pointer bg-tremor-background-subtle"
+                    className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-8 text-center hover:border-gray-300 dark:border-gray-600 transition-all cursor-pointer bg-gray-50 dark:bg-gray-800/60"
                     onClick={() => document.getElementById('file-input-upload')?.click()}
                 >
-                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-tremor-border flex items-center justify-center mx-auto mb-4">
-                        <Upload className="w-6 h-6 text-tremor-content" />
+                    <div className="w-12 h-12 bg-white rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-center mx-auto mb-4">
+                        <Upload className="w-6 h-6 text-gray-600 dark:text-gray-400" />
                     </div>
                     <Text className="font-medium">{file ? file.name : 'Arrastrá tu archivo aquí'}</Text>
-                    <Text className="text-xs text-tremor-content-subtle mt-2">CSV, XLSX o TXT hasta 10MB</Text>
+                    <Text className="text-xs text-gray-400 dark:text-gray-500 mt-2">CSV, XLSX o TXT hasta 10MB</Text>
                     <input
                         id="file-input-upload"
                         type="file"
@@ -139,12 +140,12 @@ function UploadModal({
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <Text className="mb-1 font-medium">Periodo desde</Text>
-                        <input type="date" className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong shadow-tremor-input focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+                        <input type="date" className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 dark:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
                             value={periodoDesde} onChange={(e) => setPeriodoDesde(e.target.value)} />
                     </div>
                     <div>
                         <Text className="mb-1 font-medium">Periodo hasta</Text>
-                        <input type="date" className="w-full rounded-tremor-default border border-tremor-border bg-tremor-background px-3 py-2 text-sm text-tremor-content-strong shadow-tremor-input focus:border-tremor-brand focus:outline-none focus:ring-1 focus:ring-tremor-brand"
+                        <input type="date" className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white shadow-sm focus:border-brand-500 dark:border-brand-400 focus:outline-none focus:ring-1 focus:ring-brand-500"
                             value={periodoHasta} onChange={(e) => setPeriodoHasta(e.target.value)} />
                     </div>
                 </div>
@@ -250,6 +251,8 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
     const [banks, setBanks] = useState<Bank[]>([]);
     const [statements, setStatements] = useState<BankStatement[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
     const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
     const [uploadModalAccountId, setUploadModalAccountId] = useState<string | null>(null);
     const [showNewAccount, setShowNewAccount] = useState(false);
@@ -257,6 +260,7 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
     const loadAll = useCallback(async () => {
         if (!activeTenantId) return;
         setLoading(true);
+        setError(null);
         try {
             const [accs, bnks] = await Promise.all([
                 api.bank.listAccounts(activeTenantId),
@@ -265,11 +269,11 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
             setAccounts(accs);
             setBanks(bnks);
         } catch (err) {
-            toastError((err as Error).message);
+            setError((err as Error).message);
         } finally {
             setLoading(false);
         }
-    }, [activeTenantId, toastError]);
+    }, [activeTenantId, retryCount]);
 
     useEffect(() => { loadAll(); }, [loadAll]);
 
@@ -300,6 +304,18 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
     }
 
     if (loading && accounts.length === 0) return <PageLoader />;
+
+    if (error) {
+        return (
+            <div className="space-y-6">
+                <Header title="Cuentas Bancarias" subtitle="Gestión de cuentas bancarias y carga de extractos" />
+                <ErrorState
+                    message={error}
+                    onRetry={() => setRetryCount(c => c + 1)}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="animate-fade-in space-y-8">
@@ -340,12 +356,12 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
 
             {selectedAccountId && (
                 <Card className="p-0 overflow-hidden animate-slide-up">
-                    <div className="px-6 py-4 border-b border-tremor-border bg-tremor-background-subtle flex items-center justify-between">
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white border border-tremor-border rounded-lg flex items-center justify-center">
-                                <Upload className="w-4 h-4 text-tremor-content" />
+                            <div className="w-8 h-8 bg-white border border-gray-200 dark:border-gray-700 rounded-lg flex items-center justify-center">
+                                <Upload className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </div>
-                            <h4 className="text-sm font-semibold text-tremor-content-strong">Historial de extractos</h4>
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Historial de extractos</h4>
                         </div>
                         <Text className="text-xs">{statements.length} archivos cargados</Text>
                     </div>
@@ -355,11 +371,11 @@ export function CuentasBancarias({ toastSuccess, toastError }: { toastSuccess: (
                             <Button variant="secondary" onClick={() => setUploadModalAccountId(selectedAccountId)}>Importar ahora</Button>
                         </div>
                     ) : (
-                        <div className="divide-y divide-tremor-border">
+                        <div className="divide-y divide-gray-200 dark:divide-gray-800">
                             {statements.map((s) => (
-                                <div key={s.id} className="px-6 py-4 flex items-center gap-6 hover:bg-tremor-background-subtle transition-colors">
+                                <div key={s.id} className="px-6 py-4 flex items-center gap-6 hover:bg-gray-50 dark:bg-gray-800/60 transition-colors">
                                     <div className="flex-1">
-                                        <Text className="font-medium text-tremor-content-strong">{s.archivo_nombre ?? 'Extracto Bancario'}</Text>
+                                        <Text className="font-medium text-gray-900 dark:text-white">{s.archivo_nombre ?? 'Extracto Bancario'}</Text>
                                         <Text className="text-xs mt-1">{fmtDate(s.periodo_desde)} – {fmtDate(s.periodo_hasta)}</Text>
                                     </div>
                                     <Badge

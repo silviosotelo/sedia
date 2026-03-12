@@ -2,7 +2,12 @@ import { claimNextPendingJobTransaction, markJobDone, markJobFailed } from '../d
 import { SyncService } from '../services/sync.service';
 import { procesarImportacion } from '../services/processorImport.service';
 import { ejecutarConciliacion } from '../services/reconciliation.service';
-import { handleEmitirSifen, handleEnviarLoteSifen, handleConsultarLoteSifen, handleAnularSifen, handleGenerarKude, handleReintentarFallidosSifen } from './sifen.worker';
+import {
+    handleEmitirSifen, handleEnviarLoteSifen, handleConsultarLoteSifen,
+    handleAnularSifen, handleGenerarKude, handleReintentarFallidosSifen,
+    handleEnviarSincrono, handleConsultarDE, handleEventoSifen,
+    handleEnviarEmailSifen, handleRegularizarContingencia
+} from './sifen.worker';
 import { enviarFacturaEmail } from '../services/notification.service';
 import { logger } from '../config/logger';
 import { Job, SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload, ReconciliarCuentaJobPayload, ImportarProcesadorJobPayload } from '../types';
@@ -76,10 +81,38 @@ async function processJob(job: Job): Promise<void> {
       await handleReintentarFallidosSifen(job.id, job.tenant_id, job.payload);
       break;
     }
+    case 'SIFEN_ENVIAR_SINCRONO': {
+      await handleEnviarSincrono(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_CONSULTAR_DE': {
+      await handleConsultarDE(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_EVENTO': {
+      await handleEventoSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_ENVIAR_EMAIL': {
+      await handleEnviarEmailSifen(job.id, job.tenant_id, job.payload);
+      break;
+    }
+    case 'SIFEN_REGULARIZAR_CONTINGENCIA': {
+      await handleRegularizarContingencia(job.id, job.tenant_id, job.payload);
+      break;
+    }
     case 'SEND_INVOICE_EMAIL': {
       const payload = job.payload as any;
       const success = await enviarFacturaEmail(payload);
       if (!success) throw new Error('Falló el envío de correo de la factura');
+      break;
+    }
+    case 'EMITIR_FACTURA_SAAS': {
+      // Legacy stub — emitirFacturaSaaS() now creates sifen_de directly and
+      // enqueues SIFEN_EMITIR_DE. This case handles any old queued jobs.
+      logger.info('[EMITIR_FACTURA_SAAS] Legacy job — skipped (now uses SIFEN_EMITIR_DE)', {
+        job_id: job.id,
+      });
       break;
     }
     default: {
@@ -92,22 +125,27 @@ export async function processSingleJob(): Promise<boolean> {
   const job = await claimNextPendingJobTransaction();
   if (!job) return false;
 
+  const startMs = Date.now();
   try {
     await processJob(job);
     await markJobDone(job.id);
+    const elapsedMs = Date.now() - startMs;
     logger.info('Job completado exitosamente', {
       job_id: job.id,
       tenant_id: job.tenant_id,
       tipo_job: job.tipo_job,
+      elapsed_ms: elapsedMs,
     });
     return true;
   } catch (err) {
+    const elapsedMs = Date.now() - startMs;
     const errorDetails = err instanceof Error ? (err.stack || err.message) : String(err);
     logger.error('Error procesando job', {
       job_id: job.id,
       tenant_id: job.tenant_id,
       tipo_job: job.tipo_job,
       error: errorDetails,
+      elapsed_ms: elapsedMs,
     });
     await markJobFailed(job.id, errorDetails);
     return true;

@@ -1,7 +1,8 @@
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useState, useEffect, useCallback } from 'react';
 import { Webhook, Plus, Edit2, Trash2, CheckCircle2, XCircle, AlertCircle, RefreshCw, Send, EyeOff, Eye, ChevronUp, ChevronDown, RotateCcw, AlertTriangle } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, NumberInput, Switch, Tab, TabList, TabGroup, TabPanel, TabPanels } from '@tremor/react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, NumberInput, Switch, Tab, TabList, TabGroup, TabPanel, TabPanels } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { NoTenantState } from '../components/ui/NoTenantState';
@@ -78,7 +79,7 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
             placeholder="Opcional" value={form.secret}
             onChange={(e) => setForm((f) => ({ ...f, secret: e.target.value }))} />
           <button type="button" onClick={() => setShowSecret(!showSecret)}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-tremor-content-subtle hover:text-tremor-content">
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:text-gray-400">
             {showSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
         </div>
@@ -93,12 +94,12 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
                 key={ev.value}
                 type="button"
                 onClick={() => toggle(ev.value)}
-                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30' : 'border-tremor-border hover:border-tremor-content-subtle hover:bg-tremor-background-subtle'}`}
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${isChecked ? 'border-emerald-500 bg-emerald-50/30' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:bg-gray-800/60'}`}
               >
-                <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-tremor-border'}`}>
+                <div className={`flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-gray-200 dark:border-gray-700'}`}>
                   {isChecked && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="w-3 h-3"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                 </div>
-                <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-tremor-content-strong")}>{ev.label}</p>
+                <p className={cn("text-xs font-bold", isChecked ? "text-emerald-900" : "text-gray-900 dark:text-white")}>{ev.label}</p>
               </button>
             );
           })}
@@ -126,7 +127,7 @@ function WebhookForm({ initial, onSave, onCancel, saving }: {
           </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+      <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button onClick={() => void onSave(form)} disabled={saving || !form.nombre || !form.url || form.eventos.length === 0} loading={saving}>
           Guardar
@@ -145,7 +146,7 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
   }, [tenantId, webhookId]);
 
   if (loading) return <PageLoader />;
-  if (!deliveries.length) return <p className="text-sm text-tremor-content text-center py-4">Sin entregas registradas</p>;
+  if (!deliveries.length) return <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">Sin entregas registradas</p>;
 
   return (
     <Table className="text-xs">
@@ -162,14 +163,14 @@ function DeliveryLog({ tenantId, webhookId }: { tenantId: string; webhookId: str
           const cfg = ESTADO_CFG[d.estado] ?? ESTADO_CFG.PENDING;
           const Icon = cfg.icon;
           return (
-            <TableRow key={d.id} className="hover:bg-tremor-background-subtle">
-              <TableCell className="font-mono text-tremor-content-strong">{d.evento}</TableCell>
+            <TableRow key={d.id} className="transition-colors duration-150 hover:bg-gray-50 dark:bg-gray-800/60">
+              <TableCell className="font-mono text-gray-900 dark:text-white">{d.evento}</TableCell>
               <TableCell><div className="flex items-center gap-1.5">
                 <Icon className={cn('w-3 h-3', d.estado === 'SUCCESS' ? 'text-emerald-500' : d.estado === 'FAILED' ? 'text-rose-500' : 'text-amber-400')} />
                 <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>
               </div></TableCell>
-              <TableCell>{d.http_status ? <span className={cn('font-mono font-semibold', d.http_status < 300 ? 'text-emerald-600' : 'text-rose-600')}>{d.http_status}</span> : <span className="text-tremor-content-subtle">—</span>}</TableCell>
-              <TableCell className="text-tremor-content">{formatDateTime(d.created_at)}</TableCell>
+              <TableCell>{d.http_status ? <span className={cn('font-mono font-semibold', d.http_status < 300 ? 'text-emerald-600' : 'text-rose-600')}>{d.http_status}</span> : <span className="text-gray-400 dark:text-gray-500">—</span>}</TableCell>
+              <TableCell className="text-gray-600 dark:text-gray-400">{formatDateTime(d.created_at)}</TableCell>
             </TableRow>
           );
         })}
@@ -221,16 +222,16 @@ function DlqPanel({ tenantId, toastSuccess, toastError }: { tenantId: string; to
         </TableHead>
         <TableBody>
           {items.map((d) => (
-            <TableRow key={d.id} className="hover:bg-tremor-background-subtle">
+            <TableRow key={d.id} className="hover:bg-gray-50 dark:bg-gray-800/60">
               <TableCell>
                 <Text className="font-medium text-xs">{d.webhook_nombre}</Text>
-                <Text className="font-mono text-[10px] text-tremor-content-subtle truncate max-w-[160px]">{d.webhook_url}</Text>
+                <Text className="font-mono text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[160px]">{d.webhook_url}</Text>
               </TableCell>
               <TableCell className="font-mono text-xs">{d.evento}</TableCell>
-              <TableCell>{d.http_status ? <span className="font-mono font-semibold text-rose-600">{d.http_status}</span> : <span className="text-tremor-content-subtle">—</span>}</TableCell>
+              <TableCell>{d.http_status ? <span className="font-mono font-semibold text-rose-600">{d.http_status}</span> : <span className="text-gray-400 dark:text-gray-500">—</span>}</TableCell>
               <TableCell className="max-w-[200px]"><Text className="text-xs text-rose-600 truncate">{d.error_message ?? '—'}</Text></TableCell>
               <TableCell><span className="font-mono text-xs">{d.intentos}</span></TableCell>
-              <TableCell className="text-xs text-tremor-content">{formatDateTime(d.created_at)}</TableCell>
+              <TableCell className="text-xs text-gray-600 dark:text-gray-400">{formatDateTime(d.created_at)}</TableCell>
               <TableCell>
                 <Button size="xs" variant="secondary" icon={RotateCcw} loading={replayingId === d.id}
                   onClick={() => void handleReplay(d)}>Reintentar</Button>
@@ -248,6 +249,8 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
   const tenantId = activeTenantId ?? '';
   const [webhooks, setWebhooks] = useState<TenantWebhook[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<TenantWebhook | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -258,10 +261,11 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
   const load = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
+    setError(null);
     try { setWebhooks(await api.webhooks.list(tenantId)); }
-    catch { toastError('Error al cargar webhooks'); }
+    catch (e) { setError((e as Error).message || 'Error al cargar webhooks'); }
     finally { setLoading(false); }
-  }, [tenantId, toastError]);
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -296,11 +300,23 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
     catch (e) { toastError((e as Error).message); } finally { setTestingId(null); }
   };
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Webhooks" subtitle="Notifica sistemas externos cuando llegan comprobantes" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <Header title="Webhooks" subtitle="Notifica sistemas externos cuando llegan comprobantes"
         onRefresh={tenantId ? load : undefined} refreshing={loading}
-        actions={tenantId ? <Button onClick={() => setShowCreateModal(true)} icon={Plus}>Nuevo webhook</Button> : undefined}
+        actions={tenantId ? <Button onClick={() => setShowCreateModal(true)} icon={Plus} style={{ backgroundColor: 'rgb(var(--brand-rgb))', borderColor: 'rgb(var(--brand-rgb))' }}>Nuevo webhook</Button> : undefined}
       />
 
       {!tenantId ? (
@@ -323,11 +339,11 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
         <div className="space-y-4">
           {webhooks.map((wh) => (
             <Card key={wh.id} className="p-0 overflow-hidden">
-              <div className="px-5 py-4 flex items-center gap-4 hover:bg-tremor-background-subtle transition-colors">
-                <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', wh.activo ? 'bg-emerald-500' : 'bg-tremor-content-subtle')} />
+              <div className="px-5 py-4 flex items-center gap-4 hover:bg-gray-50 dark:bg-gray-800/60 transition-colors duration-150">
+                <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', wh.activo ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500')} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Text className="font-medium text-tremor-content-strong text-sm">{wh.nombre}</Text>
+                    <Text className="font-medium text-gray-900 dark:text-white text-sm">{wh.nombre}</Text>
                     {wh.has_secret && <Badge size="sm" variant="neutral">signed</Badge>}
                   </div>
                   <Text className="text-xs font-mono truncate mt-0.5">{wh.url}</Text>
@@ -341,15 +357,15 @@ export function Webhooks({ toastSuccess, toastError }: WebhooksProps) {
                   {wh.eventos.length > 2 && <Badge size="sm" variant="neutral" className="font-bold">+{wh.eventos.length - 2}</Badge>}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button variant="light" color="gray" onClick={() => handleTest(wh.id)} disabled={testingId === wh.id} title="Enviar prueba" loading={testingId === wh.id} icon={testingId === wh.id ? undefined : Send} />
-                  <Button variant="light" color="gray" onClick={() => setEditingWebhook(wh)} title="Editar" icon={Edit2} />
-                  <Button variant="light" color="rose" onClick={() => setDeletingId(wh.id)} title="Eliminar" icon={Trash2} />
-                  <Button variant="light" color="gray" onClick={() => setExpandedId(expandedId === wh.id ? null : wh.id)} icon={expandedId === wh.id ? ChevronUp : ChevronDown} />
+                  <Button variant="light" color="gray" onClick={() => handleTest(wh.id)} disabled={testingId === wh.id} title="Enviar prueba" aria-label="Enviar prueba" loading={testingId === wh.id} icon={testingId === wh.id ? undefined : Send} />
+                  <Button variant="light" color="gray" onClick={() => setEditingWebhook(wh)} title="Editar" aria-label="Editar" icon={Edit2} />
+                  <Button variant="light" color="rose" onClick={() => setDeletingId(wh.id)} title="Eliminar" aria-label="Eliminar" icon={Trash2} />
+                  <Button variant="light" color="gray" onClick={() => setExpandedId(expandedId === wh.id ? null : wh.id)} aria-label="Expandir detalles" icon={expandedId === wh.id ? ChevronUp : ChevronDown} />
                 </div>
               </div>
               {expandedId === wh.id && (
-                <div className="border-t border-tremor-border bg-tremor-background-subtle">
-                  <div className="px-5 py-2 border-b border-tremor-border">
+                <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                  <div className="px-5 py-2 border-b border-gray-200 dark:border-gray-700">
                     <Text className="text-[11px] font-semibold uppercase tracking-wider">Historial de entregas</Text>
                   </div>
                   <DeliveryLog tenantId={wh.tenant_id} webhookId={wh.id} />

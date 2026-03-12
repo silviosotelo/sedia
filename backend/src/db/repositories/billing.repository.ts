@@ -84,12 +84,14 @@ export async function findAllPlans(): Promise<Plan[]> {
 
 export async function createPlan(data: Partial<Plan>): Promise<Plan | null> {
     return queryOne<Plan>(
-        `INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, limite_comprobantes_mes, limite_usuarios, features, activo)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        `INSERT INTO plans (nombre, descripcion, precio_mensual_pyg, precio_anual_pyg, descuento_anual_pct, limite_comprobantes_mes, limite_usuarios, features, activo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
         [
             data.nombre,
             data.descripcion,
             data.precio_mensual_pyg,
+            data.precio_anual_pyg ?? 0,
+            data.descuento_anual_pct ?? 0,
             data.limite_comprobantes_mes,
             data.limite_usuarios ?? 3,
             data.features ? JSON.stringify(data.features) : '{}',
@@ -104,6 +106,8 @@ export async function updatePlan(id: string, data: Partial<Plan>): Promise<Plan 
      SET nombre = COALESCE($2, nombre),
          descripcion = COALESCE($3, descripcion),
          precio_mensual_pyg = COALESCE($4, precio_mensual_pyg),
+         precio_anual_pyg = COALESCE($9, precio_anual_pyg),
+         descuento_anual_pct = COALESCE($10, descuento_anual_pct),
          limite_comprobantes_mes = COALESCE($5, limite_comprobantes_mes),
          limite_usuarios = COALESCE($8, limite_usuarios),
          features = COALESCE($6, features),
@@ -117,7 +121,9 @@ export async function updatePlan(id: string, data: Partial<Plan>): Promise<Plan 
             data.limite_comprobantes_mes,
             data.features ? JSON.stringify(data.features) : null,
             data.activo,
-            data.limite_usuarios ?? null
+            data.limite_usuarios ?? null,
+            data.precio_anual_pyg ?? null,
+            data.descuento_anual_pct ?? null
         ]
     );
 }
@@ -175,13 +181,13 @@ export async function updateInvoiceStatus(invoiceId: string, status: 'PAID' | 'F
     );
 }
 
-export async function upsertBillingSubscription(tenantId: string, planId: string, status: string, externalId?: string) {
+export async function upsertBillingSubscription(tenantId: string, planId: string, status: string, externalId?: string, billingPeriod?: 'monthly' | 'annual') {
     await query(
-        `INSERT INTO billing_subscriptions (tenant_id, plan_id, status, external_id, updated_at)
-     VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (tenant_id) DO UPDATE 
-     SET plan_id = $2, status = $3, external_id = $4, updated_at = NOW()`,
-        [tenantId, planId, status, externalId || null]
+        `INSERT INTO billing_subscriptions (tenant_id, plan_id, status, external_id, billing_period, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW())
+     ON CONFLICT (tenant_id) DO UPDATE
+     SET plan_id = $2, status = $3, external_id = $4, billing_period = COALESCE($5, billing_subscriptions.billing_period), updated_at = NOW()`,
+        [tenantId, planId, status, externalId || null, billingPeriod || 'monthly']
     );
 }
 

@@ -33,6 +33,9 @@ const SifenNumeracionPage = lazy(() => import('./pages/sifen/SifenNumeracion').t
 const SifenLotesPage = lazy(() => import('./pages/sifen/SifenLotes').then(m => ({ default: m.SifenLotesPage })));
 const SifenMetricasPage = lazy(() => import('./pages/sifen/SifenMetricas').then(m => ({ default: m.SifenMetricasPage })));
 const SifenConfigPage = lazy(() => import('./pages/sifen/SifenConfig').then(m => ({ default: m.SifenConfigPage })));
+const SifenEventosPage = lazy(() => import('./pages/sifen/SifenEventos').then(m => ({ default: m.SifenEventosPage })));
+const SifenConsultasPage = lazy(() => import('./pages/sifen/SifenConsultas').then(m => ({ default: m.SifenConsultasPage })));
+const SifenContingenciaPage = lazy(() => import('./pages/sifen/SifenContingencia').then(m => ({ default: m.SifenContingenciaPage })));
 const Auditoria = lazy(() => import('./pages/Auditoria').then(m => ({ default: m.Auditoria })));
 const Anomalias = lazy(() => import('./pages/Anomalias').then(m => ({ default: m.Anomalias })));
 const Configuracion = lazy(() => import('./pages/Configuracion').then(m => ({ default: m.Configuracion })));
@@ -41,37 +44,42 @@ const Procesadoras = lazy(() => import('./pages/Procesadoras').then(m => ({ defa
 const CuentasBancarias = lazy(() => import('./pages/CuentasBancarias').then(m => ({ default: m.CuentasBancarias })));
 const Bancos = lazy(() => import('./pages/Bancos').then(m => ({ default: m.Bancos })));
 const Planes = lazy(() => import('./pages/Planes').then(m => ({ default: m.Planes })));
+const UserProfile = lazy(() => import('./pages/UserProfile').then(m => ({ default: m.UserProfile })));
 
 const PAGE_ACCESS: Record<Page, { roles: RolNombre[] | null; feature?: string; permiso?: string }> = {
   dashboard: { roles: null },
-  tenants: { roles: ['super_admin', 'admin_empresa'] },
-  jobs: { roles: null },
-  comprobantes: { roles: null },
-  usuarios: { roles: ['super_admin', 'admin_empresa'] },
-  roles: { roles: ['super_admin', 'admin_empresa'], feature: 'roles_custom' },
-  metricas: { roles: ['super_admin', 'admin_empresa'], feature: 'metricas' },
-  notificaciones: { roles: ['super_admin', 'admin_empresa'] },
-  webhooks: { roles: ['super_admin', 'admin_empresa'], feature: 'webhooks' },
-  'api-tokens': { roles: ['super_admin', 'admin_empresa'], feature: 'api_tokens' },
-  clasificacion: { roles: ['super_admin', 'admin_empresa'] },
-  alertas: { roles: ['super_admin', 'admin_empresa'], feature: 'alertas' },
-  conciliacion: { roles: ['super_admin', 'admin_empresa'], feature: 'conciliacion' },
-  'cuentas-bancarias': { roles: ['super_admin', 'admin_empresa'] },
-  bancos: { roles: ['super_admin'] },
-  billing: { roles: ['super_admin', 'admin_empresa'] },
-  auditoria: { roles: ['super_admin'], feature: 'auditoria' },
-  anomalias: { roles: ['super_admin'], feature: 'anomalias' },
-  configuracion: { roles: ['super_admin'] },
-  'white-label': { roles: ['super_admin', 'admin_empresa'], feature: 'whitelabel' },
-  procesadoras: { roles: ['super_admin', 'admin_empresa'] },
-  // SIFEN: acceso basado en permiso de rol (sifen:ver), no en features del plan
-  sifen: { roles: null, permiso: 'sifen:ver' },
-  'sifen-emitir':     { roles: null, permiso: 'sifen:ver' },
-  'sifen-numeracion': { roles: null, permiso: 'sifen:ver' },
-  'sifen-lotes':      { roles: null, permiso: 'sifen:ver' },
-  'sifen-metricas':   { roles: null, permiso: 'sifen:ver' },
-  'sifen-config':     { roles: null, permiso: 'sifen:ver' },
-  planes: { roles: ['super_admin'] },
+  tenants: { roles: null, permiso: 'tenants:ver' },
+  jobs: { roles: null, permiso: 'jobs:ver' },
+  comprobantes: { roles: null, permiso: 'comprobantes:ver' },
+  usuarios: { roles: null, permiso: 'usuarios:ver' },
+  roles: { roles: null, permiso: 'usuarios:ver', feature: 'roles_custom' },
+  metricas: { roles: null, permiso: 'metricas:ver', feature: 'metricas' },
+  notificaciones: { roles: null, feature: 'notificaciones' },
+  webhooks: { roles: null, feature: 'webhooks' },
+  'api-tokens': { roles: null, feature: 'api_tokens' },
+  clasificacion: { roles: null, feature: 'clasificacion' },
+  alertas: { roles: null, feature: 'alertas' },
+  conciliacion: { roles: null, feature: 'conciliacion' },
+  'cuentas-bancarias': { roles: null, feature: 'conciliacion' },
+  bancos: { roles: null, permiso: 'bancos:ver' },
+  billing: { roles: null, permiso: 'billing:ver' },
+  auditoria: { roles: null, permiso: 'auditoria:ver', feature: 'auditoria' },
+  anomalias: { roles: null, permiso: 'anomalias:ver', feature: 'anomalias' },
+  configuracion: { roles: null, permiso: 'configuracion:ver' },
+  'white-label': { roles: null, permiso: 'tenants:editar', feature: 'whitelabel' },
+  procesadoras: { roles: null, feature: 'conciliacion' },
+  // SIFEN: requiere feature + permiso de rol
+  sifen: { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-emitir':     { roles: null, permiso: 'sifen:emitir', feature: 'facturacion_electronica' },
+  'sifen-numeracion': { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-lotes':      { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-eventos':      { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-consultas':   { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-contingencia':{ roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-metricas':    { roles: null, permiso: 'sifen:ver', feature: 'facturacion_electronica' },
+  'sifen-config':      { roles: null, permiso: 'sifen:configurar', feature: 'facturacion_electronica' },
+  planes: { roles: null, permiso: 'planes:ver' },
+  profile: { roles: null },
 };
 
 interface NavParams {
@@ -159,7 +167,7 @@ function AppInner() {
     if (page === 'tenants' && canAccessPage('tenants')) return (
       <Tenants onNavigate={navigate} toastSuccess={success} toastError={error} initialTenantId={navParams.tenant_id} initialAction={navParams.action} />
     );
-    if (page === 'jobs') return <Jobs toastError={error} />;
+    if (page === 'jobs') return <Jobs toastError={error} toastSuccess={success} />;
     if (page === 'comprobantes') return (
       <Comprobantes toastError={error} toastSuccess={success} tenantIdForzado={!isSuperAdmin && userTenantId ? userTenantId : undefined} />
     );
@@ -183,18 +191,22 @@ function AppInner() {
     if (page === 'sifen-numeracion' && canAccessPage('sifen-numeracion') && activeTenantId) return <SifenNumeracionPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
     if (page === 'sifen-lotes' && canAccessPage('sifen-lotes') && activeTenantId) return <SifenLotesPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
     if (page === 'sifen-metricas' && canAccessPage('sifen-metricas') && activeTenantId) return <SifenMetricasPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-eventos' && canAccessPage('sifen-eventos') && activeTenantId) return <SifenEventosPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-consultas' && canAccessPage('sifen-consultas') && activeTenantId) return <SifenConsultasPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
+    if (page === 'sifen-contingencia' && canAccessPage('sifen-contingencia') && activeTenantId) return <SifenContingenciaPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
     if (page === 'sifen-config' && canAccessPage('sifen-config') && activeTenantId) return <SifenConfigPage tenantId={activeTenantId} toastSuccess={success} toastError={error} />;
     if (page === 'auditoria' && canAccessPage('auditoria')) return <Auditoria toastError={error} />;
     if (page === 'anomalias' && canAccessPage('anomalias')) return <Anomalias toastSuccess={success} toastError={error} />;
     if (page === 'configuracion' && canAccessPage('configuracion')) return <Configuracion toastSuccess={success} toastError={error} />;
     if (page === 'white-label' && canAccessPage('white-label')) return <WhiteLabel toastSuccess={success} toastError={error} />;
+    if (page === 'profile') return <UserProfile toastSuccess={success} toastError={error} />;
     return null;
   }, [page, canAccessPage, success, error, navParams, isSuperAdmin, userTenantId, activeTenantId]);
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-zinc-300 border-t-zinc-700 rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
       </div>
     );
   }

@@ -7,6 +7,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { errorHandler } from './middleware/error.middleware';
+import { getPoolStats } from '../db/connection';
 import { tenantRoutes } from './routes/tenant.routes';
 import { jobRoutes } from './routes/job.routes';
 import { comprobanteRoutes } from './routes/comprobante.routes';
@@ -28,6 +29,12 @@ import { roleRoutes } from './routes/role.routes';
 import { webhookBillingRoutes } from './routes/webhook-billing.routes';
 import { sifenRoutes } from './routes/sifen.routes';
 import { publicRoutes } from './routes/public.routes';
+import { dashboardRoutes } from './routes/dashboard.routes';
+import { profileRoutes } from './routes/profile.routes';
+import { activityRoutes } from './routes/activity.routes';
+import { userNotificationRoutes } from './routes/user-notifications.routes';
+import { platformSifenRoutes } from './routes/platformSifen.routes';
+import { sifenRefRoutes } from './routes/sifenRef.routes';
 
 export async function buildServer() {
   const app = Fastify({
@@ -77,11 +84,20 @@ export async function buildServer() {
 
   app.setErrorHandler(errorHandler);
 
-  app.get('/health', async () => ({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-  }));
+  app.get('/health', async () => {
+    const pool = getPoolStats();
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      db: {
+        pool_total: pool.total,
+        pool_idle: pool.idle,
+        pool_waiting: pool.waiting,
+        pool_max: pool.max,
+      },
+    };
+  });
 
   await app.register(tenantRoutes, { prefix: '/api' });
   await app.register(jobRoutes, { prefix: '/api' });
@@ -104,6 +120,12 @@ export async function buildServer() {
   await app.register(roleRoutes, { prefix: '/api' });
   await app.register(webhookBillingRoutes, { prefix: '/api' });
   await app.register(sifenRoutes, { prefix: '/api' });
+  await app.register(dashboardRoutes, { prefix: '/api' });
+  await app.register(profileRoutes, { prefix: '/api' });
+  await app.register(activityRoutes, { prefix: '/api' });
+  await app.register(userNotificationRoutes, { prefix: '/api' });
+  await app.register(platformSifenRoutes, { prefix: '/api' });
+  await app.register(sifenRefRoutes, { prefix: '/api' });
   await app.register(publicRoutes); // No lleva prefijo /api porque es público
 
   logger.info('Servidor Fastify configurado');

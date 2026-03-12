@@ -64,11 +64,13 @@ const GENERIC_CSV_SCHEMA: CsvSchema = {
   id: 'generic_csv',
   type: 'BANK',
   columns: [
-    { targetField: 'fecha', exactMatchHeaders: ['fecha', 'date', 'fecha_operacion', 'fecha operacion', 'f.operacion'], format: 'DATE_DDMMYYYY' },
-    { targetField: 'descripcion', exactMatchHeaders: ['descripcion', 'descripción', 'concepto', 'detalle', 'description'] },
-    { targetField: 'monto', exactMatchHeaders: ['monto', 'importe', 'amount', 'valor', 'credito', 'debito', 'crédito', 'débito'], format: 'MONTO' },
+    { targetField: 'fecha', exactMatchHeaders: ['fechamovi', 'fecha_operacion', 'fecha operacion', 'f.operacion', 'fecha', 'date'], includesMatchHeaders: ['fechamov', 'fecha_op'], format: 'DATE_DDMMYYYY' },
+    { targetField: 'descripcion', exactMatchHeaders: ['descripcion', 'descripción', 'concepto', 'detalle', 'description', 'descrip'] },
+    { targetField: 'monto', exactMatchHeaders: ['monto', 'importe', 'amount', 'valor'], format: 'MONTO' },
+    { targetField: 'debito', exactMatchHeaders: ['debe', 'debito', 'débito', 'cargo', 'debit'], format: 'MONTO' },
+    { targetField: 'credito', exactMatchHeaders: ['haber', 'credito', 'crédito', 'abono', 'credit'], format: 'MONTO' },
     { targetField: 'saldo', exactMatchHeaders: ['saldo', 'balance'], format: 'MONTO' },
-    { targetField: 'referencia', exactMatchHeaders: ['referencia', 'nro', 'numero', 'ref', 'autorizacion'] },
+    { targetField: 'referencia', exactMatchHeaders: ['referencia', 'nro', 'numero', 'ref', 'autorizacion', 'comprobante'] },
   ]
 };
 

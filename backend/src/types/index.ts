@@ -247,6 +247,7 @@ export interface DescargarXmlJobPayload {
   comprobante_id?: string;
   batch_size?: number;
   solo_pendientes?: boolean;
+  concurrency?: number;
 }
 
 export interface SyncFacturasVirtualesJobPayload {
@@ -428,6 +429,8 @@ export interface Plan {
   nombre: string;
   descripcion: string | null;
   precio_mensual_pyg: number;
+  precio_anual_pyg: number;
+  descuento_anual_pct: number;
   limite_comprobantes_mes: number | null;
   limite_usuarios: number;
   features: Record<string, unknown>;
@@ -455,7 +458,10 @@ export type AuditAccion =
   | 'WEBHOOK_CREADO' | 'API_TOKEN_CREADO' | 'API_TOKEN_REVOCADO'
   | 'BANCO_EXTRACTO_IMPORTADO' | 'CONCILIACION_INICIADA' | 'MATCH_CONFIRMADO'
   | 'MATCH_MANUAL_CREADO' | 'PLAN_CAMBIADO' | 'WL_CONFIG_ACTUALIZADA'
-  | 'SIFEN_CONFIG_UPDATED' | 'ADDON_ACTIVADO' | 'ADDON_DESACTIVADO';
+  | 'SIFEN_CONFIG_UPDATED' | 'SIFEN_CERT_UPLOADED' | 'ADDON_ACTIVADO' | 'ADDON_DESACTIVADO'
+  | 'DATOS_FISCALES_ACTUALIZADOS' | 'PAGO_CONFIRMADO_MANUAL'
+  | 'PLATFORM_SIFEN_CONFIG_ACTUALIZADA'
+  | 'PLATFORM_SIFEN_CERT_UPLOADED';
 
 export interface AuditLogEntry {
   id: string;
@@ -514,7 +520,7 @@ export interface ForecastResult {
 
 // ─── Extended Job Types ───────────────────────────────────────────────────────
 
-export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA' | 'IMPORTAR_PROCESADOR' | 'SYNC_BANCO_PORTAL' | 'EMITIR_SIFEN' | 'CONSULTAR_SIFEN' | 'SEND_INVOICE_EMAIL' | 'SIFEN_EMITIR_DE' | 'SIFEN_ENVIAR_LOTE' | 'SIFEN_CONSULTAR_LOTE' | 'SIFEN_CONSULTAR_DE' | 'SIFEN_REINTENTAR_FALLIDOS' | 'SIFEN_ANULAR' | 'SIFEN_GENERAR_KUDE';
+export type JobType = 'SYNC_COMPROBANTES' | 'ENVIAR_A_ORDS' | 'DESCARGAR_XML' | 'SYNC_FACTURAS_VIRTUALES' | 'RECONCILIAR_CUENTA' | 'IMPORTAR_PROCESADOR' | 'SYNC_BANCO_PORTAL' | 'EMITIR_SIFEN' | 'CONSULTAR_SIFEN' | 'SEND_INVOICE_EMAIL' | 'SIFEN_EMITIR_DE' | 'SIFEN_ENVIAR_LOTE' | 'SIFEN_CONSULTAR_LOTE' | 'SIFEN_CONSULTAR_DE' | 'SIFEN_REINTENTAR_FALLIDOS' | 'SIFEN_ANULAR' | 'SIFEN_GENERAR_KUDE' | 'SIFEN_ENVIAR_SINCRONO' | 'SIFEN_EVENTO' | 'SIFEN_CONSULTA_RUC' | 'SIFEN_ENVIAR_EMAIL' | 'SIFEN_REGULARIZAR_CONTINGENCIA' | 'EMITIR_FACTURA_SAAS';
 
 export interface BankConnection {
   id: string;

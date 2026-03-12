@@ -14,11 +14,11 @@ interface AnomalyConfig {
 }
 
 const ANOMALY_CONFIG_DEFAULTS: AnomalyConfig = {
-  sigma_factor: 3,
-  precio_ratio_max: 2.5,
-  precio_ratio_min: 0.4,
-  precio_min_muestras: 5,
-  frecuencia_max_dia: 5,
+  sigma_factor: 2.5,
+  precio_ratio_max: 4,
+  precio_ratio_min: 0.2,
+  precio_min_muestras: 10,
+  frecuencia_max_dia: 15,
 };
 
 let anomalyConfigCache: AnomalyConfig | null = null;
@@ -108,14 +108,8 @@ async function detectarMontoInusual(c: Comprobante, tenantId: string, cfg: Anoma
 
   const cnt = parseInt(row?.cnt ?? '0');
 
-  if (cnt < 3) {
-    return {
-      tipo: 'PROVEEDOR_NUEVO',
-      severidad: 'BAJA',
-      descripcion: `Primer comprobante del proveedor ${c.razon_social_vendedor ?? c.ruc_vendedor}`,
-      detalles: { ruc_vendedor: c.ruc_vendedor, total },
-    };
-  }
+  // Need at least 10 data points to detect unusual amounts reliably
+  if (cnt < 10) return null;
 
   const avg = parseFloat(row?.avg ?? '0');
   const stddev = parseFloat(row?.stddev ?? '0');
@@ -169,7 +163,7 @@ async function detectarTaxMismatch(c: Comprobante, _tenantId: string): Promise<A
   // total = base + iva → iva10 = total * 10/110, iva5 = total * 5/105
   const iva10Esperado = total * 10 / 110;
   const iva5Esperado = total * 5 / 105;
-  const tolerancia = total * 0.02; // 2% tolerance
+  const tolerancia = total * 0.05; // 5% tolerance (accounts for rounding, mixed-rate invoices)
 
   const matchesIva10 = Math.abs(ivaDeclarado - iva10Esperado) <= tolerancia;
   const matchesIva5 = Math.abs(ivaDeclarado - iva5Esperado) <= tolerancia;
@@ -216,25 +210,6 @@ async function detectarPriceAnomaly(c: Comprobante, tenantId: string, cfg: Anoma
   return null;
 }
 
-async function detectarRoundNumber(c: Comprobante, _tenantId: string): Promise<AnomalyToInsert | null> {
-  const total = parseFloat(c.total_operacion) || 0;
-  if (total <= 0) return null;
-
-  // Suspicious round amounts: multiples of 1,000,000 Gs. or multiples of 100,000 for amounts > 500k
-  const isExactMillion = total % 1_000_000 === 0 && total >= 5_000_000;
-  const isExact100k = total % 100_000 === 0 && total >= 500_000 && total < 5_000_000;
-
-  if (isExactMillion || isExact100k) {
-    return {
-      tipo: 'ROUND_NUMBER',
-      severidad: 'BAJA',
-      descripcion: `Monto exactamente redondo: ${total.toLocaleString('es-PY')} Gs.`,
-      detalles: { total, tipo: isExactMillion ? 'multiplo_millon' : 'multiplo_100k' },
-    };
-  }
-  return null;
-}
-
 export async function analizarComprobante(comprobante: Comprobante, tenantId: string): Promise<void> {
   try {
     const cfg = await getAnomalyConfig();
@@ -242,7 +217,7 @@ export async function analizarComprobante(comprobante: Comprobante, tenantId: st
     // Run only non-DB checks synchronously, defer DB-heavy checks
     const quickResults = await Promise.all([
       detectarTaxMismatch(comprobante, tenantId),
-      detectarRoundNumber(comprobante, tenantId),
+      // ROUND_NUMBER removed — round amounts are normal in PYG currency
     ]);
 
     // DB-heavy checks: run in parallel but throttled (3 queries total instead of 5)

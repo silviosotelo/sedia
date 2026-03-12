@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Text, Subtitle } from '@tremor/react';
+import { Card, Text, Subtitle } from './TailAdmin';
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -11,7 +11,7 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
     <Card className="flex flex-col items-center justify-center py-16 text-center animate-pop-in">
-      <div className="w-14 h-14 rounded-2xl bg-tremor-background-subtle flex items-center justify-center text-tremor-content mb-5">
+      <div className="w-14 h-14 rounded-2xl bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center text-gray-600 dark:text-gray-400 mb-5">
         {React.cloneElement(icon as React.ReactElement, { className: 'w-7 h-7' })}
       </div>
       <Subtitle className="font-bold mb-1">{title}</Subtitle>

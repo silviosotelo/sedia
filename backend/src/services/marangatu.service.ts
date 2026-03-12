@@ -18,6 +18,7 @@ import { TenantConfig } from '../types';
 import { decrypt } from './crypto.service';
 import { upsertComprobante } from '../db/repositories/comprobante.repository';
 import { analizarComprobante } from './anomaly.service';
+import { SyncTimer } from './timing.service';
 import { evaluarAlertasPorEvento } from './alert.service';
 
 export interface ComprobanteRow {
@@ -67,6 +68,20 @@ const SELECTORS = {
     paginaLink: 'ul.pagination li.page-item:not(.active) a.page-link',
     infoPaginado: '.blockquote-footer',
     loadingIndicator: '[data-ng-show="vm.cargando"]',
+    // Link to "Consulta de Comprobantes Registrados" (for historical periods)
+    consultaRegistradosLink: 'a[href*="consultarComprobantesRegistrados"], a:has-text("Consulta de Comprobantes Registrados")',
+  },
+  // Selectores para consultarComprobantesRegistrados.do (períodos anteriores)
+  consultaHistorica: {
+    tipoRegistro: '#tipoRegistro',
+    fechaDesde: '#busqueda form div > div > div:nth-of-type(2) > div:nth-of-type(1) input',
+    fechaHasta: '#busqueda form div > div > div:nth-of-type(2) > div:nth-of-type(2) input, div:nth-of-type(2) > div:nth-of-type(2) span',
+    momentPickerPrev: 'div.moment-picker > div > table th:nth-of-type(1)',
+    momentPickerDayCell: 'div.moment-picker > div > div > table tbody td',
+    btnBusqueda: 'button:has-text("Búsqueda"), div:nth-of-type(2) > button',
+    resultados: '#resultados',
+    tabla: '#resultados table',
+    tablaFilas: '#resultados table tbody tr',
   },
 } as const;
 
@@ -119,8 +134,8 @@ export class MarangatuService {
     if (!this.browser) throw new Error('Browser no inicializado. Llamar openBrowser() primero.');
     const page = await this.browser.newPage();
 
-    page.setDefaultTimeout(config.puppeteer.timeoutMs);
-    page.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
+    page.setDefaultTimeout(15000);
+    page.setDefaultNavigationTimeout(15000);
 
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
@@ -134,7 +149,7 @@ export class MarangatuService {
    * Espera a que AngularJS termine el digest cycle y no haya solicitudes pendientes.
    * Útil después de interacciones con elementos ng-change o ng-click.
    */
-  private async waitForAngular(page: Page, extraDelayMs = 400): Promise<void> {
+  private async waitForAngular(page: Page, extraDelayMs = 150): Promise<void> {
     await page.waitForFunction(
       () => {
         try {
@@ -148,7 +163,7 @@ export class MarangatuService {
           return true;
         }
       },
-      { timeout: config.puppeteer.timeoutMs }
+      { timeout: 15000 }
     );
     await new Promise((r) => setTimeout(r, extraDelayMs));
   }
@@ -189,19 +204,25 @@ export class MarangatuService {
     const loginUrl = `${tenantConfig.marangatu_base_url}/eset/login`;
     logger.debug('Navegando al login de Marangatu', { url: loginUrl });
 
-    await page.goto(loginUrl, { waitUntil: 'networkidle2' });
-    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector(SELECTORS.login.usuario, { visible: true, timeout: 15000 });
 
-    await page.click(SELECTORS.login.usuario, { clickCount: 3 });
-    await page.type(SELECTORS.login.usuario, tenantConfig.usuario_marangatu, { delay: 40 });
-
-    await page.click(SELECTORS.login.clave);
-    await page.type(SELECTORS.login.clave, tenantConfig.clave_marangatu, { delay: 40 });
+    // Set values directly via evaluate instead of slow page.type with 40ms/char delay
+    await page.evaluate(
+      (userSel: string, passSel: string, user: string, pass: string) => {
+        const userEl = document.querySelector(userSel) as HTMLInputElement;
+        const passEl = document.querySelector(passSel) as HTMLInputElement;
+        if (userEl) { userEl.value = user; userEl.dispatchEvent(new Event('input', { bubbles: true })); }
+        if (passEl) { passEl.value = pass; passEl.dispatchEvent(new Event('input', { bubbles: true })); }
+      },
+      SELECTORS.login.usuario, SELECTORS.login.clave,
+      tenantConfig.usuario_marangatu, tenantConfig.clave_marangatu
+    );
 
     logger.debug('Credenciales ingresadas, haciendo submit');
 
     await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }),
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
       page.click(SELECTORS.login.submit),
     ]);
 
@@ -225,32 +246,20 @@ export class MarangatuService {
   }
 
   /**
-   * Navega al módulo de Gestión de Comprobantes Informativos a través del menú de búsqueda.
-   * Flujo:
-   *   1. Tipea "Gestion De Comprobantes Informativos" en el buscador del menú
-   *   2. Hace click en el resultado → abre nueva pestaña con gestionComprobantesVirtuales.do
-   *   3. En esa pestaña click en "Obtener Comprob. Elect. y Virtuales" → abre registroComprobantesVirtuales.do
-   *   4. Selecciona "Compras a Imputar"
-   *   5. Selecciona año y mes actuales
-   *   6. Marca "Seleccionar comprobantes"
-   *   7. Click "Siguiente" → carga la tabla de comprobantes
-   *
-   * Retorna la Page (pestaña) que contiene la tabla de comprobantes lista para extraer.
+   * Navega desde el dashboard hasta registroComprobantesVirtuales.do
+   * Ruta común para período actual e histórico:
+   *   Menú → gestionComprobantesVirtuales.do → "Obtener Comprob." → registroComprobantesVirtuales.do
    */
-  private async navegarAGestionComprobantes(
+  private async navegarARegistroComprobantes(
     page: Page,
-    tenantConfig: TenantConfig,
-    mes: number,
-    anio: number
+    tenantConfig: TenantConfig
   ): Promise<Page> {
     const baseUrl = tenantConfig.marangatu_base_url;
 
-    logger.debug('Buscando "Gestion De Comprobantes Informativos" en el menú');
-    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.waitForSelector(SELECTORS.menu.busqueda, { visible: true, timeout: 10000 });
     await page.click(SELECTORS.menu.busqueda);
-    await page.type(SELECTORS.menu.busqueda, 'Gestion De Comprobantes Informativos', { delay: 50 });
+    await page.type(SELECTORS.menu.busqueda, 'Gestion De Comp', { delay: 15 });
 
-    logger.debug('Esperando resultado de búsqueda en el menú');
     await page.waitForFunction(
       () => {
         const items = Array.from(document.querySelectorAll('.list-group-item'));
@@ -259,17 +268,14 @@ export class MarangatuService {
           el.textContent?.toLowerCase().includes('comprobantes informativos')
         );
       },
-      { timeout: config.puppeteer.timeoutMs }
+      { timeout: 10000 }
     );
-    await new Promise((r) => setTimeout(r, 400));
 
     const gestionUrl = `${baseUrl}/eset/gestionComprobantesVirtuales.do`;
-
-    logger.debug('Haciendo click en el resultado del menú');
     const gestionTarget = await Promise.all([
       this.browser!.waitForTarget(
         (t: import('puppeteer').Target) => t.url().includes('gestionComprobantesVirtuales'),
-        { timeout: config.puppeteer.timeoutMs }
+        { timeout: 15000 }
       ),
       page.evaluate(() => {
         const items = Array.from(document.querySelectorAll('.list-group-item'));
@@ -277,10 +283,7 @@ export class MarangatuService {
           el.textContent?.toLowerCase().includes('gestion de comprobantes informativos') ||
           el.textContent?.toLowerCase().includes('comprobantes informativos')
         );
-        if (item) {
-          (item as HTMLElement).click();
-          return true;
-        }
+        if (item) { (item as HTMLElement).click(); return true; }
         return false;
       }).then((clicked: boolean) => {
         if (!clicked) {
@@ -291,107 +294,95 @@ export class MarangatuService {
       }),
     ]);
 
-    const gestionTargetResult = gestionTarget[0];
+    const gestionPage = await gestionTarget[0].page();
+    if (!gestionPage) throw new Error('No se pudo obtener la pestaña de gestión de comprobantes');
+    gestionPage.setDefaultTimeout(15000);
+    gestionPage.setDefaultNavigationTimeout(15000);
 
-    const gestionPage = await gestionTargetResult.page();
-    if (!gestionPage) {
-      throw new Error('No se pudo obtener la pestaña de gestión de comprobantes');
-    }
-    await gestionPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
-    await gestionPage.setDefaultTimeout(config.puppeteer.timeoutMs);
-    await gestionPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
-    await gestionPage.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-      '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-    );
-
-    logger.debug('Pestaña gestionComprobantesVirtuales abierta, buscando "Obtener Comprob. Elect. y Virtuales"');
     await gestionPage.waitForFunction(
       (text: string) => {
         const cards = Array.from(document.querySelectorAll('.card h4, .card-body h4'));
         return cards.some((el) => el.textContent?.includes(text));
       },
-      { timeout: config.puppeteer.timeoutMs },
+      { timeout: 15000 },
       SELECTORS.gestionComprobantes.obtenerComprobantesText
     );
 
-    logger.debug('Click en la card "Obtener Comprob. Elect. y Virtuales"');
-    const clickedCard = await gestionPage.evaluate((text: string) => {
+    await gestionPage.evaluate((text: string) => {
       const cards = Array.from(document.querySelectorAll('.card'));
       const card = cards.find((el) => el.querySelector('h4')?.textContent?.includes(text));
-      if (card) {
-        (card as HTMLElement).click();
-        return true;
-      }
-      return false;
+      if (card) (card as HTMLElement).click();
     }, SELECTORS.gestionComprobantes.obtenerComprobantesText);
-
-    if (!clickedCard) {
-      throw new Error('No se encontró la card "Obtener Comprob. Elect. y Virtuales"');
-    }
-
-    const registroUrl = `${baseUrl}/eset/gdi/registroComprobantesVirtuales`;
-
-    let registroPage: Page;
 
     const newTarget = await this.browser!.waitForTarget(
       (t: import('puppeteer').Target) =>
-        t.url().includes('registroComprobantesVirtuales') ||
-        t.url().includes('gdi/registro'),
-      { timeout: config.puppeteer.timeoutMs }
+        t.url().includes('registroComprobantesVirtuales') || t.url().includes('gdi/registro'),
+      { timeout: 15000 }
     ).catch(() => null);
 
+    let registroPage: Page;
     if (newTarget) {
-      logger.debug('Se abrió nueva pestaña con registroComprobantesVirtuales');
       const p = await newTarget.page();
       if (!p) throw new Error('No se pudo obtener la nueva pestaña de registro');
       registroPage = p;
-      await registroPage.waitForNavigation({ waitUntil: 'networkidle2', timeout: config.puppeteer.timeoutMs }).catch(() => { });
     } else {
-      logger.debug('No se abrió nueva pestaña; esperando navegación interna o carga de sección');
       const navigated = await gestionPage.waitForFunction(
         () =>
           window.location.href.includes('registroComprobantesVirtuales') ||
           window.location.href.includes('gdi/registro') ||
           document.querySelector('[data-ng-click*="seccion"]') !== null,
-        { timeout: config.puppeteer.timeoutMs }
+        { timeout: 15000 }
       ).catch(() => null);
-
-      if (!navigated) {
-        logger.warn('La card no navegó, intentando URL directa');
-        await gestionPage.goto(registroUrl, { waitUntil: 'networkidle2' });
-      }
-
+      if (!navigated) throw new Error('No se pudo navegar a registroComprobantesVirtuales');
       registroPage = gestionPage;
     }
 
-    await registroPage.setDefaultTimeout(config.puppeteer.timeoutMs);
-    await registroPage.setDefaultNavigationTimeout(config.puppeteer.timeoutMs);
-    await this.waitForAngular(registroPage, 600);
+    registroPage.setDefaultTimeout(15000);
+    registroPage.setDefaultNavigationTimeout(15000);
+    return registroPage;
+  }
 
-    logger.debug('Seleccionando "Compras a Imputar"');
+  /**
+   * Flujo PERÍODO ACTUAL: desde registroComprobantesVirtuales.do
+   * Selecciona COMPRAS → año → mes → checkbox → Siguiente → tabla paginada
+   */
+  private async navegarAGestionComprobantes(
+    page: Page,
+    tenantConfig: TenantConfig,
+    mes: number,
+    anio: number
+  ): Promise<Page> {
+    const t0 = Date.now();
+    const lap = (label: string) => {
+      logger.info(`[NAV-TIMING] ${label}`, { elapsed_ms: Date.now() - t0 });
+    };
+
+    const registroPage = await this.navegarARegistroComprobantes(page, tenantConfig);
+    lap('registro_page_ready');
+
     await registroPage.waitForFunction(
       (sel: string) => document.querySelector(sel) !== null,
-      { timeout: config.puppeteer.timeoutMs },
+      { timeout: 15000 },
       SELECTORS.registro.comprasLink
     );
+
     await registroPage.click(SELECTORS.registro.comprasLink);
-    await this.waitForAngular(registroPage, 400);
+    await this.waitForAngular(registroPage, 100);
+    lap('compras_clicked');
 
-    logger.debug(`Seleccionando año ${anio}`);
-    await registroPage.waitForSelector(SELECTORS.registro.selectAnio, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await registroPage.waitForSelector(SELECTORS.registro.selectAnio, { visible: true, timeout: 10000 });
     await this.angularSelect(registroPage, SELECTORS.registro.selectAnio, String(anio));
-    await this.waitForAngular(registroPage, 400);
+    await this.waitForAngular(registroPage, 100);
+    lap('anio_selected');
 
-    logger.debug(`Seleccionando mes ${mes}`);
-    await registroPage.waitForSelector(SELECTORS.registro.selectMes, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await registroPage.waitForSelector(SELECTORS.registro.selectMes, { visible: true, timeout: 10000 });
     await this.angularSelect(registroPage, SELECTORS.registro.selectMes, String(mes));
-    await this.waitForAngular(registroPage, 400);
+    await this.waitForAngular(registroPage, 100);
+    lap('mes_selected');
 
-    logger.debug('Marcando "Seleccionar comprobantes"');
     await registroPage.waitForFunction(
       (sel: string) => document.querySelector(sel) !== null,
-      { timeout: config.puppeteer.timeoutMs },
+      { timeout: 10000 },
       SELECTORS.registro.checkboxSeleccionar
     );
     await registroPage.evaluate((sel: string) => {
@@ -402,18 +393,259 @@ export class MarangatuService {
       el.dispatchEvent(new Event('change', { bubbles: true }));
       el.dispatchEvent(new Event('click', { bubbles: true }));
     }, SELECTORS.registro.checkboxSeleccionar);
-    await this.waitForAngular(registroPage, 400);
+    await this.waitForAngular(registroPage, 100);
+    lap('checkbox_selected');
 
-    logger.debug('Click en "Siguiente"');
-    await registroPage.waitForSelector(SELECTORS.registro.btnSiguiente, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await registroPage.waitForSelector(SELECTORS.registro.btnSiguiente, { visible: true, timeout: 10000 });
     await registroPage.click(SELECTORS.registro.btnSiguiente);
+    lap('siguiente_clicked');
 
-    logger.debug('Esperando tabla de comprobantes');
-    await registroPage.waitForSelector(SELECTORS.registro.tabla, { visible: true, timeout: config.puppeteer.timeoutMs });
-    await this.waitForAngular(registroPage, 400);
+    await registroPage.waitForSelector(SELECTORS.registro.tabla, { visible: true, timeout: 15000 });
+    await this.waitForAngular(registroPage, 100);
+    lap('tabla_loaded');
 
-    logger.info('Tabla de comprobantes cargada', { mes, anio });
+    logger.info('Tabla de comprobantes cargada', { mes, anio, total_nav_ms: Date.now() - t0 });
     return registroPage;
+  }
+
+  /**
+   * Navega a la consulta de comprobantes registrados para períodos anteriores.
+   * Flujo diferente al mes actual:
+   *   1. Desde registroComprobantesVirtuales → click "Consulta de Comprobantes Registrados"
+   *   2. Abre consultarComprobantesRegistrados.do en nueva pestaña
+   *   3. Selecciona tipo "COMPRAS"
+   *   4. Selecciona rango de fechas con moment-picker (primer y último día del mes)
+   *   5. Click "Búsqueda"
+   *   6. Resultados en #resultados
+   */
+  /**
+   * Flujo PERÍODO HISTÓRICO: desde registroComprobantesVirtuales.do
+   * Click "Consulta de Comprobantes Registrados" (target=_blank) → nueva pestaña
+   * consultarComprobantesRegistrados.do → tipo COMPRAS → fechas → Búsqueda → tabla
+   *
+   * Tabla histórica tiene 13 columnas:
+   *   0: RUC Informante, 1: Nombre Informante, 2: RUC Informado,
+   *   3: Nombre Informado, 4: Tipo Registro, 5: Tipo Comprobante,
+   *   6: Fecha Emisión, 7: Periodo, 8: Nro Comprobante, 9: Timbrado,
+   *   10: Origen Comprobante, 11: CDC, 12: Total Comprobante
+   */
+  private async navegarAConsultaHistorica(
+    registroPage: Page,
+    mes: number,
+    anio: number
+  ): Promise<Page> {
+    const t0 = Date.now();
+    const lap = (label: string) => {
+      logger.info(`[NAV-TIMING-HIST] ${label}`, { elapsed_ms: Date.now() - t0 });
+    };
+
+    // Esperar que la página registroComprobantesVirtuales cargue
+    await this.waitForAngular(registroPage, 300);
+
+    // El link tiene href que incluye "consultarComprobantesRegistrados" y target="_blank"
+    await registroPage.waitForFunction(
+      () => {
+        const link = document.querySelector('a[href*="consultarComprobantesRegistrados"]');
+        return link !== null;
+      },
+      { timeout: 15000 }
+    );
+    lap('consulta_link_found');
+
+    // Click en el link + esperar nueva pestaña
+    const [consultaTarget] = await Promise.all([
+      this.browser!.waitForTarget(
+        (t: import('puppeteer').Target) => t.url().includes('consultarComprobantesRegistrados'),
+        { timeout: 15000 }
+      ),
+      registroPage.evaluate(() => {
+        const link = document.querySelector('a[href*="consultarComprobantesRegistrados"]') as HTMLElement;
+        if (link) link.click();
+      }),
+    ]);
+    lap('consulta_link_clicked');
+
+    const consultaPage = await consultaTarget.page();
+    if (!consultaPage) throw new Error('No se pudo obtener la pestaña de consulta histórica');
+    consultaPage.setDefaultTimeout(15000);
+    consultaPage.setDefaultNavigationTimeout(15000);
+    lap('consulta_tab_opened');
+
+    // Esperar que cargue la página
+    await consultaPage.waitForSelector('#tipoRegistro', { visible: true, timeout: 15000 });
+    lap('page_loaded');
+
+    // Seleccionar tipo de registro: COMPRAS
+    await this.angularSelect(consultaPage, '#tipoRegistro', 'COMPRAS');
+    await this.waitForAngular(consultaPage, 100);
+    lap('tipo_registro_selected');
+
+    // Setear fechas via Angular scope (más confiable que clickear el moment-picker)
+    // Format: DD/MM/YYYY — primer y último día del mes
+    const ultimoDia = new Date(anio, mes, 0).getDate();
+    const mesStr = String(mes).padStart(2, '0');
+    const fechaDesde = `01/${mesStr}/${anio}`;
+    const fechaHasta = `${String(ultimoDia).padStart(2, '0')}/${mesStr}/${anio}`;
+
+    await consultaPage.evaluate(
+      (desde: string, hasta: string) => {
+        // Setear via ng-model en los inputs del moment-picker
+        const desdeInput = document.querySelector('input[data-ng-model="vm.datos.filtros.fechaEmisionDesde"]') as HTMLInputElement;
+        const hastaInput = document.querySelector('input[data-ng-model="vm.datos.filtros.fechaEmisionHasta"]') as HTMLInputElement;
+
+        if (desdeInput) {
+          desdeInput.value = desde;
+          desdeInput.dispatchEvent(new Event('input', { bubbles: true }));
+          desdeInput.dispatchEvent(new Event('change', { bubbles: true }));
+          desdeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+        }
+        if (hastaInput) {
+          hastaInput.value = hasta;
+          hastaInput.dispatchEvent(new Event('input', { bubbles: true }));
+          hastaInput.dispatchEvent(new Event('change', { bubbles: true }));
+          hastaInput.dispatchEvent(new Event('blur', { bubbles: true }));
+        }
+
+        // También intentar via Angular scope para asegurar binding
+        const ngApp = document.querySelector('[ng-app], [data-ng-app]') as HTMLElement & {
+          injector?: () => { get: (s: string) => unknown };
+        };
+        if (ngApp?.injector) {
+          try {
+            const $rootScope = ngApp.injector().get('$rootScope') as { $apply: (fn: () => void) => void };
+            const scope = (window as unknown as { angular: { element: (el: Element) => { scope: () => Record<string, unknown> } } })
+              .angular?.element(desdeInput || document.querySelector('#tipoRegistro')!)?.scope?.();
+            const vm = (scope as Record<string, unknown>).vm as Record<string, unknown> | undefined;
+            const datos = vm?.datos as Record<string, unknown> | undefined;
+            const filtros = datos?.filtros as Record<string, string> | undefined;
+            if (filtros) {
+              filtros['fechaEmisionDesde'] = desde;
+              filtros['fechaEmisionHasta'] = hasta;
+              $rootScope.$apply(() => {});
+            }
+          } catch { /* Angular scope access failed, rely on input events */ }
+        }
+      },
+      fechaDesde,
+      fechaHasta
+    );
+    await this.waitForAngular(consultaPage, 200);
+    lap('fechas_set');
+
+    // Click Búsqueda — button[name="busqueda"]
+    await consultaPage.waitForSelector('button[name="busqueda"]', { visible: true, timeout: 10000 });
+    await consultaPage.click('button[name="busqueda"]');
+    lap('busqueda_clicked');
+
+    // Esperar que la tabla de resultados aparezca
+    await consultaPage.waitForFunction(
+      () => {
+        const rows = document.querySelectorAll('table.table-primary tbody tr');
+        return rows.length > 0;
+      },
+      { timeout: 30000 }
+    );
+    await this.waitForAngular(consultaPage, 300);
+    lap('resultados_loaded');
+
+    logger.info('Consulta histórica cargada', { mes, anio, fechaDesde, fechaHasta, total_nav_ms: Date.now() - t0 });
+    return consultaPage;
+  }
+
+  /**
+   * Extrae filas de la tabla histórica (consultarComprobantesRegistrados.do).
+   *
+   * Columnas de table.table-primary (13 cols):
+   *   0: RUC Informante       1: Nombre Informante
+   *   2: RUC Informado         3: Nombre Informado
+   *   4: Tipo Registro         5: Tipo Comprobante
+   *   6: Fecha Emisión         7: Periodo Emisión
+   *   8: Nro Comprobante       9: Timbrado
+   *   10: Origen Comprobante   11: CDC
+   *   12: Total Comprobante
+   */
+  private async extraerFilasHistoricas(page: Page): Promise<ComprobanteRow[]> {
+    await page.waitForSelector('table.table-primary tbody tr', { visible: true, timeout: 15000 }).catch(() => null);
+
+    const rawRows = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll('table.table-primary tbody tr'));
+      return rows.map((tr) => {
+        const tds = Array.from(tr.querySelectorAll('td'));
+        return tds.map((td) => td.textContent?.trim() ?? '');
+      });
+    });
+
+    if (!rawRows.length) return [];
+
+    return rawRows
+      .filter((cols) => cols.length >= 13 && cols[2]) // Must have 13 cols and RUC informado
+      .map((cols) => ({
+        origen: normalizeOrigen(cols[10]),           // "Origen Comprobante" → ELECTRONICO/VIRTUAL
+        ruc_vendedor: cols[2],                        // RUC Informado
+        razon_social_vendedor: cols[3] || undefined,  // Nombre Informado
+        cdc: cols[11] || undefined,                   // CDC
+        numero_comprobante: cols[8],                  // Nro Comprobante
+        tipo_comprobante: cols[5] || 'FACTURA',       // Tipo Comprobante
+        fecha_emision: parseFechaEmision(cols[6]),    // Fecha Emisión DD/MM/YYYY
+        total_operacion: parseTotalOperacion(cols[12]), // Total Comprobante
+        raw_payload: {
+          ruc_informante: cols[0],
+          nombre_informante: cols[1],
+          ruc_informado: cols[2],
+          nombre_informado: cols[3],
+          tipo_registro: cols[4],
+          tipo_comprobante: cols[5],
+          fecha_emision_raw: cols[6],
+          periodo_emision: cols[7],
+          numero_comprobante: cols[8],
+          timbrado: cols[9],
+          origen_comprobante: cols[10],
+          cdc: cols[11],
+          total_str: cols[12],
+          source: 'consulta_historica',
+        },
+      }))
+      .filter((r) => r.ruc_vendedor && r.numero_comprobante);
+  }
+
+  /**
+   * Pagina los resultados históricos. Misma estructura de paginación que el período actual.
+   */
+  private async irSiguientePaginaHistorica(page: Page): Promise<boolean> {
+    const paginaInfo = await page.evaluate(() => {
+      const footer = document.querySelector('.blockquote-footer');
+      const text = footer?.textContent ?? '';
+      const paginasMatch = text.match(/(\d+)\s+p[áa]ginas?/i);
+      const totalPaginas = paginasMatch ? parseInt(paginasMatch[1], 10) : 1;
+
+      const activeLink = document.querySelector('ul.pagination li.page-item.active a.page-link');
+      const paginaActual = activeLink ? parseInt(activeLink.textContent?.trim() ?? '1', 10) : 1;
+
+      return { totalPaginas, paginaActual };
+    });
+
+    if (paginaInfo.paginaActual >= paginaInfo.totalPaginas) return false;
+
+    const siguiente = paginaInfo.paginaActual + 1;
+    const clicked = await page.evaluate((target: number) => {
+      const links = Array.from(document.querySelectorAll('ul.pagination li.page-item a.page-link'));
+      const link = links.find((a) => a.textContent?.trim() === String(target));
+      if (link) { (link as HTMLElement).click(); return true; }
+      return false;
+    }, siguiente);
+
+    if (!clicked) return false;
+
+    await page.waitForFunction(
+      (expected: number) => {
+        const active = document.querySelector('ul.pagination li.page-item.active a.page-link');
+        return active ? parseInt(active.textContent?.trim() ?? '0', 10) === expected : false;
+      },
+      { timeout: 15000 },
+      siguiente
+    );
+    await this.waitForAngular(page, 200);
+    return true;
   }
 
   /**
@@ -430,7 +662,7 @@ export class MarangatuService {
    *   7: Total de la Operación (formato guaraní: puntos como separadores de miles)
    */
   private async extraerFilasDeComprobantes(page: Page): Promise<ComprobanteRow[]> {
-    await page.waitForSelector(SELECTORS.registro.tablaFilas, { visible: true, timeout: config.puppeteer.timeoutMs });
+    await page.waitForSelector(SELECTORS.registro.tablaFilas, { visible: true, timeout: 15000 });
 
     const rawRows = await page.evaluate(() => {
       const rows = Array.from(document.querySelectorAll('table.table-responsive tbody tr'));
@@ -536,12 +768,12 @@ export class MarangatuService {
           ? parseInt(active.textContent?.trim() ?? '0', 10) === expected
           : false;
       },
-      { timeout: config.puppeteer.timeoutMs },
+      { timeout: 15000 },
       SELECTORS.registro.paginaActiva,
       siguientePagina
     );
 
-    await this.waitForAngular(page, 600);
+    await this.waitForAngular(page, 250);
     return true;
   }
 
@@ -579,65 +811,127 @@ export class MarangatuService {
       clave_marangatu: decrypt(tenantConfig.clave_marangatu_encrypted),
     };
 
+    const timer = new SyncTimer('SYNC_COMPROBANTES', tenantId);
+
     try {
+      timer.step('abrir_browser');
       await this.openBrowser();
       const loginPage = await this.newPage();
 
+      timer.step('login_marangatu');
       logger.info('Iniciando login en Marangatu', { tenant_id: tenantId });
       await this.loginMarangatu(loginPage, decryptedConfig);
       logger.info('Login exitoso', { tenant_id: tenantId });
 
-      const workingPage = await this.navegarAGestionComprobantes(
-        loginPage,
-        tenantConfig,
-        mes,
-        anio
-      );
-      logger.info('Tabla de comprobantes lista', { tenant_id: tenantId, mes, anio });
+      // Determinar si es período actual o histórico
+      const esPeriodoActual = (mes === now.getMonth() + 1 && anio === now.getFullYear());
+      logger.info(`Modo de sync: ${esPeriodoActual ? 'ACTUAL' : 'HISTORICO'}`, { tenant_id: tenantId, mes, anio });
 
-      let hasMore = true;
-      while (hasMore) {
-        result.total_pages++;
-        logger.debug(`Extrayendo página ${result.total_pages}`, { tenant_id: tenantId });
+      if (esPeriodoActual) {
+        // ---- FLUJO PERÍODO ACTUAL ----
+        timer.step('navegacion_comprobantes');
+        const workingPage = await this.navegarAGestionComprobantes(
+          loginPage,
+          tenantConfig,
+          mes,
+          anio
+        );
+        logger.info('Tabla de comprobantes lista', { tenant_id: tenantId, mes, anio });
 
-        const rows = await this.extraerFilasDeComprobantes(workingPage);
-        result.total_rows += rows.length;
-        logger.debug(`Filas extraídas en página ${result.total_pages}: ${rows.length}`);
+        timer.step('extraccion_paginas');
+        let hasMore = true;
+        while (hasMore) {
+          result.total_pages++;
+          const rows = await this.extraerFilasDeComprobantes(workingPage);
+          result.total_rows += rows.length;
 
-        for (const row of rows) {
-          try {
-            const { comprobante, created } = await upsertComprobante({
-              tenant_id: tenantId,
-              origen: row.origen,
-              ruc_vendedor: row.ruc_vendedor,
-              razon_social_vendedor: row.razon_social_vendedor,
-              cdc: row.cdc,
-              numero_comprobante: row.numero_comprobante,
-              tipo_comprobante: row.tipo_comprobante,
-              fecha_emision: row.fecha_emision,
-              total_operacion: row.total_operacion,
-              raw_payload: row.raw_payload,
-            });
-            if (created) {
-              result.inserted++;
-              // Análisis de anomalías y alertas — fire-and-forget
-              void analizarComprobante(comprobante, tenantId);
-              void evaluarAlertasPorEvento(tenantId, 'monto_mayor_a', {
-                monto: row.total_operacion,
-                numero_comprobante: row.numero_comprobante,
+          for (const row of rows) {
+            try {
+              const { comprobante, created } = await upsertComprobante({
+                tenant_id: tenantId,
+                origen: row.origen,
                 ruc_vendedor: row.ruc_vendedor,
+                razon_social_vendedor: row.razon_social_vendedor,
+                cdc: row.cdc,
+                numero_comprobante: row.numero_comprobante,
+                tipo_comprobante: row.tipo_comprobante,
+                fecha_emision: row.fecha_emision,
+                total_operacion: row.total_operacion,
+                raw_payload: row.raw_payload,
               });
-            } else {
-              result.updated++;
+              if (created) {
+                result.inserted++;
+                void analizarComprobante(comprobante, tenantId);
+                void evaluarAlertasPorEvento(tenantId, 'monto_mayor_a', {
+                  monto: row.total_operacion,
+                  numero_comprobante: row.numero_comprobante,
+                  ruc_vendedor: row.ruc_vendedor,
+                });
+              } else {
+                result.updated++;
+              }
+            } catch (err) {
+              const msg = `Error al guardar comprobante ${row.numero_comprobante}: ${(err as Error).message}`;
+              logger.warn(msg, { tenant_id: tenantId });
+              result.errors.push(msg);
             }
-          } catch (err) {
-            const msg = `Error al guardar comprobante ${row.numero_comprobante}: ${(err as Error).message}`;
-            logger.warn(msg, { tenant_id: tenantId });
-            result.errors.push(msg);
           }
-        }
 
-        hasMore = await this.irSiguientePagina(workingPage);
+          hasMore = await this.irSiguientePagina(workingPage);
+        }
+      } else {
+        // ---- FLUJO PERÍODO HISTÓRICO ----
+        // Navegar solo hasta registroComprobantesVirtuales.do (sin seleccionar año/mes/siguiente)
+        timer.step('navegacion_registro');
+        const registroPage = await this.navegarARegistroComprobantes(
+          loginPage,
+          tenantConfig
+        );
+
+        timer.step('navegacion_consulta_historica');
+        const consultaPage = await this.navegarAConsultaHistorica(registroPage, mes, anio);
+
+        timer.step('extraccion_paginas');
+        let hasMoreHist = true;
+        while (hasMoreHist) {
+          const rows = await this.extraerFilasHistoricas(consultaPage);
+          result.total_rows += rows.length;
+
+          for (const row of rows) {
+            try {
+              const { comprobante, created } = await upsertComprobante({
+                tenant_id: tenantId,
+                origen: row.origen,
+                ruc_vendedor: row.ruc_vendedor,
+                razon_social_vendedor: row.razon_social_vendedor,
+                cdc: row.cdc,
+                numero_comprobante: row.numero_comprobante,
+                tipo_comprobante: row.tipo_comprobante,
+                fecha_emision: row.fecha_emision,
+                total_operacion: row.total_operacion,
+                raw_payload: row.raw_payload,
+              });
+              if (created) {
+                result.inserted++;
+                void analizarComprobante(comprobante, tenantId);
+                void evaluarAlertasPorEvento(tenantId, 'monto_mayor_a', {
+                  monto: row.total_operacion,
+                  numero_comprobante: row.numero_comprobante,
+                  ruc_vendedor: row.ruc_vendedor,
+                });
+              } else {
+                result.updated++;
+              }
+            } catch (err) {
+              const msg = `Error al guardar comprobante ${row.numero_comprobante}: ${(err as Error).message}`;
+              logger.warn(msg, { tenant_id: tenantId });
+              result.errors.push(msg);
+            }
+          }
+
+          hasMoreHist = await this.irSiguientePaginaHistorica(consultaPage);
+          if (hasMoreHist) result.total_pages++;
+        }
       }
 
       logger.info('Sincronización completada', {
@@ -649,7 +943,23 @@ export class MarangatuService {
         errores: result.errors.length,
       });
 
+      await timer.end('SUCCESS', {
+        total_pages: result.total_pages,
+        total_rows: result.total_rows,
+        inserted: result.inserted,
+        updated: result.updated,
+        errors: result.errors.length,
+      });
+
       return result;
+    } catch (err) {
+      await timer.end('ERROR', {
+        total_pages: result.total_pages,
+        total_rows: result.total_rows,
+        inserted: result.inserted,
+        updated: result.updated,
+      }, (err as Error).message);
+      throw err;
     } finally {
       await this.closeBrowser();
     }

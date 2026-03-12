@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, Text, Title, TextInput, Button } from '@tremor/react';
+import { Card, Text, Title, TextInput, Button } from '../components/ui/TailAdmin';
 import { Save, RefreshCw } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useTenant } from '../contexts/TenantContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
@@ -42,6 +43,8 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
   const [form, setForm] = useState<BrandingData>(DEFAULTS);
   const [globalData, setGlobalData] = useState<BrandingData>(DEFAULTS);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -49,6 +52,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
     if (!tenantId) return;
     setLoading(true);
     setLoaded(false);
+    setError(null);
     try {
       const res = await api.branding.get(tenantId) as any;
       const data = res.data || {};
@@ -73,13 +77,13 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
         footer_texto: '',
       });
       setLoaded(true);
-    } catch {
-      setForm(DEFAULTS);
+    } catch (err) {
+      setError((err as Error).message);
       setLoaded(true);
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void loadBranding(); }, [loadBranding]);
 
@@ -115,7 +119,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
     return (
       <div className="animate-fade-in">
         <Header title="White Label" subtitle="Configuración de marca y apariencia personalizada" />
-        <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-500">
           <p>Seleccione un tenant para configurar la marca.</p>
         </div>
       </div>
@@ -123,6 +127,18 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
   }
 
   if (loading && !loaded) return <PageLoader />;
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="White Label" subtitle="Configuración de marca y apariencia personalizada" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
 
   const isInherited = (field: keyof BrandingData) => !form[field];
   const getValue = (field: keyof BrandingData) => form[field] || globalData[field] || '';
@@ -141,14 +157,14 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
         <Card className="space-y-4">
           <div className="flex items-center justify-between">
             <Title>Identidad de marca</Title>
-            <span className="text-[10px] font-medium text-tremor-content-subtle uppercase tracking-wider bg-tremor-background-subtle px-2 py-1 rounded">
+            <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50 dark:bg-gray-800/60 px-2 py-1 rounded">
               Configuración por Empresa
             </span>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <Text className="font-medium text-tremor-content-strong">Nombre de la aplicación</Text>
+              <Text className="font-medium text-gray-900 dark:text-white">Nombre de la aplicación</Text>
               {isInherited('app_name') && (
                 <Text className="text-[10px] text-emerald-500 font-medium">Heredado del sistema</Text>
               )}
@@ -159,7 +175,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Text className="font-medium text-tremor-content-strong">URL del logo</Text>
+                <Text className="font-medium text-gray-900 dark:text-white">URL del logo</Text>
                 {isInherited('logo_url') && (
                   <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
@@ -168,7 +184,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Text className="font-medium text-tremor-content-strong">URL del favicon</Text>
+                <Text className="font-medium text-gray-900 dark:text-white">URL del favicon</Text>
                 {isInherited('favicon_url') && (
                   <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
@@ -177,17 +193,17 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
             </div>
           </div>
 
-          <div className="flex gap-4 p-4 bg-tremor-background-subtle rounded-xl border border-tremor-border">
+          <div className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
             <div className="space-y-1.5">
               <Text className="text-[10px] font-bold uppercase">Vista previa logo</Text>
-              <div className="h-12 flex items-center bg-white p-2 rounded-lg border border-tremor-border">
+              <div className="h-12 flex items-center bg-white p-2 rounded-lg border border-gray-200 dark:border-gray-700">
                 <img src={getValue('logo_url')} alt="Logo preview" className="h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 {!getValue('logo_url') && <Text className="text-[10px] px-4 italic">Sin logo</Text>}
               </div>
             </div>
             <div className="space-y-1.5">
               <Text className="text-[10px] font-bold uppercase">Favicon</Text>
-              <div className="w-12 h-12 flex items-center justify-center bg-white p-2 rounded-lg border border-tremor-border">
+              <div className="w-12 h-12 flex items-center justify-center bg-white p-2 rounded-lg border border-gray-200 dark:border-gray-700">
                 <img src={getValue('favicon_url')} alt="Favicon preview" className="w-6 h-6 object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 {!getValue('favicon_url') && <Text className="text-[10px] italic">No icon</Text>}
               </div>
@@ -205,7 +221,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Text className="font-medium text-tremor-content-strong">Color primario</Text>
+                <Text className="font-medium text-gray-900 dark:text-white">Color primario</Text>
                 {isInherited('color_primario') && (
                   <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
@@ -215,7 +231,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
                   type="color"
                   value={getValue('color_primario')}
                   onChange={set('color_primario')}
-                  className="w-10 h-10 rounded-lg border border-tremor-border cursor-pointer p-0.5"
+                  className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer p-0.5"
                 />
                 <TextInput
                   className="flex-1 font-mono text-xs"
@@ -227,7 +243,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Text className="font-medium text-tremor-content-strong">Color secundario</Text>
+                <Text className="font-medium text-gray-900 dark:text-white">Color secundario</Text>
                 {isInherited('color_secundario') && (
                   <Text className="text-[10px] text-emerald-500 font-medium">Heredado</Text>
                 )}
@@ -237,7 +253,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
                   type="color"
                   value={getValue('color_secundario')}
                   onChange={set('color_secundario')}
-                  className="w-10 h-10 rounded-lg border border-tremor-border cursor-pointer p-0.5"
+                  className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer p-0.5"
                 />
                 <TextInput
                   className="flex-1 font-mono text-xs"
@@ -254,7 +270,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
         <Card className="space-y-4">
           <Title>Dominio personalizado</Title>
           <div>
-            <Text className="mb-1 font-medium text-tremor-content-strong">Dominio</Text>
+            <Text className="mb-1 font-medium text-gray-900 dark:text-white">Dominio</Text>
             <TextInput
               className="font-mono"
               value={form.dominio_personalizado ?? ''}
@@ -281,7 +297,7 @@ export function WhiteLabel({ toastSuccess, toastError }: WhiteLabelProps) {
       </div>
 
       {loading && loaded && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white rounded-full text-xs shadow-lg">
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-full text-xs shadow-lg">
           <RefreshCw className="w-3 h-3 animate-spin" /> Actualizando...
         </div>
       )}

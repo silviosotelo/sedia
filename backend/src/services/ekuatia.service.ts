@@ -18,6 +18,7 @@ import { resolverCaptcha } from './captcha.service';
 import { DetallesXml, DetallesXmlItem } from '../types';
 import { query } from '../db/connection';
 import { config } from '../config/env';
+import { measureMs } from './timing.service';
 
 const EKUATIA_BASE = process.env['EKUATIA_BASE_URL'] ?? 'https://ekuatia.set.gov.py';
 const CONSULTAS_URL = `${EKUATIA_BASE}/consultas/`;
@@ -86,6 +87,10 @@ export class EkuatiaService {
   readonly solveCaptchaApiKey: string;
   private browser: Browser | null = null;
 
+  // Pre-resolved captcha token pool for parallel performance
+  private tokenPool: string[] = [];
+  private tokenResolving = 0;
+
   constructor(solveCaptchaApiKey: string) {
     this.solveCaptchaApiKey = solveCaptchaApiKey;
   }
@@ -109,6 +114,73 @@ export class EkuatiaService {
   }
 
   /**
+   * Cierra el browser de Puppeteer y limpia el pool de tokens.
+   * Debe llamarse al finalizar un lote de descargas para evitar
+   * acumulación de procesos Chrome zombie.
+   */
+  async close(): Promise<void> {
+    this.tokenPool = [];
+    this.tokenResolving = 0;
+    if (this.browser) {
+      try {
+        await this.browser.close();
+      } catch {
+        // browser may already be disconnected
+      }
+      this.browser = null;
+    }
+  }
+
+  /**
+   * Pre-resolve captcha tokens to fill the pool.
+   * Called before batch downloads to warm up tokens in parallel.
+   * Tokens are valid for ~120s, so we only pre-resolve what we'll use soon.
+   */
+  async warmupTokens(count: number): Promise<void> {
+    const needed = Math.max(0, count - this.tokenPool.length - this.tokenResolving);
+    if (needed === 0) return;
+
+    logger.info('Pre-resolving captcha tokens', { count: needed, poolSize: this.tokenPool.length });
+
+    const promises = Array.from({ length: needed }, async () => {
+      this.tokenResolving++;
+      try {
+        const token = await resolverCaptcha({
+          apiKey: this.solveCaptchaApiKey,
+          siteKey: RECAPTCHA_SITE_KEY,
+          pageUrl: CONSULTAS_URL,
+          timeoutMs: 120000,
+        });
+        this.tokenPool.push(token);
+      } catch (err) {
+        logger.warn('Failed to pre-resolve captcha token', { error: (err as Error).message });
+      } finally {
+        this.tokenResolving--;
+      }
+    });
+
+    await Promise.allSettled(promises);
+    logger.info('Captcha token warmup complete', { poolSize: this.tokenPool.length });
+  }
+
+  /**
+   * Get a captcha token — from pool if available, otherwise resolve fresh.
+   */
+  private async getCaptchaToken(): Promise<string> {
+    const pooled = this.tokenPool.shift();
+    if (pooled) {
+      logger.debug('Using pre-resolved captcha token', { remainingPool: this.tokenPool.length });
+      return pooled;
+    }
+    return resolverCaptcha({
+      apiKey: this.solveCaptchaApiKey,
+      siteKey: RECAPTCHA_SITE_KEY,
+      pageUrl: CONSULTAS_URL,
+      timeoutMs: 120000,
+    });
+  }
+
+  /**
    * Descarga el XML de un CDC.
    *
    * Resuelve un captcha fresco por cada descarga (los tokens quedan invalidados
@@ -121,17 +193,14 @@ export class EkuatiaService {
 
     const xmlUrl = `${EKUATIA_BASE}/docs/documento-electronico-xml/${cdc}`;
     const navTimeout = Math.max(config.puppeteer.timeoutMs, 30000);
+    const xmlStartMs = Date.now();
 
     for (let intento = 1; intento <= 2; intento++) {
-      const token = await resolverCaptcha({
-        apiKey: this.solveCaptchaApiKey,
-        siteKey: RECAPTCHA_SITE_KEY,
-        pageUrl: CONSULTAS_URL,
-        timeoutMs: 120000,
-      });
+      const [token, captchaMs] = await measureMs(() => this.getCaptchaToken());
 
       const browser = await this.getBrowser();
       const page = await browser.newPage();
+      let navMs = 0, submitMs = 0, waitXmlBtnMs = 0, sifenMs = 0, downloadMs = 0, parseMs = 0;
 
       try {
         await page.setUserAgent(
@@ -139,8 +208,9 @@ export class EkuatiaService {
           '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         );
 
+        let stepStart = Date.now();
         logger.debug('Puppeteer: navegando a /consultas/', { cdc, intento });
-        await page.goto(CONSULTAS_URL, { waitUntil: 'networkidle2', timeout: navTimeout });
+        await page.goto(CONSULTAS_URL, { waitUntil: 'domcontentloaded', timeout: navTimeout });
 
         await page.waitForSelector('#g-recaptcha-response', { timeout: navTimeout });
         await page.evaluate((t: string) => {
@@ -150,9 +220,11 @@ export class EkuatiaService {
             el.style.display = 'block';
           }
         }, token);
+        navMs = Date.now() - stepStart;
 
         logger.debug('Puppeteer: token inyectado, insertando CDC', { cdc });
 
+        stepStart = Date.now();
         await page.waitForSelector('input[name="cdc"]', { visible: true, timeout: navTimeout });
         await page.evaluate((cdcValue: string) => {
           const input = document.querySelector('input[name="cdc"]') as HTMLInputElement | null;
@@ -170,15 +242,19 @@ export class EkuatiaService {
           if (!btn) throw new Error('Botón Consultar no encontrado en DOM');
           btn.click();
         });
+        submitMs = Date.now() - stepStart;
 
+        stepStart = Date.now();
         await page.waitForFunction(
           () => {
             const btn = document.querySelector<HTMLButtonElement>('#boton[ng-click*="descargarxml"]');
             return btn !== null && !btn.disabled && !btn.hasAttribute('disabled');
           },
-          { timeout: navTimeout, polling: 500 }
+          { timeout: navTimeout, polling: 250 }
         );
+        waitXmlBtnMs = Date.now() - stepStart;
 
+        stepStart = Date.now();
         logger.debug('Puppeteer: haciendo click en "Más información" para obtener estado SIFEN', { cdc });
         await page.evaluate(() => {
           const btn = document.querySelector<HTMLElement>('#boton[ng-click*="gotopestanhas"]');
@@ -190,7 +266,7 @@ export class EkuatiaService {
             const el = document.getElementById('estadocdc') as HTMLInputElement | null;
             return el !== null && el.value !== '' && el.value !== undefined;
           },
-          { timeout: navTimeout, polling: 300 }
+          { timeout: navTimeout, polling: 200 }
         );
 
         const sifenStatus = await page.evaluate(() => {
@@ -202,6 +278,7 @@ export class EkuatiaService {
             sistemaFacturacion: v('cSisFact'),
           };
         }) as SifenStatus;
+        sifenMs = Date.now() - stepStart;
 
         logger.info('Estado SIFEN obtenido', { cdc, estado: sifenStatus.estadoCdc, nroTransaccion: sifenStatus.nroTransaccion });
 
@@ -210,6 +287,7 @@ export class EkuatiaService {
           throw new SifenDocumentoNoAprobadoError(sifenStatus.estadoCdc, cdc);
         }
 
+        stepStart = Date.now();
         logger.debug('Puppeteer: disparando descargarxml via evaluate', { cdc });
 
         const [xmlResponse] = await Promise.all([
@@ -233,6 +311,7 @@ export class EkuatiaService {
         } else {
           xmlContenido = await page.evaluate(() => document.body?.innerText ?? '');
         }
+        downloadMs = Date.now() - stepStart;
 
         await page.close();
 
@@ -252,14 +331,18 @@ export class EkuatiaService {
           continue;
         }
 
+        stepStart = Date.now();
         const detalles = parsearXml(xmlContenido, cdc);
+        parseMs = Date.now() - stepStart;
 
+        const totalMs = Date.now() - xmlStartMs;
         logger.info('XML descargado y parseado', {
           cdc,
           emisor: detalles.emisor.ruc,
           total: detalles.totales.total,
           items: detalles.items.length,
           estadoSifen: sifenStatus.estadoCdc,
+          timing: { captchaMs, navMs, submitMs, waitXmlBtnMs, sifenMs, downloadMs, parseMs, totalMs },
         });
 
         return { cdc, xmlContenido, xmlUrl, detalles, sifenStatus };

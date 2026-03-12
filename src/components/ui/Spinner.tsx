@@ -41,8 +41,8 @@ export function PageLoader() {
   return (
     <div className="flex-1 flex items-center justify-center min-h-[300px]">
       <div className="flex flex-col items-center gap-3">
-        <Spinner size="md" className="text-zinc-400" />
-        <p className="text-sm text-zinc-400">Cargando...</p>
+        <Spinner size="md" className="text-brand-500" />
+        <p className="text-sm text-gray-400">Cargando...</p>
       </div>
     </div>
   );

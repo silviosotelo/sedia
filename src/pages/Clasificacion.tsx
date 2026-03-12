@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Tag, Plus, Trash2, Play, GripVertical, Pencil } from 'lucide-react';
-import { Card, Text, Button, TextInput, NumberInput, Select, SelectItem, Switch, Badge } from '@tremor/react';
+import { Card, Text, Button, TextInput, NumberInput, Select, SelectItem, Switch, Badge } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { PageLoader } from '../components/ui/Spinner';
 import { NoTenantState } from '../components/ui/NoTenantState';
+import { ErrorState } from '../components/ui/ErrorState';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useTenant } from '../contexts/TenantContext';
@@ -105,11 +106,11 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
             <div className="flex gap-1.5 flex-wrap">
               {COLORES_PRESET.map((c) => (
                 <button key={c} type="button" onClick={() => setField('color', c)}
-                  className={cn('w-6 h-6 rounded-full border-2 transition-transform', form.color === c ? 'border-tremor-content-emphasis scale-110' : 'border-transparent')}
+                  className={cn('w-6 h-6 rounded-full border-2 transition-transform', form.color === c ? 'border-gray-400 dark:border-gray-500 scale-110' : 'border-transparent')}
                   style={{ backgroundColor: c }} />
               ))}
             </div>
-            <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-tremor-border flex-shrink-0" />
+            <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200 dark:border-gray-700 flex-shrink-0" />
           </div>
         </div>
         <div className="col-span-7 sm:col-span-4">
@@ -127,7 +128,7 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
           </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+      <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button variant="secondary" onClick={onCancel} disabled={saving}>Cancelar</Button>
         <Button onClick={() => void onSave(form)} disabled={saving || !form.nombre || !form.etiqueta || !form.valor} loading={saving}>
           Guardar regla
@@ -142,6 +143,8 @@ export function Clasificacion({ toastSuccess, toastError }: ClasificacionProps) 
   const tenantId = activeTenantId ?? '';
   const [reglas, setReglas] = useState<ClasificacionRegla[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRegla, setEditingRegla] = useState<ClasificacionRegla | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -151,9 +154,10 @@ export function Clasificacion({ toastSuccess, toastError }: ClasificacionProps) 
   const load = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
+    setError(null);
     try { setReglas(await api.clasificacion.listReglas(tenantId)); }
-    catch { toastError('Error al cargar reglas'); } finally { setLoading(false); }
-  }, [tenantId, toastError]);
+    catch (e) { setError((e as Error).message || 'Error al cargar reglas'); } finally { setLoading(false); }
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -185,6 +189,18 @@ export function Clasificacion({ toastSuccess, toastError }: ClasificacionProps) 
   const getOperadorLabel = (campo: string, operador: string) =>
     (OPERADORES_POR_CAMPO[campo] ?? []).find((o) => o.value === operador)?.label ?? operador;
   const getCampoLabel = (campo: string) => CAMPOS.find((c) => c.value === campo)?.label ?? campo;
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Clasificación" subtitle="Etiqueta comprobantes automáticamente por proveedor, monto o tipo" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -223,25 +239,25 @@ export function Clasificacion({ toastSuccess, toastError }: ClasificacionProps) 
             <div className="space-y-4">
               {reglas.map((r) => (
                 <Card key={r.id} className="p-4 flex items-center gap-3">
-                  <GripVertical className="w-3.5 h-3.5 text-tremor-content-subtle flex-shrink-0 cursor-grab" />
-                  <div className={cn('w-2 h-2 rounded-full flex-shrink-0', r.activo ? 'bg-emerald-500' : 'bg-tremor-content-subtle')} />
+                  <GripVertical className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 flex-shrink-0 cursor-grab" />
+                  <div className={cn('w-2 h-2 rounded-full flex-shrink-0', r.activo ? 'bg-emerald-500' : 'bg-gray-400 dark:bg-gray-500')} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <Text className="text-sm font-medium text-tremor-content-strong">{r.nombre}</Text>
+                      <Text className="text-sm font-medium text-gray-900 dark:text-white">{r.nombre}</Text>
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-white shadow-sm" style={{ backgroundColor: r.color }}>
                         <Tag className="w-2.5 h-2.5" /> {r.etiqueta}
                       </span>
                       <Badge size="xs" color="gray">p:{r.prioridad}</Badge>
                     </div>
                     <Text className="text-xs mt-1">
-                      <span className="font-medium text-tremor-content-strong">{getCampoLabel(r.campo)}</span>{' '}
-                      <span className="text-tremor-content">{getOperadorLabel(r.campo, r.operador)}</span>{' '}
-                      <code className="font-mono text-tremor-content-emphasis bg-tremor-background-subtle px-1 rounded">{r.valor}</code>
+                      <span className="font-medium text-gray-900 dark:text-white">{getCampoLabel(r.campo)}</span>{' '}
+                      <span className="text-gray-600 dark:text-gray-400">{getOperadorLabel(r.campo, r.operador)}</span>{' '}
+                      <code className="font-mono text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/60 px-1 rounded">{r.valor}</code>
                     </Text>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button variant="light" color="gray" onClick={() => setEditingRegla(r)} title="Editar" icon={Pencil} />
-                    <Button variant="light" color="rose" onClick={() => setDeletingId(r.id)} title="Eliminar" icon={Trash2} />
+                    <Button variant="light" color="gray" onClick={() => setEditingRegla(r)} title="Editar" aria-label="Editar" icon={Pencil} />
+                    <Button variant="light" color="rose" onClick={() => setDeletingId(r.id)} title="Eliminar" aria-label="Eliminar" icon={Trash2} />
                   </div>
                 </Card>
               ))}

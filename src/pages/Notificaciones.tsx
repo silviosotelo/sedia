@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, Send, CheckCircle, XCircle, Clock, FileEdit, Save, RotateCcw, Trash2 } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Badge } from '@tremor/react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Badge, TabGroup, TabList, Tab } from '../components/ui/TailAdmin';
 import { api } from '../lib/api';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
 import { Pagination } from '../components/ui/Pagination';
 import { NoTenantState } from '../components/ui/NoTenantState';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useTenant } from '../contexts/TenantContext';
 import { cn, formatDateTime } from '../lib/utils';
 
@@ -78,6 +80,8 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [sendingTest, setSendingTest] = useState(false);
   const LIMIT = 20;
 
@@ -87,20 +91,22 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
   const [editingEvento, setEditingEvento] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ asunto_custom: '', cuerpo_custom: '' });
   const [saving, setSaving] = useState(false);
+  const [deletingTemplateEvento, setDeletingTemplateEvento] = useState<string | null>(null);
 
   const loadLogs = useCallback(async () => {
     if (!activeTenantId) return;
     setLoading(true);
+    setError(null);
     try {
       const result = await api.notifications.getLogs(activeTenantId, page, LIMIT);
       setLogs(result.data as NotificationLog[]);
       setTotal(result.pagination.total);
-    } catch {
-      toastError('Error al cargar historial de notificaciones');
+    } catch (e) {
+      setError((e as Error).message || 'Error al cargar historial de notificaciones');
     } finally {
       setLoading(false);
     }
-  }, [activeTenantId, page, toastError]);
+  }, [activeTenantId, page, retryCount]);
 
   const loadTemplates = useCallback(async () => {
     if (!activeTenantId) return;
@@ -164,7 +170,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
 
   const handleDeleteTemplate = async (evento: string) => {
     if (!activeTenantId) return;
-    if (!confirm('¿Eliminar este template personalizado? Se usará el template por defecto.')) return;
+    setDeletingTemplateEvento(null);
     try {
       await api.notifications.deleteTemplate(activeTenantId, evento);
       toastSuccess('Template eliminado, se usará el predeterminado');
@@ -175,6 +181,18 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
   };
 
   const totalPages = Math.ceil(total / LIMIT);
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Notificaciones" subtitle="Historial y personalización de emails del sistema" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -195,20 +213,16 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
       ) : (
         <>
           {/* Tab bar */}
-          <div className="flex gap-1 mb-4 bg-zinc-100 rounded-xl p-1 w-fit">
-            {([['historial', 'Historial'], ['templates', 'Templates']] as const).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={cn(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
-                  tab === key ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <TabGroup
+            index={tab === 'historial' ? 0 : 1}
+            onIndexChange={(i) => setTab(i === 0 ? 'historial' : 'templates')}
+            className="mb-4 w-fit"
+          >
+            <TabList variant="solid">
+              <Tab>Historial</Tab>
+              <Tab>Templates</Tab>
+            </TabList>
+          </TabGroup>
 
           {tab === 'historial' && (
             <Card className="p-0 overflow-hidden">
@@ -216,7 +230,7 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                 <PageLoader />
               ) : logs.length === 0 ? (
                 <EmptyState
-                  icon={<Bell className="w-8 h-8 text-zinc-300" />}
+                  icon={<Bell className="w-8 h-8 text-gray-300 dark:text-gray-600" />}
                   title="Sin notificaciones"
                   description="No se han enviado notificaciones aun. Configure el SMTP en la pestaña Integraciones de la empresa y active los eventos."
                 />
@@ -237,9 +251,9 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                         const estadoCfg = ESTADO_CONFIG[log.estado] ?? ESTADO_CONFIG.PENDING;
                         const Icon = estadoCfg.icon;
                         return (
-                          <TableRow key={log.id}>
+                          <TableRow key={log.id} className="transition-colors duration-150 hover:bg-gray-50/50 dark:hover:bg-white/[0.02]">
                             <TableCell>
-                              <Text className="font-medium text-tremor-content-strong">
+                              <Text className="font-medium text-gray-800 dark:text-white/90">
                                 {EVENTO_LABELS[log.evento] ?? log.evento}
                               </Text>
                             </TableCell>
@@ -287,12 +301,12 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
             <div className="space-y-4">
               {/* Variables reference */}
               <Card className="p-4">
-                <Text className="text-xs font-bold text-zinc-500 mb-2">Variables disponibles en templates:</Text>
+                <Text className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2">Variables disponibles en templates:</Text>
                 <div className="flex flex-wrap gap-2">
                   {TEMPLATE_VARIABLES.map((v) => (
-                    <span key={v.var} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-100 text-xs">
+                    <span key={v.var} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-xs">
                       <code className="font-mono text-indigo-600">{v.var}</code>
-                      <span className="text-zinc-400">— {v.desc}</span>
+                      <span className="text-gray-400 dark:text-gray-500">— {v.desc}</span>
                     </span>
                   ))}
                 </div>
@@ -312,22 +326,22 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
-                              <Text className="font-bold text-tremor-content-strong text-sm">
+                              <Text className="font-bold text-gray-800 dark:text-white/90 text-sm">
                                 {EVENTO_LABELS[evento] ?? evento}
                               </Text>
-                              <code className="text-[10px] text-zinc-400 font-mono">{evento}</code>
+                              <code className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{evento}</code>
                               {hasCustom && (
-                                <Badge color="indigo" size="sm">Personalizado</Badge>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: 'rgb(var(--brand-rgb))' }}>Personalizado</span>
                               )}
                             </div>
 
                             {!isEditing && tpl && (
                               <div className="space-y-1 mt-2">
                                 {tpl.asunto_custom && (
-                                  <p className="text-xs text-zinc-600"><span className="font-medium">Asunto:</span> {tpl.asunto_custom}</p>
+                                  <p className="text-xs text-gray-600 dark:text-gray-400"><span className="font-medium">Asunto:</span> {tpl.asunto_custom}</p>
                                 )}
                                 {tpl.cuerpo_custom && (
-                                  <p className="text-xs text-zinc-400 truncate max-w-lg"><span className="font-medium">Cuerpo:</span> {tpl.cuerpo_custom.substring(0, 120)}...</p>
+                                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-lg"><span className="font-medium">Cuerpo:</span> {tpl.cuerpo_custom.substring(0, 120)}...</p>
                                 )}
                               </div>
                             )}
@@ -335,23 +349,23 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                             {isEditing && (
                               <div className="mt-3 space-y-3">
                                 <div>
-                                  <label className="block text-xs font-medium text-zinc-600 mb-1">Asunto personalizado</label>
+                                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Asunto personalizado</label>
                                   <input
                                     type="text"
                                     value={editForm.asunto_custom}
                                     onChange={(e) => setEditForm((f) => ({ ...f, asunto_custom: e.target.value }))}
                                     placeholder="Ej: [{{tenant_nombre}}] Sincronización completada"
-                                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none"
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-xs font-medium text-zinc-600 mb-1">Cuerpo HTML personalizado</label>
+                                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Cuerpo HTML personalizado</label>
                                   <textarea
                                     value={editForm.cuerpo_custom}
                                     onChange={(e) => setEditForm((f) => ({ ...f, cuerpo_custom: e.target.value }))}
                                     rows={6}
                                     placeholder="<h2>{{tenant_nombre}}</h2><p>Fecha: {{fecha}}</p><p>{{detalles}}</p>"
-                                    className="w-full px-3 py-2 text-sm border border-zinc-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none font-mono"
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none font-mono"
                                   />
                                 </div>
                                 <div className="flex gap-2">
@@ -370,15 +384,15 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
                             <div className="flex gap-1 flex-shrink-0">
                               <button
                                 onClick={() => startEdit(evento)}
-                                className="p-1.5 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
+                                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-600 transition-colors"
                                 title="Editar template"
                               >
                                 <FileEdit className="w-4 h-4" />
                               </button>
                               {hasCustom && (
                                 <button
-                                  onClick={() => handleDeleteTemplate(evento)}
-                                  className="p-1.5 rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors"
+                                  onClick={() => setDeletingTemplateEvento(evento)}
+                                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 dark:text-gray-500 hover:text-red-500 transition-colors"
                                   title="Eliminar personalización"
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -396,6 +410,17 @@ export function Notificaciones({ toastSuccess, toastError }: NotificacionesProps
           )}
         </>
       )}
+
+      {/* Confirm: Eliminar template */}
+      <ConfirmDialog
+        open={!!deletingTemplateEvento}
+        onClose={() => setDeletingTemplateEvento(null)}
+        onConfirm={() => deletingTemplateEvento && handleDeleteTemplate(deletingTemplateEvento)}
+        title="Eliminar Template"
+        description="¿Eliminar este template personalizado? Se usará el template por defecto."
+        confirmLabel="Eliminar"
+        variant="danger"
+      />
     </div>
   );
 }

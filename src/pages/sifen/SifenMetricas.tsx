@@ -1,8 +1,22 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, TrendingUp, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { TrendingUp, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Header } from '../../components/layout/Header';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Button, Card, BarChart, DonutChart, Title, Metric, Text, Flex } from '@tremor/react';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { Card, Title } from '../../components/ui/TailAdmin';
+import {
+    BarChart as ReBarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip as ReTooltip,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+} from 'recharts';
 import { SifenMetrics, SIFEN_TIPO_LABELS, SifenTipoDocumento } from '../../types';
 import { SifenEstadoBadge } from '../../components/sifen/SifenEstadoBadge';
 
@@ -42,22 +56,13 @@ export function SifenMetricasPage({ tenantId }: Props) {
     if (loading) return <div className="py-20 flex justify-center"><Spinner /></div>;
 
     if (error) {
-        const esPlanError = /plan|módulo|feature/i.test(error);
         return (
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-                <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
-                <h3 className="text-lg font-semibold text-zinc-800 mb-2">No se pudo cargar</h3>
-                <p className="text-sm text-zinc-500 max-w-md">
-                    {esPlanError
-                        ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
-                        : error}
-                </p>
-                <button
-                    onClick={() => setRetryCount(c => c + 1)}
-                    className="mt-4 px-4 py-2 text-sm bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
-                >
-                    Reintentar
-                </button>
+            <div className="space-y-6">
+                <Header title="Métricas SIFEN" subtitle="Resumen de actividad de facturación electrónica" />
+                <ErrorState
+                    message={/plan|módulo|feature/i.test(error) ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.' : error}
+                    onRetry={() => setRetryCount(c => c + 1)}
+                />
             </div>
         );
     }
@@ -76,113 +81,139 @@ export function SifenMetricasPage({ tenantId }: Props) {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                    <h2 className="text-lg font-bold text-zinc-900">Métricas SIFEN</h2>
-                    <p className="text-sm text-zinc-500">Resumen de actividad de facturación electrónica</p>
-                </div>
+            <Header title="Métricas SIFEN" subtitle="Resumen de actividad de facturación electrónica" onRefresh={load} refreshing={loading} actions={
                 <div className="flex gap-2 items-center">
-                    <input type="date" className="border border-zinc-200 rounded-lg px-2 py-1.5 text-xs" value={desde} onChange={e => setDesde(e.target.value)} />
-                    <span className="text-xs text-zinc-400">—</span>
-                    <input type="date" className="border border-zinc-200 rounded-lg px-2 py-1.5 text-xs" value={hasta} onChange={e => setHasta(e.target.value)} />
-                    <Button variant="secondary" icon={RefreshCw} size="xs" onClick={load}>Actualizar</Button>
+                    <input type="date" className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2" style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties} value={desde} onChange={e => setDesde(e.target.value)} />
+                    <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                    <input type="date" className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 rounded-lg px-2.5 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2" style={{ '--tw-ring-color': 'rgb(var(--brand-rgb) / 0.2)' } as React.CSSProperties} value={hasta} onChange={e => setHasta(e.target.value)} />
                 </div>
-            </div>
+            } />
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Card decoration="top" decorationColor="blue" className="p-4">
-                    <Flex>
-                        <Text className="text-xs text-zinc-500">Total emitidos</Text>
-                        <TrendingUp className="w-4 h-4 text-blue-400" />
-                    </Flex>
-                    <Metric className="text-2xl mt-1">{parseInt(tot?.total || '0').toLocaleString()}</Metric>
-                    <Text className="text-xs text-zinc-400 mt-1">Gs. {parseInt(tot?.monto_total || '0').toLocaleString('es-PY')}</Text>
-                </Card>
-                <Card decoration="top" decorationColor="emerald" className="p-4">
-                    <Flex>
-                        <Text className="text-xs text-zinc-500">Aprobados</Text>
-                        <CheckCircle className="w-4 h-4 text-emerald-400" />
-                    </Flex>
-                    <Metric className="text-2xl mt-1 text-emerald-600">{parseInt(tot?.aprobados || '0').toLocaleString()}</Metric>
-                </Card>
-                <Card decoration="top" decorationColor="red" className="p-4">
-                    <Flex>
-                        <Text className="text-xs text-zinc-500">Rechazados</Text>
-                        <XCircle className="w-4 h-4 text-red-400" />
-                    </Flex>
-                    <Metric className="text-2xl mt-1 text-red-600">{parseInt(tot?.rechazados || '0').toLocaleString()}</Metric>
-                </Card>
-                <Card decoration="top" decorationColor="amber" className="p-4">
-                    <Flex>
-                        <Text className="text-xs text-zinc-500">Pendientes</Text>
-                        <Clock className="w-4 h-4 text-amber-400" />
-                    </Flex>
-                    <Metric className="text-2xl mt-1 text-amber-600">{parseInt(tot?.pendientes || '0').toLocaleString()}</Metric>
-                </Card>
+            <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Total emitidos</span>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/30">
+                            <TrendingUp className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{parseInt(tot?.total || '0').toLocaleString()}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Gs. {parseInt(tot?.monto_total || '0').toLocaleString('es-PY')}</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Aprobados</span>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{parseInt(tot?.aprobados || '0').toLocaleString()}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">&nbsp;</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Rechazados</span>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-red-100 dark:bg-red-900/30">
+                            <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">{parseInt(tot?.rechazados || '0').toLocaleString()}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">&nbsp;</p>
+                </div>
+                <div className="p-4 rounded-2xl bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Pendientes</span>
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
+                            <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        </div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400">{parseInt(tot?.pendientes || '0').toLocaleString()}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">&nbsp;</p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Distribución por estado */}
                 <Card className="p-5">
-                    <Title className="text-sm font-bold text-zinc-800 mb-4">Por Estado</Title>
+                    <Title className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Por Estado</Title>
                     {barData.length > 0 ? (
-                        <BarChart
-                            data={barData}
-                            index="Estado"
-                            categories={['Cantidad']}
-                            colors={['blue']}
-                            showLegend={false}
-                            className="h-40"
-                        />
+                        <ResponsiveContainer width="100%" height={160}>
+                            <ReBarChart data={barData} margin={{ top: 4, right: 4, left: 4, bottom: 4 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                <XAxis dataKey="Estado" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                                <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" />
+                                <ReTooltip
+                                    contentStyle={{ borderRadius: '8px', boxShadow: '0 1px 6px rgba(0,0,0,.08)', background: '#fff', border: '1px solid #e5e7eb', fontSize: 11 }}
+                                />
+                                <Bar dataKey="Cantidad" fill="#3b82f6" radius={[3, 3, 0, 0]} />
+                            </ReBarChart>
+                        </ResponsiveContainer>
                     ) : (
-                        <div className="h-40 flex items-center justify-center text-zinc-400 text-sm">Sin datos</div>
+                        <div className="h-40 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Sin datos</div>
                     )}
                 </Card>
 
                 {/* Distribución por tipo */}
                 <Card className="p-5">
-                    <Title className="text-sm font-bold text-zinc-800 mb-4">Por Tipo de Documento</Title>
+                    <Title className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Por Tipo de Documento</Title>
                     {donutData.length > 0 ? (
-                        <DonutChart
-                            data={donutData}
-                            category="value"
-                            index="name"
-                            colors={['blue', 'indigo', 'violet', 'purple']}
-                            className="h-40"
-                        />
+                        (() => {
+                            const DONUT_HEX = ['#3b82f6', '#6366f1', '#8b5cf6', '#a855f7'];
+                            return (
+                                <ResponsiveContainer width="100%" height={160}>
+                                    <PieChart>
+                                        <Pie
+                                            data={donutData}
+                                            dataKey="value"
+                                            nameKey="name"
+                                            innerRadius="45%"
+                                            outerRadius="75%"
+                                            paddingAngle={2}
+                                        >
+                                            {donutData.map((_entry, i) => (
+                                                <Cell key={i} fill={DONUT_HEX[i % DONUT_HEX.length]} />
+                                            ))}
+                                        </Pie>
+                                        <ReTooltip
+                                            contentStyle={{ borderRadius: '8px', boxShadow: '0 1px 6px rgba(0,0,0,.08)', background: '#fff', border: '1px solid #e5e7eb', fontSize: 11 }}
+                                        />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            );
+                        })()
                     ) : (
-                        <div className="h-40 flex items-center justify-center text-zinc-400 text-sm">Sin datos</div>
+                        <div className="h-40 flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Sin datos</div>
                     )}
                 </Card>
             </div>
 
             {/* Últimos DEs */}
             <Card className="p-5">
-                <Title className="text-sm font-bold text-zinc-800 mb-4">Últimos Documentos</Title>
+                <Title className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4">Últimos Documentos</Title>
                 <div className="space-y-2">
                     {(metrics?.ultimos_de || []).map((de: any) => (
-                        <div key={de.id} className="flex items-center justify-between py-2 border-b border-zinc-100 last:border-0">
+                        <div key={de.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
                             <div className="flex items-center gap-3">
                                 <SifenEstadoBadge estado={de.estado} />
                                 <div>
-                                    <div className="text-xs font-medium text-zinc-800">
+                                    <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
                                         {SIFEN_TIPO_LABELS[de.tipo_documento as SifenTipoDocumento] || `Tipo ${de.tipo_documento}`}
-                                        {de.numero_documento && <span className="text-zinc-400 ml-1">#{de.numero_documento}</span>}
+                                        {de.numero_documento && <span className="text-gray-400 dark:text-gray-500 ml-1">#{de.numero_documento}</span>}
                                     </div>
-                                    <div className="text-[11px] text-zinc-500">{de.receptor_nombre || '—'}</div>
+                                    <div className="text-[11px] text-gray-500 dark:text-gray-400">{de.receptor_nombre || '—'}</div>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <div className="text-xs font-mono font-medium text-zinc-800">
+                                <div className="text-xs font-mono font-medium text-gray-800 dark:text-gray-200">
                                     {de.total_pago != null ? `${Number(de.total_pago).toLocaleString('es-PY')} Gs.` : '—'}
                                 </div>
-                                <div className="text-[11px] text-zinc-400">{new Date(de.fecha_emision).toLocaleDateString('es-PY')}</div>
+                                <div className="text-[11px] text-gray-400 dark:text-gray-500">{new Date(de.fecha_emision).toLocaleDateString('es-PY')}</div>
                             </div>
                         </div>
                     ))}
                     {!(metrics?.ultimos_de?.length) && (
-                        <div className="text-center py-6 text-zinc-400 text-sm">No hay documentos en el período seleccionado.</div>
+                        <div className="text-center py-6 text-gray-400 dark:text-gray-500 text-sm">No hay documentos en el período seleccionado.</div>
                     )}
                 </div>
             </Card>

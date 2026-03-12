@@ -71,7 +71,7 @@ export const sifenLoteService = {
             `SELECT ambiente, ws_url_recibe_lote FROM sifen_config WHERE tenant_id = $1`,
             [tenantId]
         );
-        const envStr = config?.ambiente === 'PRODUCCION' ? '1' : '2';
+        const envStr = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
 
         try {
             const result = await setapi.recibeLote(xmls, envStr, config?.ws_url_recibe_lote);
@@ -116,7 +116,7 @@ export const sifenLoteService = {
             `SELECT ambiente, ws_url_consulta_lote FROM sifen_config WHERE tenant_id = $1`,
             [tenantId]
         );
-        const envStr = config?.ambiente === 'PRODUCCION' ? '1' : '2';
+        const envStr = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
 
         const result = await setapi.consultaLote(lote.numero_lote, envStr, config?.ws_url_consulta_lote);
         logger.debug('Respuesta consultaLote', { loteId, codigo: result?.codigo });

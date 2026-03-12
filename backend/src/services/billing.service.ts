@@ -178,8 +178,8 @@ export const billingManager = {
     return updateInvoiceStatus(invoiceId, status, metadata);
   },
 
-  async updateSubscription(tenantId: string, planId: string, status: string, externalId?: string) {
-    await upsertBillingSubscription(tenantId, planId, status, externalId);
+  async updateSubscription(tenantId: string, planId: string, status: string, externalId?: string, billingPeriod?: 'monthly' | 'annual') {
+    await upsertBillingSubscription(tenantId, planId, status, externalId, billingPeriod);
     await changePlan(tenantId, planId);
   },
 

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, Play, Search, Package, AlertTriangle } from 'lucide-react';
+import { Play, Search, Package } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Button, Card, Badge, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '@tremor/react';
+import { Button, Badge, TableHead, TableHeaderCell, TableBody, TableRow, TableCell } from '../../components/ui/TailAdmin';
 import { SifenLote } from '../../types';
+import { Header } from '../../components/layout/Header';
+import { ErrorState } from '../../components/ui/ErrorState';
 
 interface Props {
     tenantId: string;
@@ -98,21 +100,25 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
         }
     };
 
+    if (error) {
+        return (
+            <div className="space-y-4">
+                <Header title="Lotes SIFEN" subtitle="Gestión de lotes de envío a SIFEN" />
+                <ErrorState
+                    message={/plan|módulo|feature/i.test(error) ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.' : error}
+                    onRetry={load}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-bold text-zinc-900">Lotes SIFEN</h2>
-                    <p className="text-sm text-zinc-500">Gestión de lotes de envío a SIFEN</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="secondary" icon={RefreshCw} size="xs" onClick={load}>Actualizar</Button>
-                    <Button icon={Package} size="xs" loading={armando} onClick={handleArmarLote}>Armar Lote</Button>
-                </div>
-            </div>
+            <Header title="Lotes SIFEN" subtitle="Gestión de lotes de envío a SIFEN" onRefresh={load} refreshing={loading} actions={<Button icon={Package} size="xs" loading={armando} onClick={handleArmarLote} style={{ backgroundColor: 'rgb(var(--brand-rgb))', borderColor: 'rgb(var(--brand-rgb))' }}>Armar Lote</Button>} />
 
-            <Card className="overflow-hidden p-0">
-                <Table>
+            <div className="card card-border overflow-hidden">
+                <div className="overflow-x-auto">
+                <table className="table-default w-full">
                     <TableHead>
                         <TableRow>
                             <TableHeaderCell>ID Lote</TableHeaderCell>
@@ -126,36 +132,17 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                     <TableBody>
                         {loading ? (
                             <TableRow><TableCell colSpan={6} className="text-center py-10"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
-                        ) : error ? (
-                            <TableRow>
-                                <TableCell colSpan={6} className="text-center py-10">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
-                                        <p className="text-sm text-zinc-500 max-w-sm">
-                                            {/plan|módulo|feature/i.test(error)
-                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
-                                                : error}
-                                        </p>
-                                        <button
-                                            onClick={load}
-                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
                         ) : lotes.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="text-center py-10 text-zinc-400 text-sm">No hay lotes creados.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={6} className="text-center py-10 text-gray-400 text-sm">No hay lotes creados.</TableCell></TableRow>
                         ) : (
                             lotes.map(lote => (
                                 <>
                                     <TableRow
                                         key={lote.id}
-                                        className="cursor-pointer hover:bg-zinc-50"
+                                        className="cursor-pointer hover:bg-gray-50/60 transition-colors"
                                         onClick={() => handleExpandLote(lote.id)}
                                     >
-                                        <TableCell className="font-mono text-[10px] text-zinc-400">{lote.id.slice(0, 8)}...</TableCell>
+                                        <TableCell className="font-mono text-[10px] text-gray-400">{lote.id.slice(0, 8)}...</TableCell>
                                         <TableCell className="font-mono text-sm font-medium">{lote.numero_lote || '—'}</TableCell>
                                         <TableCell className="text-sm">{(lote as any).cantidad_items ?? '—'}</TableCell>
                                         <TableCell>
@@ -163,7 +150,7 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                                                 {lote.estado}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-xs text-zinc-500">{new Date(lote.created_at).toLocaleString('es-PY')}</TableCell>
+                                        <TableCell className="text-xs text-gray-500">{new Date(lote.created_at).toLocaleString('es-PY')}</TableCell>
                                         <TableCell onClick={e => e.stopPropagation()}>
                                             <div className="flex gap-1">
                                                 {lote.estado === 'CREATED' && (
@@ -182,12 +169,12 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                                     {expandedId === lote.id && expandedData && (
                                         <TableRow key={`${lote.id}-detail`}>
                                             <TableCell colSpan={6} className="p-0">
-                                                <div className="bg-zinc-50 border-t border-zinc-100 p-4">
-                                                    <h4 className="text-xs font-semibold text-zinc-600 mb-3">Items del Lote</h4>
+                                                <div className="bg-gray-50 dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700 p-4">
+                                                    <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-300 mb-3">Items del Lote</h4>
                                                     <div className="overflow-x-auto">
                                                         <table className="w-full text-xs">
                                                             <thead>
-                                                                <tr className="text-zinc-500 border-b border-zinc-200">
+                                                                <tr className="text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                                                                     <th className="text-left pb-2">Orden</th>
                                                                     <th className="text-left pb-2">CDC</th>
                                                                     <th className="text-left pb-2">Receptor</th>
@@ -195,11 +182,11 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                                                                     <th className="text-left pb-2">Estado Item</th>
                                                                 </tr>
                                                             </thead>
-                                                            <tbody className="divide-y divide-zinc-100">
+                                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                                                 {(expandedData.items || []).map((item: any) => (
-                                                                    <tr key={item.id} className="hover:bg-white">
-                                                                        <td className="py-1.5 text-zinc-400">{item.orden}</td>
-                                                                        <td className="py-1.5 font-mono text-[10px] text-zinc-500">{(item.cdc || '').slice(0, 12)}...</td>
+                                                                    <tr key={item.id} className="hover:bg-white dark:hover:bg-gray-700/40">
+                                                                        <td className="py-1.5 text-gray-400">{item.orden}</td>
+                                                                        <td className="py-1.5 font-mono text-[10px] text-gray-500">{(item.cdc || '').slice(0, 12)}...</td>
                                                                         <td className="py-1.5">{item.receptor_nombre || '—'}</td>
                                                                         <td className="py-1.5 text-right font-mono">{item.total_pago?.toLocaleString('es-PY') || '—'}</td>
                                                                         <td className="py-1.5">
@@ -217,8 +204,8 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                                                     </div>
                                                     {expandedData.respuesta_recibe_lote && (
                                                         <details className="mt-3">
-                                                            <summary className="text-[11px] text-zinc-500 cursor-pointer">Respuesta SIFEN (JSON)</summary>
-                                                            <pre className="mt-2 text-[10px] bg-white border border-zinc-200 rounded-lg p-3 overflow-x-auto">
+                                                            <summary className="text-[11px] text-gray-500 cursor-pointer">Respuesta SIFEN (JSON)</summary>
+                                                            <pre className="mt-2 text-[10px] bg-white dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg p-3 overflow-x-auto">
                                                                 {JSON.stringify(expandedData.respuesta_recibe_lote, null, 2)}
                                                             </pre>
                                                         </details>
@@ -231,8 +218,9 @@ export function SifenLotesPage({ tenantId, toastSuccess, toastError }: Props) {
                             ))
                         )}
                     </TableBody>
-                </Table>
-            </Card>
+                </table>
+                </div>
+            </div>
         </div>
     );
 }

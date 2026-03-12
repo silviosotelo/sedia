@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Settings, Layers, FileText, Plus, BarChart2, Hash } from 'lucide-react';
-import { TabGroup, TabList, Tab, Text } from '@tremor/react';
+import { Settings, Layers, FileText, Plus, BarChart2, Hash, AlertTriangle, Search, Calendar } from 'lucide-react';
+import { TabGroup, TabList, Tab, Text } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { useTenant } from '../contexts/TenantContext';
 import { useToast } from '../hooks/useToast';
@@ -11,14 +11,20 @@ import { SifenEmitirPage } from './sifen/SifenEmitir';
 import { SifenLotesPage } from './sifen/SifenLotes';
 import { SifenMetricasPage } from './sifen/SifenMetricas';
 import { SifenNumeracionPage } from './sifen/SifenNumeracion';
+import { SifenEventosPage } from './sifen/SifenEventos';
+import { SifenContingenciaPage } from './sifen/SifenContingencia';
+import { SifenConsultasPage } from './sifen/SifenConsultas';
 
 const tabs = [
-    { id: 'documentos', label: 'Documentos',    icon: FileText },
-    { id: 'emitir',     label: 'Emitir DE',      icon: Plus },
-    { id: 'numeracion', label: 'Numeración',     icon: Hash },
-    { id: 'lotes',      label: 'Lotes',          icon: Layers },
-    { id: 'metricas',   label: 'Métricas',       icon: BarChart2 },
-    { id: 'config',     label: 'Configuración',  icon: Settings },
+    { id: 'documentos',    label: 'Documentos',    icon: FileText },
+    { id: 'emitir',        label: 'Emitir DE',      icon: Plus },
+    { id: 'numeracion',    label: 'Numeración',     icon: Hash },
+    { id: 'lotes',         label: 'Lotes',          icon: Layers },
+    { id: 'eventos',       label: 'Eventos',        icon: Calendar },
+    { id: 'consultas',     label: 'Consultas',      icon: Search },
+    { id: 'contingencia',  label: 'Contingencia',   icon: AlertTriangle },
+    { id: 'metricas',      label: 'Métricas',       icon: BarChart2 },
+    { id: 'config',        label: 'Configuración',  icon: Settings },
 ];
 
 export function Sifen() {
@@ -33,7 +39,7 @@ export function Sifen() {
             <div className="animate-fade-in">
                 <Header title="Facturación Electrónica" subtitle="Gestión de Documentos Electrónicos SIFEN" />
                 <div className="flex flex-col items-center justify-center py-20">
-                    <FileText className="w-12 h-12 text-tremor-content mb-3" />
+                    <FileText className="w-12 h-12 text-gray-600 dark:text-gray-400 mb-3" />
                     <Text>Seleccioná una empresa para ver su facturación electrónica</Text>
                 </div>
             </div>
@@ -93,6 +99,27 @@ export function Sifen() {
                 )}
                 {activeTab === 'lotes' && (
                     <SifenLotesPage
+                        tenantId={tenantId}
+                        toastSuccess={success}
+                        toastError={error}
+                    />
+                )}
+                {activeTab === 'eventos' && (
+                    <SifenEventosPage
+                        tenantId={tenantId}
+                        toastSuccess={success}
+                        toastError={error}
+                    />
+                )}
+                {activeTab === 'consultas' && (
+                    <SifenConsultasPage
+                        tenantId={tenantId}
+                        toastSuccess={success}
+                        toastError={error}
+                    />
+                )}
+                {activeTab === 'contingencia' && (
+                    <SifenContingenciaPage
                         tenantId={tenantId}
                         toastSuccess={success}
                         toastError={error}

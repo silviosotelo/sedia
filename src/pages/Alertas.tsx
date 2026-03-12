@@ -3,13 +3,14 @@ import {
   AlertTriangle, Plus, Trash2, Bell, Clock, DollarSign,
   UserPlus, Copy, Zap, Pencil,
 } from 'lucide-react';
-import { Card, Text, Button, TextInput, NumberInput, Select, SelectItem, Switch, Badge } from '@tremor/react';
+import { Card, Text, Button, TextInput, NumberInput, Select, SelectItem, Switch, Badge } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageLoader } from '../components/ui/Spinner';
 import { NoTenantState } from '../components/ui/NoTenantState';
+import { ErrorState } from '../components/ui/ErrorState';
 import { useTenant } from '../contexts/TenantContext';
 import { api } from '../lib/api';
 import type { TenantAlerta, AlertaLog, TenantWebhook } from '../types';
@@ -82,7 +83,7 @@ function AlertaForm({
       </div>
 
       {tipoCfg && (
-        <Text className="text-xs text-tremor-content-subtle bg-tremor-background-subtle px-3 py-2 rounded-lg">{tipoCfg.desc}</Text>
+        <Text className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/60 px-3 py-2 rounded-lg">{tipoCfg.desc}</Text>
       )}
 
       {tipoCfg?.fields.includes('monto') && (
@@ -140,7 +141,7 @@ function AlertaForm({
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+      <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
         <Button variant="secondary" onClick={onCancel} disabled={saving}>
           Cancelar
         </Button>
@@ -169,12 +170,12 @@ function AlertaLogPanel({ tenantId }: { tenantId: string }) {
   if (!logs.length) return <Text className="text-center py-6">Sin disparos recientes</Text>;
 
   return (
-    <div className="divide-y divide-tremor-border">
+    <div className="divide-y divide-gray-200 dark:divide-gray-700">
       {logs.map((l) => (
         <div key={l.id} className="px-5 py-3 flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <Text className="text-xs font-medium text-tremor-content-strong">{l.alerta_nombre}</Text>
+              <Text className="text-xs font-medium text-gray-900 dark:text-white">{l.alerta_nombre}</Text>
               <Badge color="zinc" size="sm">{TIPO_CFG[l.tipo]?.label ?? l.tipo}</Badge>
             </div>
             <Text className="text-xs mt-0.5">{l.mensaje}</Text>
@@ -198,6 +199,8 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
   const [alertas, setAlertas] = useState<TenantAlerta[]>([]);
   const [webhooks, setWebhooks] = useState<TenantWebhook[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAlerta, setEditingAlerta] = useState<TenantAlerta | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -207,6 +210,7 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
   const load = useCallback(async () => {
     if (!tenantId) return;
     setLoading(true);
+    setError(null);
     try {
       const [a, w] = await Promise.all([
         api.alertas.list(tenantId),
@@ -214,9 +218,11 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
       ]);
       setAlertas(a);
       setWebhooks(w);
-    } catch { toastError('Error al cargar alertas'); }
+    } catch (e) {
+      setError((e as Error).message || 'Error al cargar alertas');
+    }
     finally { setLoading(false); }
-  }, [tenantId, toastError]);
+  }, [tenantId, retryCount]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -263,6 +269,18 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
     } catch (e) { toastError((e as Error).message); }
   };
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Header title="Alertas" subtitle="Notificaciones automáticas por condiciones configurables" />
+        <ErrorState
+          message={error}
+          onRetry={() => setRetryCount(c => c + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <Header
@@ -301,12 +319,12 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
             return (
               <Card key={a.id} className="p-4 flex items-center gap-4">
                 <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0',
-                  a.activo ? 'bg-amber-50' : 'bg-tremor-background-subtle')}>
-                  <Icon className={cn('w-4 h-4', a.activo ? 'text-amber-600' : 'text-tremor-content-subtle')} />
+                  a.activo ? 'bg-amber-50' : 'bg-gray-50 dark:bg-gray-800/60')}>
+                  <Icon className={cn('w-4 h-4', a.activo ? 'text-amber-600' : 'text-gray-400 dark:text-gray-500')} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Text className="text-sm font-medium text-tremor-content-strong">{a.nombre}</Text>
+                    <Text className="text-sm font-medium text-gray-900 dark:text-white">{a.nombre}</Text>
                     <Badge color={a.activo ? 'emerald' : 'zinc'} size="sm">
                       {a.activo ? 'Activa' : 'Inactiva'}
                     </Badge>
@@ -329,12 +347,14 @@ export function Alertas({ toastSuccess, toastError }: AlertasProps) {
                     variant="light" color="gray"
                     onClick={() => setEditingAlerta(a)}
                     title="Editar"
+                    aria-label="Editar"
                     icon={Pencil}
                   />
                   <Button
                     variant="light" color="rose"
                     onClick={() => setDeletingId(a.id)}
                     title="Eliminar"
+                    aria-label="Eliminar"
                     icon={Trash2}
                   />
                 </div>

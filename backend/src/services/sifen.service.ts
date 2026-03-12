@@ -32,13 +32,15 @@ export const sifenService = {
         // CDC temporal (será generado por xmlgen al crear el XML)
         const cdcTemp = `TEMP-${tenantId.slice(0, 8)}-${numero}-${Date.now()}`;
 
+        const estadoInicial = data.tipo_emision === 2 ? 'DRAFT' : 'DRAFT';
+
         const result = await query<any>(
             `INSERT INTO sifen_de (
                 tenant_id, cdc, tipo_documento, fecha_emision, moneda, estado,
                 numero_documento, datos_receptor, datos_items, datos_impuestos,
                 datos_adicionales, total_pago, total_iva10, total_iva5, total_exento,
-                de_referenciado_cdc
-             ) VALUES ($1,$2,$3,$4,$5,'DRAFT',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                de_referenciado_cdc, tipo_emision, contingencia_id, comprobante_id
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
              RETURNING id, numero_documento`,
             [
                 tenantId,
@@ -46,6 +48,7 @@ export const sifenService = {
                 data.tipo_documento,
                 data.fecha_emision || new Date(),
                 data.moneda || 'PYG',
+                estadoInicial,
                 numero,
                 JSON.stringify(data.datos_receptor),
                 JSON.stringify(data.datos_items),
@@ -56,13 +59,94 @@ export const sifenService = {
                 impuestos.total_iva5,
                 impuestos.total_exento,
                 data.de_referenciado_cdc || null,
+                data.tipo_emision || 1,
+                data.contingencia_id || null,
+                data.comprobante_id || null,
             ]
         );
 
         const deId = result[0].id;
 
+        // Registrar historial de estado
+        await registrarHistorial(tenantId, deId, null, estadoInicial, _userId);
+
         logger.info('DE creado', { tenantId, deId, tipo: data.tipo_documento, numero });
         return { id: deId, numero_documento: numero };
+    },
+
+    /**
+     * Encola envío sincrónico individual de un DE (sin lote).
+     */
+    async enqueueEnvioSincrono(tenantId: string, deId: string): Promise<void> {
+        const de = await queryOne<any>(
+            `SELECT estado FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+        if (!de) throw new Error('DE no encontrado');
+        if (!['SIGNED', 'ENQUEUED'].includes(de.estado)) {
+            throw new Error(`DE debe estar SIGNED o ENQUEUED para envío sincrónico, estado actual: ${de.estado}`);
+        }
+
+        await query(
+            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_ENVIAR_SINCRONO', $2)`,
+            [tenantId, JSON.stringify({ de_id: deId })]
+        );
+    },
+
+    /**
+     * Encola consulta de DE por CDC ante SET.
+     */
+    async enqueueConsultaDE(tenantId: string, deId: string): Promise<void> {
+        const de = await queryOne<any>(
+            `SELECT cdc FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+        if (!de?.cdc || de.cdc.startsWith('TEMP-')) {
+            throw new Error('El DE no tiene un CDC válido asignado');
+        }
+
+        await query(
+            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_CONSULTAR_DE', $2)`,
+            [tenantId, JSON.stringify({ de_id: deId, cdc: de.cdc })]
+        );
+    },
+
+    /**
+     * Encola envío de email con KUDE adjunto.
+     */
+    async enqueueEnviarEmail(tenantId: string, deId: string, emailDestino?: string): Promise<void> {
+        const de = await queryOne<any>(
+            `SELECT estado, datos_receptor FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+        if (!de) throw new Error('DE no encontrado');
+        if (!['APPROVED', 'CONTINGENCIA'].includes(de.estado)) {
+            throw new Error('Solo se pueden enviar por email DEs aprobados');
+        }
+
+        const email = emailDestino || de.datos_receptor?.email;
+        if (!email) throw new Error('No hay email destino disponible');
+
+        await query(
+            `UPDATE sifen_de SET envio_email_estado = 'PENDING' WHERE id = $1`,
+            [deId]
+        );
+
+        await query(
+            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_ENVIAR_EMAIL', $2)`,
+            [tenantId, JSON.stringify({ de_id: deId, email })]
+        );
+    },
+
+    /**
+     * Vincula un DE con un comprobante existente.
+     */
+    async vincularComprobante(tenantId: string, deId: string, comprobanteId: string): Promise<void> {
+        await query(
+            `UPDATE sifen_de SET comprobante_id = $1, updated_at = NOW()
+             WHERE id = $2 AND tenant_id = $3`,
+            [comprobanteId, deId, tenantId]
+        );
     },
 
     /**
@@ -248,27 +332,50 @@ export const sifenService = {
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 export interface SifenDECreateInput {
-    tipo_documento: string;    // '1','4','5','6'
+    tipo_documento: string;    // '1','4','5','6','7' (7=Nota de Remisión)
     moneda?: string;
     fecha_emision?: Date | string;
     datos_receptor: any;
     datos_items: any[];
     datos_adicionales?: any;
     de_referenciado_cdc?: string;
+    contingencia_id?: string;
+    tipo_emision?: number;     // 1=Normal, 2=Contingencia
+    comprobante_id?: string;   // Link to comprobantes table
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function registrarHistorial(
+    tenantId: string, deId: string,
+    estadoAnterior: string | null, estadoNuevo: string,
+    usuarioId?: string, motivo?: string
+): Promise<void> {
+    try {
+        await query(
+            `INSERT INTO sifen_de_history (tenant_id, de_id, estado_anterior, estado_nuevo, usuario_id, motivo)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [tenantId, deId, estadoAnterior, estadoNuevo, usuarioId || null, motivo || null]
+        );
+    } catch (err) {
+        logger.warn('Error registrando historial de DE', { deId, error: (err as Error).message });
+    }
+}
 
 function calcularImpuestos(items: any[]): {
     total: number;
     total_iva10: number;
     total_iva5: number;
     total_exento: number;
+    total_isc: number;
+    total_irp: number;
 } {
     let total = 0;
     let total_iva10 = 0;
     let total_iva5 = 0;
     let total_exento = 0;
+    let total_isc = 0;
+    let total_irp = 0;
 
     for (const item of items) {
         const subtotal = Number(item.precio_unitario) * Number(item.cantidad);
@@ -281,7 +388,15 @@ function calcularImpuestos(items: any[]): {
         } else {
             total_exento += subtotal;
         }
+        // ISC (Impuesto Selectivo al Consumo)
+        if (item.isc_tasa && Number(item.isc_tasa) > 0) {
+            total_isc += Math.round(subtotal * Number(item.isc_tasa) / 100);
+        }
+        // IRP (Impuesto a la Renta Personal) — retención
+        if (item.irp_retencion && Number(item.irp_retencion) > 0) {
+            total_irp += Number(item.irp_retencion);
+        }
     }
 
-    return { total, total_iva10, total_iva5, total_exento };
+    return { total, total_iva10, total_iva5, total_exento, total_isc, total_irp };
 }

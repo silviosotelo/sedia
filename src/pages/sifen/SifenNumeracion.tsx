@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Spinner } from '../../components/ui/Spinner';
-import { Button, Card, Table, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, TextInput } from '@tremor/react';
+import { ErrorState } from '../../components/ui/ErrorState';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Button, Card, TableHead, TableHeaderCell, TableBody, TableRow, TableCell, TextInput, Select, SelectItem } from '../../components/ui/TailAdmin';
 import { SifenNumeracion, SIFEN_TIPO_LABELS } from '../../types';
+import { Header } from '../../components/layout/Header';
 
 interface Props {
     tenantId: string;
@@ -25,6 +28,7 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
     const [retryCount, setRetryCount] = useState(0);
     const [showForm, setShowForm] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const [form, setForm] = useState({
         tipo_documento: '1',
         establecimiento: '001',
@@ -65,7 +69,7 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
     };
 
     const handleDelete = async (numId: string) => {
-        if (!confirm('¿Eliminar esta serie? Solo es posible si no tiene documentos emitidos.')) return;
+        setDeletingId(null);
         try {
             await api.sifen.deleteNumeracion(tenantId, numId);
             toastSuccess?.('Serie eliminada.');
@@ -75,47 +79,48 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
         }
     };
 
+    if (loading && !numeraciones.length) return <div className="py-20 flex justify-center"><Spinner /></div>;
+
+    if (error) {
+        return (
+            <div className="space-y-6">
+                <Header title="Numeración de DEs" subtitle="Series de numeración por tipo de documento y timbrado" />
+                <ErrorState
+                    message={/plan|módulo|feature/i.test(error) ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.' : error}
+                    onRetry={() => setRetryCount(c => c + 1)}
+                />
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-lg font-bold text-zinc-900">Numeración de DEs</h2>
-                    <p className="text-sm text-zinc-500">Series de numeración por tipo de documento y timbrado</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="secondary" icon={RefreshCw} size="xs" onClick={load}>Actualizar</Button>
-                    <Button icon={Plus} size="xs" onClick={() => setShowForm(!showForm)}>Nueva Serie</Button>
-                </div>
-            </div>
+            <Header title="Numeración de DEs" subtitle="Series de numeración por tipo de documento y timbrado" onRefresh={load} refreshing={loading} actions={<Button icon={Plus} size="xs" onClick={() => setShowForm(!showForm)}>Nueva Serie</Button>} />
 
             {showForm && (
                 <Card className="p-5">
-                    <h3 className="text-sm font-bold text-zinc-800 mb-4">Nueva Serie de Numeración</h3>
+                    <h3 className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">Nueva Serie de Numeración</h3>
                     <form onSubmit={handleSave} className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-[11px] font-semibold text-zinc-500 mb-1 uppercase tracking-wider block">Tipo Documento</label>
-                            <select
-                                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                                value={form.tipo_documento}
-                                onChange={e => setForm(p => ({ ...p, tipo_documento: e.target.value }))}
-                            >
-                                {TIPO_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                            </select>
+                            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Documento</label>
+                            <Select value={form.tipo_documento} onValueChange={v => setForm(p => ({ ...p, tipo_documento: v }))}>
+                                {TIPO_OPTS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                            </Select>
                         </div>
                         <div>
-                            <label className="text-[11px] font-semibold text-zinc-500 mb-1 uppercase tracking-wider block">Timbrado</label>
+                            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Timbrado</label>
                             <TextInput required value={form.timbrado} onChange={e => setForm(p => ({ ...p, timbrado: e.target.value }))} placeholder="Ej: 12345678" />
                         </div>
                         <div>
-                            <label className="text-[11px] font-semibold text-zinc-500 mb-1 uppercase tracking-wider block">Establecimiento</label>
+                            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Establecimiento</label>
                             <TextInput value={form.establecimiento} onChange={e => setForm(p => ({ ...p, establecimiento: e.target.value }))} maxLength={3} />
                         </div>
                         <div>
-                            <label className="text-[11px] font-semibold text-zinc-500 mb-1 uppercase tracking-wider block">Punto de Expedición</label>
+                            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Punto de Expedición</label>
                             <TextInput value={form.punto_expedicion} onChange={e => setForm(p => ({ ...p, punto_expedicion: e.target.value }))} maxLength={3} />
                         </div>
                         <div>
-                            <label className="text-[11px] font-semibold text-zinc-500 mb-1 uppercase tracking-wider block">Último Número (0 para iniciar desde 1)</label>
+                            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Último Número (0 para iniciar desde 1)</label>
                             <TextInput type="number" min="0" value={String(form.ultimo_numero)} onChange={e => setForm(p => ({ ...p, ultimo_numero: parseInt(e.target.value) || 0 }))} />
                         </div>
                         <div className="col-span-2 flex justify-end gap-2 pt-2">
@@ -126,8 +131,9 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
                 </Card>
             )}
 
-            <Card className="overflow-hidden p-0">
-                <Table>
+            <div className="card card-border overflow-hidden">
+                <div className="overflow-x-auto">
+                <table className="table-default w-full">
                     <TableHead>
                         <TableRow>
                             <TableHeaderCell>Tipo Documento</TableHeaderCell>
@@ -142,33 +148,14 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
                     <TableBody>
                         {loading ? (
                             <TableRow><TableCell colSpan={7} className="text-center py-8"><Spinner size="md" className="mx-auto" /></TableCell></TableRow>
-                        ) : error ? (
-                            <TableRow>
-                                <TableCell colSpan={7} className="text-center py-10">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <AlertTriangle className="w-8 h-8 text-amber-500" />
-                                        <p className="text-sm text-zinc-500 max-w-sm">
-                                            {/plan|módulo|feature/i.test(error)
-                                                ? 'Esta funcionalidad requiere activar el módulo SIFEN en tu plan.'
-                                                : error}
-                                        </p>
-                                        <button
-                                            onClick={() => setRetryCount(c => c + 1)}
-                                            className="mt-1 px-3 py-1.5 text-xs bg-zinc-900 text-white rounded-lg hover:bg-zinc-800"
-                                        >
-                                            Reintentar
-                                        </button>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
                         ) : numeraciones.length === 0 ? (
-                            <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-400 text-sm">No hay series configuradas. Cree una para poder emitir DEs.</TableCell></TableRow>
+                            <TableRow><TableCell colSpan={7} className="text-center py-8 text-gray-400 text-sm">No hay series configuradas. Cree una para poder emitir DEs.</TableCell></TableRow>
                         ) : (
                             numeraciones.map(n => (
                                 <TableRow key={n.id}>
                                     <TableCell>
-                                        <div className="text-xs font-medium">{SIFEN_TIPO_LABELS[n.tipo_documento as any] || `Tipo ${n.tipo_documento}`}</div>
-                                        <div className="text-[10px] text-zinc-400">Código: {n.tipo_documento}</div>
+                                        <div className="text-xs font-medium">{SIFEN_TIPO_LABELS[n.tipo_documento as keyof typeof SIFEN_TIPO_LABELS] || `Tipo ${n.tipo_documento}`}</div>
+                                        <div className="text-[10px] text-gray-400">Código: {n.tipo_documento}</div>
                                     </TableCell>
                                     <TableCell className="font-mono text-sm">{n.establecimiento}</TableCell>
                                     <TableCell className="font-mono text-sm">{n.punto_expedicion}</TableCell>
@@ -179,9 +166,10 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
                                     </TableCell>
                                     <TableCell>
                                         <button
-                                            onClick={() => handleDelete(n.id)}
+                                            onClick={() => setDeletingId(n.id)}
                                             className="text-red-400 hover:text-red-600 p-1 rounded"
                                             title="Eliminar serie"
+                                            aria-label="Eliminar serie"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
@@ -190,8 +178,20 @@ export function SifenNumeracionPage({ tenantId, toastSuccess, toastError }: Prop
                             ))
                         )}
                     </TableBody>
-                </Table>
-            </Card>
+                </table>
+                </div>
+            </div>
+
+            {/* Confirm: Eliminar serie */}
+            <ConfirmDialog
+                open={!!deletingId}
+                onClose={() => setDeletingId(null)}
+                onConfirm={() => deletingId && handleDelete(deletingId)}
+                title="Eliminar Serie"
+                description="¿Eliminar esta serie? Solo es posible si no tiene documentos emitidos."
+                confirmLabel="Eliminar"
+                variant="danger"
+            />
         </div>
     );
 }

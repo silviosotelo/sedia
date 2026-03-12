@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
-import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Plus, Settings, ShieldAlert, ShieldCheck, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CreditCard, Download, ExternalLink, Key, Loader2, PlayCircle, Plus, Settings, ShieldAlert, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { Header } from '../components/layout/Header';
+import { ErrorState } from '../components/ui/ErrorState';
 import { api } from '../lib/api';
 import { useTenant } from '../contexts/TenantContext';
 import { Modal } from '../components/ui/Modal';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab, TabPanels, TabPanel, Badge } from '@tremor/react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, TextInput, Select, SelectItem, TabGroup, TabList, Tab, TabPanels, TabPanel, Badge } from '../components/ui/TailAdmin';
 
 
 interface ProcesadorasProps {
@@ -48,28 +49,26 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
     };
 
     return (
-        <div className="space-y-3 mt-4 border-t border-tremor-border pt-4">
+        <div className="space-y-3 mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
             <div className="flex items-center justify-between">
                 <Text className="font-medium">Mapeo Avanzado de CSV</Text>
                 <Button type="button" variant="light" onClick={addColumn} icon={Plus} className="text-xs h-7">
                     Agregar Columna
                 </Button>
             </div>
-            <Text className="text-xs text-tremor-content-subtle">Configurá cómo leer las columnas de los extractos de esta procesadora.</Text>
+            <Text className="text-xs text-gray-400 dark:text-gray-500">Configurá cómo leer las columnas de los extractos de esta procesadora.</Text>
 
             <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {columns.map((col, idx) => (
-                    <div key={idx} className="flex gap-2 items-start bg-tremor-background-subtle p-2 rounded-lg border border-tremor-border">
-                        <select
-                            className="w-full rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none flex-1"
-                            value={col.targetField}
-                            onChange={(e) => updateColumn(idx, 'targetField', e.target.value)}
-                        >
-                            <option value="">Destino SEDIA...</option>
-                            {COMMON_PROCESSOR_FIELDS.map(f => (
-                                <option key={f.value} value={f.value}>{f.label}</option>
-                            ))}
-                        </select>
+                    <div key={idx} className="flex gap-2 items-start bg-gray-50 dark:bg-gray-800/60 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex-1">
+                            <Select value={col.targetField} onValueChange={v => updateColumn(idx, 'targetField', v)} placeholder="Destino SEDIA...">
+                                <SelectItem value="">Destino SEDIA...</SelectItem>
+                                {COMMON_PROCESSOR_FIELDS.map(f => (
+                                    <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                                ))}
+                            </Select>
+                        </div>
                         <TextInput
                             className="flex-[1.5]"
                             placeholder="Ej: importe neto, total"
@@ -77,22 +76,19 @@ function CsvMappingEditor({ value, onChange }: { value: any; onChange: (v: any) 
                             onChange={(e) => updateColumn(idx, 'exactMatchHeaders', e.target.value)}
                             title="Nombres de columnas del CSV (separados por coma)"
                         />
-                        <select
-                            className="w-28 rounded-md border border-tremor-border bg-white px-3 py-1.5 text-xs text-tremor-content-strong shadow-sm focus:border-tremor-brand focus:outline-none"
-                            value={col.format || ''}
-                            onChange={(e) => updateColumn(idx, 'format', e.target.value)}
-                            title="Formato Especial"
-                        >
-                            <option value="">Normal</option>
-                            <option value="MONTO">Monto</option>
-                            <option value="DATE_DDMMYYYY">DD/MM/YYYY</option>
-                            <option value="DATE_TIME_DDMMYYYY">DD/MM/YYYY HH:MM:SS</option>
-                        </select>
+                        <div className="w-32">
+                            <Select value={col.format || ''} onValueChange={v => updateColumn(idx, 'format', v)}>
+                                <SelectItem value="">Normal</SelectItem>
+                                <SelectItem value="MONTO">Monto</SelectItem>
+                                <SelectItem value="DATE_DDMMYYYY">DD/MM/YYYY</SelectItem>
+                                <SelectItem value="DATE_TIME_DDMMYYYY">DD/MM/YYYY HH:MM:SS</SelectItem>
+                            </Select>
+                        </div>
                         <Button type="button" variant="light" color="rose" onClick={() => removeColumn(idx)} className="h-7 w-7 p-0" icon={Trash2} />
                     </div>
                 ))}
                 {columns.length === 0 && (
-                    <Text className="text-center py-4 text-xs text-tremor-content-subtle">
+                    <Text className="text-center py-4 text-xs text-gray-400 dark:text-gray-500">
                         Usará mapeo automático predeterminado si no se configuran columnas.
                     </Text>
                 )}
@@ -105,6 +101,8 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
     const { activeTenantId } = useTenant();
     const [processors, setProcessors] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
 
     // Modals state
     const [selectedProcessor, setSelectedProcessor] = useState<any | null>(null);
@@ -132,6 +130,10 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         nombre: string; tipo: string; activo?: boolean; csv_mapping?: Record<string, unknown> | null;
     }>({ nombre: '', tipo: 'OTROS', activo: true, csv_mapping: null });
     const [saving, setSaving] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
 
     useEffect(() => {
         if (!activeTenantId) {
@@ -143,6 +145,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
         const fetchAll = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const pts = await api.procesadoras.list(activeTenantId);
                 setProcessors(pts);
@@ -155,7 +158,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                 setJobs(jobsRes || []);
                 setTransactions(txsRes || []);
             } catch (err: any) {
-                toastError('Error al cargar datos: ' + err.message);
+                setError(err.message || 'Error al cargar datos');
             } finally {
                 setLoading(false);
                 setLoadingTasks(false);
@@ -163,7 +166,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         };
 
         void fetchAll();
-    }, [activeTenantId, toastError]);
+    }, [activeTenantId, retryCount]);
 
     const handleOpenConfig = (p: any) => {
         setSelectedProcessor(p);
@@ -227,6 +230,31 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
         }
     };
 
+    const handleOpenUpload = (p: any) => {
+        setSelectedProcessor(p);
+        setUploadFile(null);
+        setIsUploadModalOpen(true);
+    };
+
+    const handleUploadSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!activeTenantId || !selectedProcessor || !uploadFile) return;
+        setUploading(true);
+        try {
+            await api.bank.uploadProcessorFile(activeTenantId, selectedProcessor.id, uploadFile);
+            toastSuccess('Archivo cargado exitosamente. Las transacciones se procesarán en breve.');
+            setIsUploadModalOpen(false);
+            setUploadFile(null);
+            // Reload transactions
+            const txsRes = await api.procesadoras.listTransactions(activeTenantId);
+            setTransactions(txsRes || []);
+        } catch (err: any) {
+            toastError(err.message || 'Error al subir archivo');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const handleOpenCreateAndEdit = (p?: any) => {
         setSelectedProcessor(p || null);
         if (p) {
@@ -283,6 +311,11 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                     title="Seleccione una Empresa"
                     description="Por favor, seleccione una empresa en la barra lateral para configurar sus procesadoras."
                 />
+            ) : error ? (
+                <ErrorState
+                    message={error}
+                    onRetry={() => setRetryCount(c => c + 1)}
+                />
             ) : loading ? (
                 <div className="flex justify-center p-12">
                     <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
@@ -302,7 +335,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                     {processors.length === 0 ? (
                                         <div className="col-span-full">
                                             <EmptyState
-                                                icon={<CreditCard className="w-8 h-8 text-tremor-content-subtle mx-auto mb-3" />}
+                                                icon={<CreditCard className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-3" />}
                                                 title="Sin procesadoras"
                                                 description="No hay procesadoras configuradas para esta cuenta"
                                             />
@@ -313,13 +346,13 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
                                             return (
                                                 <Card key={p.id} className="p-0 overflow-hidden hover:shadow-md transition-shadow">
-                                                    <div className="p-5 border-b border-tremor-border flex items-center justify-between">
+                                                    <div className="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center">
                                                                 <CreditCard className="w-5 h-5 text-emerald-600" />
                                                             </div>
                                                             <div>
-                                                                <Text className="font-medium text-tremor-content-strong">{p.nombre}</Text>
+                                                                <Text className="font-medium text-gray-900 dark:text-white">{p.nombre}</Text>
                                                                 <div className="flex items-center gap-1 mt-0.5">
                                                                     {connected ? (
                                                                         <><ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> <span className="text-xs text-emerald-600">Conectado</span></>
@@ -331,7 +364,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                                         </div>
                                                     </div>
 
-                                                    <div className="px-5 py-4 bg-tremor-background-subtle flex gap-2">
+                                                    <div className="px-5 py-4 bg-gray-50 dark:bg-gray-800/60 flex gap-2">
                                                         <Button
                                                             variant="secondary"
                                                             onClick={() => handleOpenCreateAndEdit(p)}
@@ -346,6 +379,13 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                                             icon={Key}
                                                         >
                                                             Auth
+                                                        </Button>
+                                                        <Button
+                                                            variant="secondary"
+                                                            onClick={() => handleOpenUpload(p)}
+                                                            icon={Upload}
+                                                            title="Subir CSV de transacciones"
+                                                        >
                                                         </Button>
                                                         <Button
                                                             onClick={() => handleOpenImport(p)}
@@ -364,8 +404,8 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
                             <TabPanel>
                                 <Card className="p-0 overflow-hidden">
-                                    <div className="p-5 border-b border-tremor-border">
-                                        <Text className="font-semibold text-tremor-content-strong">Historial de Importaciones</Text>
+                                    <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+                                        <Text className="font-semibold text-gray-900 dark:text-white">Historial de Importaciones</Text>
                                         <Text className="text-sm">Registro de tareas de importación desde las procesadoras de pago</Text>
                                     </div>
                                     <Table>
@@ -381,17 +421,17 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                         <TableBody>
                                             {loadingTasks ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-tremor-content-subtle" /></TableCell>
+                                                    <TableCell colSpan={5} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400 dark:text-gray-500" /></TableCell>
                                                 </TableRow>
                                             ) : jobs.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="py-8 text-center text-sm text-tremor-content-subtle">No hay importaciones registradas.</TableCell>
+                                                    <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">No hay importaciones registradas.</TableCell>
                                                 </TableRow>
                                             ) : (
                                                 jobs.map((job) => {
                                                     const processor = processors.find(p => p.id === job.payload?.processor_id);
                                                     return (
-                                                        <TableRow key={job.id} className="hover:bg-tremor-background-subtle">
+                                                        <TableRow key={job.id} className="hover:bg-gray-50 dark:bg-gray-800/60">
                                                             <TableCell>{new Date(job.created_at).toLocaleString('es-PY')}</TableCell>
                                                             <TableCell>{processor?.nombre || 'Desconocida'}</TableCell>
                                                             <TableCell className="font-mono">{job.payload?.mes ? `${job.payload.mes}/${job.payload.anio}` : '-'}</TableCell>
@@ -421,8 +461,8 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
 
                             <TabPanel>
                                 <Card className="p-0 overflow-hidden">
-                                    <div className="p-5 border-b border-tremor-border">
-                                        <Text className="font-semibold text-tremor-content-strong">Transacciones Importadas</Text>
+                                    <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+                                        <Text className="font-semibold text-gray-900 dark:text-white">Transacciones Importadas</Text>
                                         <Text className="text-sm">Lista de las operaciones extraídas de las distintas procesadoras</Text>
                                     </div>
                                     <Table>
@@ -440,20 +480,20 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                         <TableBody>
                                             {loadingTasks ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-tremor-content-subtle" /></TableCell>
+                                                    <TableCell colSpan={7} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400 dark:text-gray-500" /></TableCell>
                                                 </TableRow>
                                             ) : transactions.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={7} className="py-8 text-center text-sm text-tremor-content-subtle">No hay transacciones importadas.</TableCell>
+                                                    <TableCell colSpan={7} className="py-8 text-center text-sm text-gray-400 dark:text-gray-500">No hay transacciones importadas.</TableCell>
                                                 </TableRow>
                                             ) : (
                                                 transactions.map((tx) => (
-                                                    <TableRow key={tx.id} className="hover:bg-tremor-background-subtle">
+                                                    <TableRow key={tx.id} className="hover:bg-gray-50 dark:bg-gray-800/60">
                                                         <TableCell>{new Date(tx.fecha).toLocaleString('es-PY')}</TableCell>
                                                         <TableCell>{tx.processor_nombre || 'Desconocida'}</TableCell>
                                                         <TableCell className="font-mono text-xs">{tx.merchant_id || '-'}</TableCell>
-                                                        <TableCell className="font-mono text-xs text-tremor-content-subtle">{tx.autorizacion || '-'}</TableCell>
-                                                        <TableCell className="text-right text-tremor-content-strong font-medium">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_bruto))}</TableCell>
+                                                        <TableCell className="font-mono text-xs text-gray-400 dark:text-gray-500">{tx.autorizacion || '-'}</TableCell>
+                                                        <TableCell className="text-right text-gray-900 dark:text-white font-medium">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_bruto))}</TableCell>
                                                         <TableCell className="text-right text-rose-600">{new Intl.NumberFormat('es-PY').format(Number(tx.comision))}</TableCell>
                                                         <TableCell className="text-right text-emerald-600 font-semibold">{new Intl.NumberFormat('es-PY').format(Number(tx.monto_neto))}</TableCell>
                                                     </TableRow>
@@ -509,7 +549,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                 />
                             </div>
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                            <div className="pt-4 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700">
                                 <Button
                                     variant="secondary"
                                     type="button"
@@ -533,7 +573,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                     {/* Import Modal */}
                     <Modal open={isImportModalOpen} onClose={() => !saving && setIsImportModalOpen(false)} title={`Importar: ${selectedProcessor?.nombre}`}>
                         <form onSubmit={handleImportSubmit} className="space-y-4">
-                            <p className="text-sm text-zinc-600">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Seleccione el período contable que desea extraer desde la plataforma de {selectedProcessor?.nombre}.
                                 Esto lanzará un proceso en segundo plano.
                             </p>
@@ -564,7 +604,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                 </div>
                             </div>
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                            <div className="pt-4 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700">
                                 <Button
                                     variant="secondary"
                                     type="button"
@@ -584,6 +624,48 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                             </div>
                         </form>
                     </Modal>
+                    {/* Upload CSV Modal */}
+                    <Modal open={isUploadModalOpen} onClose={() => !uploading && setIsUploadModalOpen(false)} title={`Subir CSV: ${selectedProcessor?.nombre}`}>
+                        <form onSubmit={handleUploadSubmit} className="space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Cargá un archivo CSV con las transacciones de {selectedProcessor?.nombre}.
+                                El sistema mapeará las columnas automáticamente según la configuración de la procesadora.
+                            </p>
+                            <div
+                                className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-gray-400 transition-colors"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".csv,.xlsx,.xls"
+                                    className="hidden"
+                                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                                />
+                                <Upload className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+                                {uploadFile ? (
+                                    <div>
+                                        <Text className="font-medium text-gray-900 dark:text-white">{uploadFile.name}</Text>
+                                        <Text className="text-xs text-gray-400 dark:text-gray-500 mt-1">{(uploadFile.size / 1024).toFixed(1)} KB</Text>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <Text className="font-medium text-gray-900 dark:text-white">Hacé clic para seleccionar archivo</Text>
+                                        <Text className="text-xs text-gray-400 dark:text-gray-500 mt-1">CSV, XLSX o XLS</Text>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="pt-4 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700">
+                                <Button variant="secondary" type="button" onClick={() => setIsUploadModalOpen(false)} disabled={uploading}>
+                                    Cancelar
+                                </Button>
+                                <Button type="submit" disabled={uploading || !uploadFile} loading={uploading} icon={uploading ? undefined : Upload}>
+                                    Subir Archivo
+                                </Button>
+                            </div>
+                        </form>
+                    </Modal>
+
                     {/* Modal de Creación / Edición */}
                     <Modal open={isModalOpen} onClose={() => !saving && setIsModalOpen(false)} title={selectedProcessor ? 'Editar Procesadora' : 'Nueva Procesadora'}>
                         <form onSubmit={handleProcessorSubmit} className="space-y-4">
@@ -616,7 +698,7 @@ export function Procesadoras({ toastSuccess, toastError }: ProcesadorasProps) {
                                 onChange={(v) => setProcessorForm({ ...processorForm, csv_mapping: (v && v.columns && Object.keys(v.columns).length > 0) ? v : null })}
                             />
 
-                            <div className="pt-4 flex justify-end gap-2 border-t border-tremor-border">
+                            <div className="pt-4 flex justify-end gap-2 border-t border-gray-200 dark:border-gray-700">
                                 <Button variant="secondary" type="button" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
                                 <Button type="submit" disabled={saving} loading={saving}>
                                     {selectedProcessor ? 'Guardar Cambios' : 'Crear Procesadora'}

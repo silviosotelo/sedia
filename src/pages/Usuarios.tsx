@@ -9,9 +9,10 @@ import {
   CheckCircle2,
   XCircle,
 } from 'lucide-react';
-import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Select, SelectItem, TextInput, Switch, Badge } from '@tremor/react';
+import { Card, Table, TableHead, TableRow, TableHeaderCell, TableBody, TableCell, Text, Button, Select, SelectItem, TextInput, Switch, Badge } from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ErrorState } from '../components/ui/ErrorState';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { PageLoader } from '../components/ui/Spinner';
@@ -48,6 +49,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Usuario | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Usuario | null>(null);
@@ -66,14 +68,19 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const tenantIdForRoles = !isSuperAdmin ? (activeTenantId ?? currentUser?.tenant_id) : undefined;
-      if (!isSuperAdmin && !tenantIdForRoles) return; // Wait until tenantId is available
+      const effectiveTid = isSuperAdmin ? (activeTenantId ?? undefined) : (activeTenantId ?? currentUser?.tenant_id ?? undefined);
+      if (!isSuperAdmin && !effectiveTid) return; // Wait until tenantId is available
       const [usuariosData, rolesData] = await Promise.all([
         api.usuarios.list(),
-        tenantIdForRoles ? api.roles.listForTenant(tenantIdForRoles) : api.roles.list(),
+        effectiveTid ? api.roles.listForTenant(effectiveTid) : api.roles.list(),
       ]);
-      setUsuarios(usuariosData);
+      // Filter by selected tenant when super_admin has one active
+      const filtered = effectiveTid
+        ? usuariosData.filter((u) => u.tenant_id === effectiveTid)
+        : usuariosData;
+      setUsuarios(filtered);
       setRoles(rolesData);
+      setError(null);
 
       if (isSuperAdmin) {
         const tenantsData = await api.tenants.list();
@@ -81,6 +88,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
       }
     } catch (e) {
       toastError('Error al cargar usuarios', e instanceof Error ? e.message : undefined);
+      setError(e instanceof Error ? e.message : 'Error al cargar usuarios');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -150,6 +158,18 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
 
   const availableRoles = isSuperAdmin ? roles : roles.filter((r) => r.nombre !== 'super_admin');
 
+  if (error && !loading) {
+    return (
+      <div className="space-y-6">
+        <Header title="Usuarios" subtitle="Gestión de usuarios y permisos del sistema" />
+        <ErrorState
+          message={error}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <Header
@@ -189,18 +209,18 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
                 <TableRow key={u.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-tremor-background-subtle flex items-center justify-center flex-shrink-0">
-                        <Text className="font-bold text-tremor-content-strong">{u.nombre.slice(0, 2).toUpperCase()}</Text>
+                      <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800/60 flex items-center justify-center flex-shrink-0">
+                        <Text className="font-bold text-gray-900 dark:text-white">{u.nombre.slice(0, 2).toUpperCase()}</Text>
                       </div>
                       <div>
-                        <Text className="font-medium text-tremor-content-strong">{u.nombre}</Text>
+                        <Text className="font-medium text-gray-900 dark:text-white">{u.nombre}</Text>
                         <Text className="text-xs">{u.email}</Text>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
-                      <Shield className="w-3 h-3 text-tremor-content-subtle" />
+                      <Shield className="w-3 h-3 text-gray-400 dark:text-gray-500" />
                       <Badge color={ROL_COLORS[u.rol.nombre] ?? 'zinc'}>
                         {ROL_LABELS[u.rol.nombre] ?? u.rol.nombre}
                       </Badge>
@@ -209,7 +229,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
                   {isSuperAdmin && (
                     <TableCell>
                       {u.tenant_nombre
-                        ? <span className="flex items-center gap-1 text-xs text-tremor-content-strong"><Building2 className="w-3 h-3" />{u.tenant_nombre}</span>
+                        ? <span className="flex items-center gap-1 text-xs text-gray-900 dark:text-white"><Building2 className="w-3 h-3" />{u.tenant_nombre}</span>
                         : <Text className="text-xs">Global</Text>}
                     </TableCell>
                   )}
@@ -221,13 +241,13 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
                   <TableCell>
                     {u.activo
                       ? <span className="flex items-center gap-1 text-emerald-600 text-xs"><CheckCircle2 className="w-3.5 h-3.5" />Activo</span>
-                      : <span className="flex items-center gap-1 text-tremor-content-subtle text-xs"><XCircle className="w-3.5 h-3.5" />Inactivo</span>}
+                      : <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500 text-xs"><XCircle className="w-3.5 h-3.5" />Inactivo</span>}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <Button variant="light" color="gray" icon={Pencil} onClick={() => openEdit(u)} title="Editar" />
+                      <Button variant="light" color="gray" icon={Pencil} onClick={() => openEdit(u)} title="Editar" aria-label="Editar" />
                       {u.id !== currentUser?.id && (
-                        <Button variant="light" color="rose" icon={Trash2} onClick={() => setDeleteTarget(u)} title="Eliminar" />
+                        <Button variant="light" color="rose" icon={Trash2} onClick={() => setDeleteTarget(u)} title="Eliminar" aria-label="Eliminar" />
                       )}
                     </div>
                   </TableCell>
@@ -281,7 +301,7 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t border-tremor-border">
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
             <Button variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button onClick={() => void handleSubmit()} disabled={saving} loading={saving}>
               {editTarget ? 'Guardar cambios' : 'Crear usuario'}

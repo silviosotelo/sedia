@@ -28,7 +28,6 @@ export function detectDelimiter(lines: string[]): string {
 
 export function parseDateCell(fechaRaw: string, format?: 'DATE_DDMMYYYY' | 'DATE_TIME_DDMMYYYY' | 'MONTO'): string {
     if (!fechaRaw) return '';
-    let fechaISO = fechaRaw;
 
     if (format === 'DATE_TIME_DDMMYYYY' || format === 'DATE_DDMMYYYY') {
         const ddmm = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?$/.exec(fechaRaw);
@@ -37,13 +36,17 @@ export function parseDateCell(fechaRaw: string, format?: 'DATE_DDMMYYYY' | 'DATE
             const fullYear = y.length === 2 ? `20${y}` : y;
             if (format === 'DATE_TIME_DDMMYYYY') {
                 const th = hh ? `${hh.padStart(2, '0')}:${(mm || '0').padStart(2, '0')}:${(ss || '0').padStart(2, '0')}` : '00:00:00';
-                fechaISO = `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T${th}Z`;
-            } else {
-                fechaISO = `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+                return `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T${th}Z`;
             }
+            return `${fullYear}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
         }
+        // Also try ISO format YYYY-MM-DD
+        const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(fechaRaw);
+        if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+        // No valid date found — return empty so this row can be filtered out
+        return '';
     }
-    return fechaISO;
+    return fechaRaw;
 }
 
 export class CsvParserEngine {

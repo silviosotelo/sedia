@@ -211,6 +211,8 @@ export interface Rol {
   descripcion: string;
   nivel: number;
   es_sistema: boolean;
+  tenant_id: string | null;
+  permisos_ids?: string[];
 }
 
 export interface Usuario {
@@ -391,6 +393,7 @@ export interface Bank {
   codigo: string;
   pais: string;
   activo: boolean;
+  csv_mapping?: Record<string, unknown> | null;
 }
 
 export interface BankAccount {
@@ -601,14 +604,16 @@ export type SifenDEEstado =
   | 'APPROVED'
   | 'REJECTED'
   | 'CANCELLED'
-  | 'ERROR';
+  | 'ERROR'
+  | 'CONTINGENCIA';
 
-export type SifenTipoDocumento = '1' | '4' | '5' | '6';
+export type SifenTipoDocumento = '1' | '4' | '5' | '6' | '7';
 export const SIFEN_TIPO_LABELS: Record<SifenTipoDocumento, string> = {
   '1': 'Factura Electrónica',
   '4': 'Autofactura Electrónica',
   '5': 'Nota de Crédito Electrónica',
   '6': 'Nota de Débito Electrónica',
+  '7': 'Nota de Remisión Electrónica',
 };
 
 export interface SifenConfig {
@@ -632,6 +637,11 @@ export interface SifenConfig {
   ws_url_recibe_lote: string;
   ws_url_consulta_lote: string;
   ws_url_consulta: string;
+  ws_url_recibe: string;
+  ws_url_evento: string;
+  ws_url_consulta_ruc: string;
+  id_csc: string | null;
+  csc: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -674,6 +684,11 @@ export interface SifenDE {
   sifen_respuesta: Record<string, any> | null;
   sifen_codigo: string | null;
   sifen_mensaje: string | null;
+  tipo_emision: number;
+  contingencia_id: string | null;
+  error_categoria: string | null;
+  envio_email_estado: string | null;
+  comprobante_id: string | null;
   tiene_kude?: boolean;
   receptor_nombre?: string;
   created_at: string;

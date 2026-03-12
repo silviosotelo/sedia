@@ -3,10 +3,11 @@ import { DateTime } from 'luxon';
 import { logger } from '../config/logger';
 import { config } from '../config/env';
 import { createJob, resetStuckRunningJobs } from '../db/repositories/job.repository';
-import { query } from '../db/connection';
+import { query, queryOne } from '../db/connection';
 import { enviarNotificacionSifen, enviarNotificacion } from '../services/notification.service';
 import { verificarSinSync } from '../services/alert.service';
 import { retryPendingDeliveries } from '../services/webhook.service';
+import { emitirFacturaSaaS } from '../services/platformSifen.service';
 
 interface SchedulerTenantConfig {
   scheduler_habilitado: boolean | null;
@@ -279,6 +280,229 @@ async function checkAddonExpiry(): Promise<void> {
   }
 }
 
+// ─── Billing: facturación mensual automática ────────────────────────────────
+
+async function generateMonthlyBillingInvoices(): Promise<void> {
+  logger.info('Scheduler Billing: generando facturas de ciclo');
+  try {
+    // Find active subscriptions whose period has ended
+    const subs = await query<{
+      id: string; tenant_id: string; plan_id: string; current_period_end: Date | null;
+      billing_period: string; plan_nombre: string; precio_mensual: number; precio_anual: number;
+    }>(
+      `SELECT bs.id, bs.tenant_id, bs.plan_id, bs.current_period_end,
+              COALESCE(bs.billing_period, 'monthly') AS billing_period,
+              p.nombre AS plan_nombre,
+              p.precio_mensual_pyg AS precio_mensual,
+              COALESCE(p.precio_anual_pyg, 0) AS precio_anual
+       FROM billing_subscriptions bs
+       JOIN plans p ON p.id = bs.plan_id
+       WHERE bs.status = 'ACTIVE'
+         AND p.precio_mensual_pyg > 0
+         AND (bs.current_period_end IS NULL OR bs.current_period_end <= NOW())`,
+      []
+    );
+
+    for (const sub of subs) {
+      try {
+        // Check for existing unpaid invoice this cycle to avoid duplicates
+        const existingInvoice = await queryOne<{ id: string }>(
+          `SELECT id FROM billing_invoices
+           WHERE tenant_id = $1 AND status != 'PAID'
+             AND billing_reason = 'subscription_cycle'
+             AND created_at >= DATE_TRUNC('month', NOW())`,
+          [sub.tenant_id]
+        );
+        if (existingInvoice) continue;
+
+        // Calculate amount based on billing period
+        const isAnnual = sub.billing_period === 'annual';
+        const amount = isAnnual && sub.precio_anual > 0
+          ? sub.precio_anual
+          : sub.precio_mensual;
+        const periodInterval = isAnnual ? '1 year' : '1 month';
+        const periodLabel = isAnnual ? 'anual' : 'mensual';
+
+        // Create invoice for this billing cycle
+        const invoice = await queryOne<{ id: string }>(
+          `INSERT INTO billing_invoices (tenant_id, subscription_id, amount, status, billing_reason, billing_type, billing_period, detalles)
+           VALUES ($1, $2, $3, 'PENDING', 'subscription_cycle', 'plan', $4, $5)
+           RETURNING id`,
+          [sub.tenant_id, sub.id, amount, sub.billing_period, JSON.stringify({ plan_nombre: sub.plan_nombre, periodo: DateTime.now().toFormat('yyyy-MM'), billing_period: sub.billing_period })]
+        );
+
+        if (invoice) {
+          // Update subscription period end
+          await query(
+            `UPDATE billing_subscriptions
+             SET current_period_end = NOW() + $2::interval
+             WHERE id = $1`,
+            [sub.id, periodInterval]
+          );
+
+          await enviarNotificacion({
+            tenantId: sub.tenant_id,
+            evento: 'PLAN_LIMITE_80',
+            metadata: {
+              tipo: 'FACTURA_GENERADA',
+              invoice_id: invoice.id,
+              monto: amount,
+              plan: sub.plan_nombre,
+              mensaje: `Se generó tu factura ${periodLabel} por ${amount.toLocaleString('es-PY')} Gs. — Plan ${sub.plan_nombre}`,
+            },
+          }).catch(() => {});
+
+          logger.info('Scheduler Billing: factura generada', {
+            tenant_id: sub.tenant_id,
+            invoice_id: invoice.id,
+            amount,
+            billing_period: sub.billing_period,
+          });
+        }
+      } catch (err) {
+        logger.error('Scheduler Billing: error generando factura para tenant', {
+          tenant_id: sub.tenant_id,
+          error: (err as Error).message,
+        });
+      }
+    }
+  } catch (err) {
+    logger.error('Scheduler Billing: error en facturación', { error: (err as Error).message });
+  }
+}
+
+// ─── Billing: reintentos de pagos fallidos ──────────────────────────────────
+
+async function retryFailedPayments(): Promise<void> {
+  logger.debug('Scheduler Billing: verificando pagos fallidos para reintento');
+  try {
+    // Find PENDING invoices older than 3 days (reminder + retry)
+    const pendingInvoices = await query<{
+      id: string; tenant_id: string; amount: number; created_at: Date;
+      detalles: { plan_nombre?: string; retry_count?: number };
+    }>(
+      `SELECT id, tenant_id, amount, created_at, detalles
+       FROM billing_invoices
+       WHERE status = 'PENDING'
+         AND created_at < NOW() - INTERVAL '3 days'
+         AND created_at > NOW() - INTERVAL '30 days'`,
+      []
+    );
+
+    for (const inv of pendingInvoices) {
+      const retryCount = inv.detalles?.retry_count ?? 0;
+      const daysSinceCreated = Math.floor(
+        (Date.now() - new Date(inv.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Send reminders at day 3, 7, 14, 21
+      const reminderDays = [3, 7, 14, 21];
+      if (reminderDays.includes(daysSinceCreated)) {
+        await enviarNotificacion({
+          tenantId: inv.tenant_id,
+          evento: 'PLAN_LIMITE_100', // Reuse as payment overdue
+          metadata: {
+            tipo: 'RECORDATORIO_PAGO',
+            invoice_id: inv.id,
+            monto: inv.amount,
+            dias_pendiente: daysSinceCreated,
+            plan: inv.detalles?.plan_nombre || 'Plan',
+            mensaje: `Tenés una factura pendiente de ${inv.amount.toLocaleString('es-PY')} Gs. hace ${daysSinceCreated} días.`,
+          },
+        }).catch(() => {});
+
+        // Update retry count
+        await query(
+          `UPDATE billing_invoices SET detalles = detalles || $1 WHERE id = $2`,
+          [JSON.stringify({ retry_count: retryCount + 1, last_reminder_at: new Date().toISOString() }), inv.id]
+        );
+
+        logger.info('Scheduler Billing: recordatorio de pago enviado', {
+          invoice_id: inv.id,
+          tenant_id: inv.tenant_id,
+          dias_pendiente: daysSinceCreated,
+        });
+      }
+
+      // After 30 days, mark subscription as PAST_DUE
+      if (daysSinceCreated >= 28) {
+        await query(
+          `UPDATE billing_subscriptions SET status = 'PAST_DUE'
+           WHERE tenant_id = $1 AND status = 'ACTIVE'`,
+          [inv.tenant_id]
+        );
+        logger.warn('Scheduler Billing: suscripción marcada PAST_DUE por falta de pago', {
+          tenant_id: inv.tenant_id,
+          invoice_id: inv.id,
+        });
+      }
+    }
+
+    // Also retry FAILED invoices (from Bancard webhook failures)
+    const failedInvoices = await query<{ id: string; tenant_id: string; amount: number; detalles: any }>(
+      `SELECT id, tenant_id, amount, detalles
+       FROM billing_invoices
+       WHERE status = 'FAILED'
+         AND created_at > NOW() - INTERVAL '7 days'`,
+      []
+    );
+
+    for (const inv of failedInvoices) {
+      const retryCount = inv.detalles?.retry_count ?? 0;
+      if (retryCount >= 3) continue; // Max 3 retries for failed payments
+
+      await enviarNotificacion({
+        tenantId: inv.tenant_id,
+        evento: 'PLAN_LIMITE_100',
+        metadata: {
+          tipo: 'PAGO_FALLIDO',
+          invoice_id: inv.id,
+          monto: inv.amount,
+          reintento: retryCount + 1,
+          mensaje: `Tu pago de ${inv.amount.toLocaleString('es-PY')} Gs. falló. Por favor reintenta desde Facturación.`,
+        },
+      }).catch(() => {});
+
+      await query(
+        `UPDATE billing_invoices SET detalles = detalles || $1 WHERE id = $2`,
+        [JSON.stringify({ retry_count: retryCount + 1, last_retry_notification: new Date().toISOString() }), inv.id]
+      );
+    }
+  } catch (err) {
+    logger.error('Scheduler Billing: error en reintentos', { error: (err as Error).message });
+  }
+}
+
+// ─── Billing: emitir facturas electrónicas SIFEN para pagos confirmados ─────
+
+async function emitPendingSaasInvoices(): Promise<void> {
+  logger.debug('Scheduler Billing: emitiendo facturas SIFEN pendientes');
+  try {
+    // Find PAID invoices without SIFEN emission
+    const invoices = await query<{ id: string; tenant_id: string }>(
+      `SELECT id, tenant_id FROM billing_invoices
+       WHERE status = 'PAID'
+         AND (sifen_status IS NULL OR sifen_status = '')
+         AND created_at > NOW() - INTERVAL '30 days'
+       LIMIT 10`,
+      []
+    );
+
+    for (const inv of invoices) {
+      try {
+        await emitirFacturaSaaS(inv.tenant_id, inv.id);
+      } catch (err) {
+        logger.error('Scheduler Billing: error emitiendo factura SIFEN', {
+          invoice_id: inv.id,
+          error: (err as Error).message,
+        });
+      }
+    }
+  } catch (err) {
+    logger.error('Scheduler Billing: error en emisión SIFEN', { error: (err as Error).message });
+  }
+}
+
 // ─── Cron principal ──────────────────────────────────────────────────────────
 
 export function startScheduler(): void {
@@ -350,6 +574,33 @@ export function startScheduler(): void {
       await retryPendingDeliveries();
     } catch (err) {
       logger.error('Scheduler webhook retry error', { error: (err as Error).message });
+    }
+  });
+
+  // Billing: generar facturas mensuales (1ro de cada mes a las 6am)
+  cron.schedule('0 6 1 * *', async () => {
+    try {
+      await generateMonthlyBillingInvoices();
+    } catch (err) {
+      logger.error('Scheduler billing monthly error', { error: (err as Error).message });
+    }
+  });
+
+  // Billing: recordatorios y reintentos de pagos (diario a las 10am)
+  cron.schedule('0 10 * * *', async () => {
+    try {
+      await retryFailedPayments();
+    } catch (err) {
+      logger.error('Scheduler billing retry error', { error: (err as Error).message });
+    }
+  });
+
+  // Billing: emitir facturas SIFEN para pagos confirmados (cada 2 horas)
+  cron.schedule('0 */2 * * *', async () => {
+    try {
+      await emitPendingSaasInvoices();
+    } catch (err) {
+      logger.error('Scheduler billing SIFEN emission error', { error: (err as Error).message });
     }
   });
 

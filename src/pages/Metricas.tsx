@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import {
   Card,
-  Metric,
   Text,
   Title,
   Flex,
@@ -31,9 +30,10 @@ import {
   TableRow,
   TableCell,
   Badge,
-} from '@tremor/react';
+} from '../components/ui/TailAdmin';
 import { Header } from '../components/layout/Header';
 import { PageLoader } from '../components/ui/Spinner';
+import { ErrorState } from '../components/ui/ErrorState';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTenant } from '../contexts/TenantContext';
@@ -51,6 +51,7 @@ export function Metricas({ toastError }: MetricasProps) {
   const [tenantMetrics, setTenantMetrics] = useState<MetricsTenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -67,8 +68,10 @@ export function Metricas({ toastError }: MetricasProps) {
         const data = await api.metrics.tenant(activeTenantId);
         setTenantMetrics(data);
       }
+      setError(null);
     } catch (e) {
       toastError('Error al cargar métricas', e instanceof Error ? e.message : undefined);
+      setError(e instanceof Error ? e.message : 'Error al cargar métricas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,6 +86,22 @@ export function Metricas({ toastError }: MetricasProps) {
 
   if (loading) return <PageLoader />;
 
+  if (error) {
+    const isAdminView = !isSuperAdmin;
+    return (
+      <div className="space-y-6">
+        <Header
+          title={isAdminView ? 'Métricas' : 'Métricas SaaS'}
+          subtitle={isAdminView ? 'Indicadores de sincronización y operación de tu empresa' : 'Indicadores globales de sincronización y operación'}
+        />
+        <ErrorState
+          message={error}
+          onRetry={() => void load()}
+        />
+      </div>
+    );
+  }
+
   // Tenant view for non-super_admin
   if (!isSuperAdmin) {
     const tm = tenantMetrics;
@@ -96,36 +115,48 @@ export function Metricas({ toastError }: MetricasProps) {
           onRefresh={() => void load(true)}
           refreshing={refreshing}
         />
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
-          <Card decoration="top" decorationColor="sky">
-            <Flex alignItems="start">
-              <div><Text>Comprobantes</Text><Metric>{(tm?.comprobantes.total ?? 0).toLocaleString('es-PY')}</Metric></div>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-sky-50"><FileText className="w-4 h-4 text-sky-600" /></div>
-            </Flex>
-            <Text className="mt-2">{tm?.comprobantes.sin_sincronizar ?? 0} sin sincronizar</Text>
-          </Card>
-          <Card decoration="top" decorationColor="emerald">
-            <Flex alignItems="start">
-              <div><Text>XML descargados</Text><Metric>{(tm?.xml.con_xml ?? 0).toLocaleString('es-PY')}</Metric></div>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-50"><FileCheck2 className="w-4 h-4 text-emerald-600" /></div>
-            </Flex>
-            <Text className="mt-2">{xmlTotalT > 0 ? Math.round(((tm?.xml.con_xml ?? 0) / xmlTotalT) * 100) : 0}% de cobertura</Text>
-          </Card>
-          <Card decoration="top" decorationColor="blue">
-            <Flex alignItems="start">
-              <div><Text>Jobs exitosos</Text><Metric>{(tm?.jobs.exitosos ?? 0).toLocaleString('es-PY')}</Metric></div>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-50"><CheckCircle2 className="w-4 h-4 text-blue-600" /></div>
-            </Flex>
-            <Text className="mt-2">{jobsTotalT > 0 ? Math.round(((tm?.jobs.exitosos ?? 0) / jobsTotalT) * 100) : 0}% tasa de éxito</Text>
-          </Card>
-          <Card decoration="top" decorationColor="amber">
-            <Flex alignItems="start">
-              <div><Text>ORDS enviados</Text><Metric>{(tm?.ords.enviados ?? 0).toLocaleString('es-PY')}</Metric></div>
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50"><Send className="w-4 h-4 text-amber-600" /></div>
-            </Flex>
-            <Text className="mt-2">{tm?.ords.fallidos ?? 0} fallidos</Text>
-          </Card>
-        </Grid>
+        <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Comprobantes</span>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-sky-100 dark:bg-sky-900/30">
+                <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(tm?.comprobantes.total ?? 0).toLocaleString('es-PY')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tm?.comprobantes.sin_sincronizar ?? 0} sin sincronizar</p>
+          </div>
+          <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">XML descargados</span>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+                <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(tm?.xml.con_xml ?? 0).toLocaleString('es-PY')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{xmlTotalT > 0 ? Math.round(((tm?.xml.con_xml ?? 0) / xmlTotalT) * 100) : 0}% de cobertura</p>
+          </div>
+          <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Jobs exitosos</span>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/30">
+                <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(tm?.jobs.exitosos ?? 0).toLocaleString('es-PY')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{jobsTotalT > 0 ? Math.round(((tm?.jobs.exitosos ?? 0) / jobsTotalT) * 100) : 0}% tasa de éxito</p>
+          </div>
+          <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400">ORDS enviados</span>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
+                <Send className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(tm?.ords.enviados ?? 0).toLocaleString('es-PY')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{tm?.ords.fallidos ?? 0} fallidos</p>
+          </div>
+        </div>
         {(tm?.por_tipo ?? []).length > 0 && (
           <Card className="mb-6">
             <Title className="mb-4">Comprobantes por tipo</Title>
@@ -159,117 +190,101 @@ export function Metricas({ toastError }: MetricasProps) {
         refreshing={refreshing}
       />
 
-      <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
-        <Card decoration="top" decorationColor="zinc">
-          <Flex alignItems="start">
-            <div>
-              <Text>Empresas activas</Text>
-              <Metric>{overview?.tenants.activos ?? 0}</Metric>
+      <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Empresas activas</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-brand-50 dark:bg-brand-500/20">
+              <Building2 className="w-4 h-4 text-brand-600 dark:text-brand-400" />
             </div>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-zinc-100">
-              <Building2 className="w-4 h-4 text-zinc-700" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{overview?.tenants.activos ?? 0}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">de {overview?.tenants.total ?? 0} registradas</p>
+        </div>
+        <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400">Comprobantes totales</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-sky-100 dark:bg-sky-900/30">
+              <FileText className="w-4 h-4 text-sky-600 dark:text-sky-400" />
             </div>
-          </Flex>
-          <Text className="mt-2">de {overview?.tenants.total ?? 0} registradas</Text>
-        </Card>
-        <Card decoration="top" decorationColor="sky">
-          <Flex alignItems="start">
-            <div>
-              <Text>Comprobantes totales</Text>
-              <Metric>{(overview?.comprobantes.total ?? 0).toLocaleString('es-PY')}</Metric>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(overview?.comprobantes.total ?? 0).toLocaleString('es-PY')}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview?.comprobantes.electronicos ?? 0} electrónicos</p>
+        </div>
+        <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400">XML descargados</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+              <FileCheck2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-sky-50">
-              <FileText className="w-4 h-4 text-sky-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(overview?.xml.con_xml ?? 0).toLocaleString('es-PY')}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{xmlTasa}% de cobertura</p>
+        </div>
+        <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-500 dark:text-gray-400">ORDS enviados</span>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/30">
+              <Send className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             </div>
-          </Flex>
-          <Text className="mt-2">{overview?.comprobantes.electronicos ?? 0} electrónicos</Text>
-        </Card>
-        <Card decoration="top" decorationColor="emerald">
-          <Flex alignItems="start">
-            <div>
-              <Text>XML descargados</Text>
-              <Metric>{(overview?.xml.con_xml ?? 0).toLocaleString('es-PY')}</Metric>
-            </div>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-50">
-              <FileCheck2 className="w-4 h-4 text-emerald-600" />
-            </div>
-          </Flex>
-          <Text className="mt-2">{xmlTasa}% de cobertura</Text>
-        </Card>
-        <Card decoration="top" decorationColor="blue">
-          <Flex alignItems="start">
-            <div>
-              <Text>ORDS enviados</Text>
-              <Metric>{(overview?.ords.enviados ?? 0).toLocaleString('es-PY')}</Metric>
-            </div>
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-blue-50">
-              <Send className="w-4 h-4 text-blue-600" />
-            </div>
-          </Flex>
-          <Text className="mt-2">{overview?.ords.fallidos ?? 0} fallidos</Text>
-        </Card>
-      </Grid>
+          </div>
+          <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(overview?.ords.enviados ?? 0).toLocaleString('es-PY')}</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{overview?.ords.fallidos ?? 0} fallidos</p>
+        </div>
+      </div>
 
       {/* SaaS KPIs — MRR, ARPU, anomalías, webhooks */}
       {(saas?.mrr !== undefined || saas?.anomalias_30d !== undefined) && (
-        <Grid numItemsSm={2} numItemsLg={4} className="gap-4 mb-6">
+        <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {saas?.mrr !== undefined && (
-            <Card decoration="top" decorationColor="emerald">
-              <Flex alignItems="start">
-                <div>
-                  <Text>MRR</Text>
-                  <Metric>{(saas.mrr).toLocaleString('es-PY')} Gs.</Metric>
+            <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">MRR</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-emerald-100 dark:bg-emerald-900/30">
+                  <DollarSign className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-emerald-50">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                </div>
-              </Flex>
-              <Text className="mt-2">{saas.tenants_pagos ?? 0} empresas pagando</Text>
-            </Card>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(saas.mrr).toLocaleString('es-PY')} Gs.</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{saas.tenants_pagos ?? 0} empresas pagando</p>
+            </div>
           )}
           {saas?.arpu !== undefined && (
-            <Card decoration="top" decorationColor="violet">
-              <Flex alignItems="start">
-                <div>
-                  <Text>ARPU</Text>
-                  <Metric>{(saas.arpu).toLocaleString('es-PY')} Gs.</Metric>
+            <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">ARPU</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-violet-100 dark:bg-violet-900/30">
+                  <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                 </div>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-violet-50">
-                  <Users className="w-4 h-4 text-violet-600" />
-                </div>
-              </Flex>
-              <Text className="mt-2">promedio por empresa</Text>
-            </Card>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(saas.arpu).toLocaleString('es-PY')} Gs.</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">promedio por empresa</p>
+            </div>
           )}
           {saas?.anomalias_30d !== undefined && (
-            <Card decoration="top" decorationColor="rose">
-              <Flex alignItems="start">
-                <div>
-                  <Text>Anomalías 30d</Text>
-                  <Metric>{saas.anomalias_30d.total.toLocaleString('es-PY')}</Metric>
+            <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Anomalías 30d</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-rose-100 dark:bg-rose-900/30">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                 </div>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-rose-50">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
-                </div>
-              </Flex>
-              <Text className="mt-2">{saas.anomalias_30d.alta} alta · {saas.anomalias_30d.media} media</Text>
-            </Card>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{saas.anomalias_30d.total.toLocaleString('es-PY')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{saas.anomalias_30d.alta} alta · {saas.anomalias_30d.media} media</p>
+            </div>
           )}
           {saas?.webhooks_24h !== undefined && (
-            <Card decoration="top" decorationColor="amber">
-              <Flex alignItems="start">
-                <div>
-                  <Text>Webhooks 24h</Text>
-                  <Metric>{saas.webhooks_24h.enviados.toLocaleString('es-PY')}</Metric>
+            <div className="p-4 rounded-2xl transition duration-150 bg-white dark:bg-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Webhooks 24h</span>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center bg-amber-100 dark:bg-amber-900/30">
+                  <Zap className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 </div>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-amber-50">
-                  <Zap className="w-4 h-4 text-amber-600" />
-                </div>
-              </Flex>
-              <Text className="mt-2">{saas.webhooks_24h.exitosos} ok · {saas.webhooks_24h.muertos} DLQ</Text>
-            </Card>
+              </div>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{saas.webhooks_24h.enviados.toLocaleString('es-PY')}</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{saas.webhooks_24h.exitosos} ok · {saas.webhooks_24h.muertos} DLQ</p>
+            </div>
           )}
-        </Grid>
+        </div>
       )}
 
       {/* Plan distribution + Addon usage */}
@@ -288,7 +303,7 @@ export function Metricas({ toastError }: MetricasProps) {
                 </TableHead>
                 <TableBody>
                   {saas.plan_distribucion.map((r) => (
-                    <TableRow key={r.plan}>
+                    <TableRow key={r.plan} className="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
                       <TableCell><Badge color="zinc">{r.plan}</Badge></TableCell>
                       <TableCell className="text-right">{r.cantidad}</TableCell>
                       <TableCell className="text-right font-medium">{r.mrr_plan.toLocaleString('es-PY')}</TableCell>
@@ -310,7 +325,7 @@ export function Metricas({ toastError }: MetricasProps) {
                 </TableHead>
                 <TableBody>
                   {saas.addon_usage.map((r) => (
-                    <TableRow key={r.addon}>
+                    <TableRow key={r.addon} className="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
                       <TableCell>{r.addon}</TableCell>
                       <TableCell className="text-right"><Badge color="emerald">{r.tenants}</Badge></TableCell>
                     </TableRow>
@@ -325,7 +340,7 @@ export function Metricas({ toastError }: MetricasProps) {
       <Grid numItemsLg={3} className="gap-6 mb-6">
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <Briefcase className="w-4 h-4 text-tremor-content" />
+            <Briefcase className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>Jobs del sistema</Title>
           </div>
           <div className="space-y-4">
@@ -349,8 +364,8 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={overview?.jobs.total ? Math.round(((overview?.jobs.fallidos ?? 0) / overview.jobs.total) * 100) : 0} color="rose" />
             </div>
-            <Flex className="pt-2 border-t border-tremor-border">
-              <Text className="text-tremor-content-subtle">Total jobs</Text>
+            <Flex className="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <Text className="text-gray-400 dark:text-gray-500">Total jobs</Text>
               <Text className="font-semibold">{(overview?.jobs.total ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
@@ -358,7 +373,7 @@ export function Metricas({ toastError }: MetricasProps) {
 
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <FileText className="w-4 h-4 text-tremor-content" />
+            <FileText className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>Estado XML</Title>
           </div>
           <div className="space-y-4">
@@ -382,8 +397,8 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={xmlTotal ? Math.round(((overview?.xml.sin_xml ?? 0) / xmlTotal) * 100) : 0} color="amber" />
             </div>
-            <Flex className="pt-2 border-t border-tremor-border">
-              <Text className="text-tremor-content-subtle">Aprobados SIFEN</Text>
+            <Flex className="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <Text className="text-gray-400 dark:text-gray-500">Aprobados SIFEN</Text>
               <Text className="font-semibold text-emerald-500">{(overview?.xml.aprobados ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
@@ -391,7 +406,7 @@ export function Metricas({ toastError }: MetricasProps) {
 
         <Card>
           <div className="flex items-center gap-2 mb-4">
-            <Send className="w-4 h-4 text-tremor-content" />
+            <Send className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>ORDS Sync</Title>
           </div>
           <div className="space-y-4">
@@ -415,8 +430,8 @@ export function Metricas({ toastError }: MetricasProps) {
               </Flex>
               <ProgressBar value={ordsTotal ? Math.round(((overview?.ords.fallidos ?? 0) / ordsTotal) * 100) : 0} color="rose" />
             </div>
-            <Flex className="pt-2 border-t border-tremor-border">
-              <Text className="text-tremor-content-subtle">Pendientes</Text>
+            <Flex className="pt-2 border-t border-gray-200 dark:border-gray-700">
+              <Text className="text-gray-400 dark:text-gray-500">Pendientes</Text>
               <Text className="font-semibold text-amber-500">{(overview?.ords.pendientes ?? 0).toLocaleString('es-PY')}</Text>
             </Flex>
           </div>
@@ -425,45 +440,45 @@ export function Metricas({ toastError }: MetricasProps) {
 
       <Grid numItemsLg={2} className="gap-6 mb-6">
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
-            <Award className="w-4 h-4 text-tremor-content" />
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+            <Award className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>Top empresas por comprobantes</Title>
           </div>
-          <div className="divide-y divide-tremor-border">
+          <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {(saas?.top_tenants ?? []).slice(0, 8).map((t, i) => (
-              <div key={t.tenant_id} className="px-5 py-3 flex items-center gap-3">
-                <Text className="text-xs font-bold tabular-nums w-5">{i + 1}</Text>
-                <div className="w-7 h-7 rounded-lg bg-tremor-background-subtle flex items-center justify-center flex-shrink-0">
-                  <Text className="text-[10px] font-bold">{t.nombre.slice(0, 2).toUpperCase()}</Text>
+              <div key={t.tenant_id} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+                <Text className="text-xs font-bold tabular-nums w-5" style={{ color: i === 0 ? 'rgb(var(--brand-rgb))' : undefined }}>{i + 1}</Text>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgb(var(--brand-rgb) / 0.08)' }}>
+                  <Text className="text-[10px] font-bold" style={{ color: 'rgb(var(--brand-rgb))' }}>{t.nombre.slice(0, 2).toUpperCase()}</Text>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <Text className="font-medium truncate text-tremor-content-strong">{t.nombre}</Text>
+                  <Text className="font-medium truncate text-gray-900 dark:text-white">{t.nombre}</Text>
                   <Text className="text-xs">{t.total_xml} XML descargados</Text>
                 </div>
-                <Text className="font-semibold tabular-nums text-tremor-content-strong">{t.total_comprobantes.toLocaleString('es-PY')}</Text>
+                <Text className="font-semibold tabular-nums text-gray-900 dark:text-white">{t.total_comprobantes.toLocaleString('es-PY')}</Text>
               </div>
             ))}
             {(saas?.top_tenants ?? []).length === 0 && (
-              <div className="px-5 py-8 text-center text-sm text-tremor-content-subtle">Sin datos aún</div>
+              <div className="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">Sin datos aún</div>
             )}
           </div>
         </Card>
 
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-tremor-content" />
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>Actividad reciente de sync</Title>
           </div>
-          <div className="divide-y divide-tremor-border">
+          <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {(overview?.actividad_reciente ?? []).slice(0, 8).map((a, i) => (
-              <div key={i} className="px-5 py-3 flex items-center gap-3">
+              <div key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <Text className="font-medium truncate text-tremor-content-strong">{a.nombre_fantasia}</Text>
+                  <Text className="font-medium truncate text-gray-900 dark:text-white">{a.nombre_fantasia}</Text>
                   <Text className="text-xs">{a.fecha}</Text>
                 </div>
                 <div className="flex items-center gap-4 text-right">
                   <div>
-                    <Text className="text-xs font-semibold tabular-nums text-tremor-content-strong">{parseInt(String(a.total_nuevos)).toLocaleString('es-PY')}</Text>
+                    <Text className="text-xs font-semibold tabular-nums text-gray-900 dark:text-white">{parseInt(String(a.total_nuevos)).toLocaleString('es-PY')}</Text>
                     <Text className="text-[10px]">nuevos</Text>
                   </div>
                   <div>
@@ -474,7 +489,7 @@ export function Metricas({ toastError }: MetricasProps) {
               </div>
             ))}
             {(overview?.actividad_reciente ?? []).length === 0 && (
-              <div className="px-5 py-8 text-center text-sm text-tremor-content-subtle">Sin actividad reciente</div>
+              <div className="px-5 py-8 text-center text-sm text-gray-400 dark:text-gray-500">Sin actividad reciente</div>
             )}
           </div>
         </Card>
@@ -482,8 +497,8 @@ export function Metricas({ toastError }: MetricasProps) {
 
       {(saas?.jobs_ultimos_7_dias ?? []).length > 0 && (
         <Card className="overflow-hidden p-0">
-          <div className="px-5 py-4 border-b border-tremor-border flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-tremor-content" />
+          <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             <Title>Jobs últimos 7 días</Title>
           </div>
           <Table>
@@ -502,7 +517,7 @@ export function Metricas({ toastError }: MetricasProps) {
                 const total = exitosos + fallidos;
                 const tasa = total > 0 ? Math.round((exitosos / total) * 100) : 0;
                 return (
-                  <TableRow key={d.dia}>
+                  <TableRow key={d.dia} className="hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
                     <TableCell className="font-mono text-sm">{d.dia}</TableCell>
                     <TableCell className="text-right">
                       <Badge color="emerald">{exitosos}</Badge>
@@ -513,7 +528,7 @@ export function Metricas({ toastError }: MetricasProps) {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <ProgressBar value={tasa} color="emerald" className="flex-1" />
-                        <span className="text-xs tabular-nums text-zinc-500 w-10">{tasa}%</span>
+                        <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400 w-10">{tasa}%</span>
                       </div>
                     </TableCell>
                   </TableRow>

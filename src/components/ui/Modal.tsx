@@ -49,35 +49,42 @@ export function Modal({
   return createPortal(
     <div className="fixed inset-0 z-[50] overflow-y-auto">
       <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+        {/* ECME overlay: bg-black/60 backdrop-blur-md */}
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
+          className="dialog-overlay"
           onClick={onClose}
         />
 
         <div
-          className={`relative w-full ${sizeClasses[size]} bg-white rounded-2xl shadow-2xl shadow-black/20 border border-zinc-200/60 animate-pop-in flex flex-col`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-title"
+          className={`dialog-content w-full ${sizeClasses[size]} animate-pop-in flex flex-col !my-0`}
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100/80 bg-white/80 backdrop-blur-md rounded-t-2xl">
+          {/* Header */}
+          <div className="card-header card-header-border flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-zinc-900 tracking-tight">{title}</h2>
+              <h5 id="modal-title">{title}</h5>
               {description && (
-                <p className="text-sm font-medium text-zinc-500 mt-0.5">{description}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="p-6 min-h-[100px]">
+          {/* Body */}
+          <div className="card-body min-h-[100px]">
             {children}
           </div>
 
+          {/* Footer */}
           {footer && (
-            <div className="px-6 py-4 border-t border-zinc-100/80 bg-zinc-50/50 flex items-center justify-end gap-3 rounded-b-2xl">
+            <div className="card-footer card-footer-border flex items-center justify-end gap-3 bg-gray-50 dark:bg-gray-800/50">
               {footer}
             </div>
           )}

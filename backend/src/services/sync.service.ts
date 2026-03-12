@@ -15,17 +15,10 @@ import { EkuatiaService, SifenDocumentoNoAprobadoError, enqueueXmlDownloads, obt
 import { SyncJobPayload, EnviarOrdsJobPayload, DescargarXmlJobPayload, SyncFacturasVirtualesJobPayload } from '../types';
 import { queryOne } from '../db/connection';
 import { Tenant } from '../types';
+import { SyncTimer } from './timing.service';
 
 export class SyncService {
   private ordsService = new OrdsService();
-  private ekuatiaService: EkuatiaService | null = null;
-
-  private getEkuatiaService(solvecaptchaApiKey: string): EkuatiaService {
-    if (!this.ekuatiaService || this.ekuatiaService.solveCaptchaApiKey !== solvecaptchaApiKey) {
-      this.ekuatiaService = new EkuatiaService(solvecaptchaApiKey);
-    }
-    return this.ekuatiaService;
-  }
 
   /**
    * Ejecuta la sincronización completa de comprobantes para un tenant.
@@ -111,6 +104,8 @@ export class SyncService {
     tenantId: string,
     payload: EnviarOrdsJobPayload = {}
   ): Promise<void> {
+    const timer = new SyncTimer('ENVIAR_A_ORDS', tenantId);
+
     const tenant = await queryOne<Tenant>(
       'SELECT * FROM tenants WHERE id = $1',
       [tenantId]
@@ -129,12 +124,15 @@ export class SyncService {
       return;
     }
 
+    timer.step('enviar_pendientes');
     const result = await this.ordsService.procesarEnviosPendientes(
       tenantId,
       tenant.ruc,
       tenantConfig,
       payload.batch_size ?? 50
     );
+
+    await timer.end('SUCCESS', result);
 
     logger.info('Envío ORDS completado', {
       tenant_id: tenantId,
@@ -175,16 +173,26 @@ export class SyncService {
       return;
     }
 
+    const timer = new SyncTimer('DESCARGAR_XML', tenantId);
+
     logger.info('Iniciando descarga de XMLs', {
       tenant_id: tenantId,
       cantidad: pendientes.length,
     });
 
-    const ekuatia = this.getEkuatiaService(solvecaptchaApiKey);
+    const ekuatia = new EkuatiaService(solvecaptchaApiKey);
     let exitosos = 0;
     let fallidos = 0;
 
-    for (const pendiente of pendientes) {
+    // Concurrent XML downloads with semaphore (max 3 parallel)
+    const concurrency = payload.concurrency ?? 3;
+
+    // Pre-resolve captcha tokens for the first chunk to eliminate sequential wait
+    timer.step('warmup_captchas');
+    await ekuatia.warmupTokens(Math.min(concurrency, pendientes.length));
+
+    timer.step('descargar_xmls');
+    const procesarPendiente = async (pendiente: typeof pendientes[0]) => {
       try {
         const result = await ekuatia.descargarXml(pendiente.cdc);
 
@@ -225,12 +233,35 @@ export class SyncService {
           error: errorMsg,
         });
       }
+    };
+
+    // Process in chunks of `concurrency` to avoid overloading eKuatia
+    try {
+      for (let i = 0; i < pendientes.length; i += concurrency) {
+        const chunk = pendientes.slice(i, i + concurrency);
+        // Start warming up tokens for next chunk while current chunk processes
+        const nextChunkSize = Math.min(concurrency, pendientes.length - i - concurrency);
+        const warmupPromise = nextChunkSize > 0 ? ekuatia.warmupTokens(nextChunkSize) : Promise.resolve();
+        await Promise.allSettled([...chunk.map(procesarPendiente), warmupPromise]);
+      }
+    } finally {
+      // Always close the browser to prevent zombie Chrome processes
+      await ekuatia.close();
     }
+
+    await timer.end('SUCCESS', {
+      pendientes: pendientes.length,
+      exitosos,
+      fallidos,
+      concurrency,
+      promedio_ms_por_xml: pendientes.length > 0 ? Math.round(timer.elapsedMs / pendientes.length) : 0,
+    });
 
     logger.info('Lote de descarga XML completado', {
       tenant_id: tenantId,
       exitosos,
       fallidos,
+      concurrency,
     });
 
     const restantes = await obtenerPendientesXml(tenantId, 1);

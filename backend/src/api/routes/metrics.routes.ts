@@ -23,7 +23,7 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
       queryOne<{
         total: string;
         activos: string;
-      }>(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE activo) as activos FROM tenants`),
+      }>(`SELECT COUNT(*) as total, COUNT(*) FILTER (WHERE activo) as activos FROM tenants WHERE id != 'ffffffff-ffff-ffff-ffff-ffffff000000'`),
 
       queryOne<{
         total: string;
@@ -398,6 +398,157 @@ export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.send({ success: true, data: { count: parseInt(row?.count ?? '0') } });
     }
   );
+
+  // ─── Sync Timings ───────────────────────────────────────────────────────────
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { dias?: string; operation?: string; limit?: string };
+  }>('/metrics/tenants/:id/sync-timings', async (request, reply) => {
+    const { id } = request.params;
+    if (!assertTenantAccess(request, reply, id)) return;
+
+    if (!request.currentUser!.permisos.includes('metricas:ver') && request.currentUser!.rol.nombre !== 'super_admin') {
+      throw new ApiError(403, 'FORBIDDEN', 'Sin permiso para ver métricas');
+    }
+
+    const dias = parseInt(request.query.dias ?? '7', 10);
+    const operation = request.query.operation;
+    const limit = Math.min(parseInt(request.query.limit ?? '50', 10), 200);
+
+    const conditions = ['tenant_id = $1', "created_at >= NOW() - ($2 || ' days')::INTERVAL"];
+    const params: (string | number)[] = [id, dias];
+
+    if (operation) {
+      params.push(operation);
+      conditions.push(`operation = $${params.length}`);
+    }
+
+    const timings = await query<{
+      id: string; operation: string; started_at: string; elapsed_ms: string;
+      status: string; steps: string; result_summary: string; error_message: string | null;
+    }>(
+      `SELECT id, operation, started_at::text, elapsed_ms, status, steps::text, result_summary::text, error_message
+       FROM sync_timings
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY created_at DESC
+       LIMIT $${params.length + 1}`,
+      [...params, limit]
+    );
+
+    // Promedios por operación
+    const averages = await query<{
+      operation: string; avg_ms: string; min_ms: string; max_ms: string;
+      count: string; error_count: string;
+    }>(
+      `SELECT operation,
+              ROUND(AVG(elapsed_ms))::text as avg_ms,
+              MIN(elapsed_ms)::text as min_ms,
+              MAX(elapsed_ms)::text as max_ms,
+              COUNT(*)::text as count,
+              COUNT(*) FILTER (WHERE status = 'ERROR')::text as error_count
+       FROM sync_timings
+       WHERE tenant_id = $1 AND created_at >= NOW() - ($2 || ' days')::INTERVAL
+       GROUP BY operation
+       ORDER BY avg_ms DESC`,
+      [id, dias]
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        timings: timings.map(t => ({
+          id: t.id,
+          operation: t.operation,
+          started_at: t.started_at,
+          elapsed_ms: parseInt(t.elapsed_ms),
+          status: t.status,
+          steps: JSON.parse(t.steps),
+          result_summary: JSON.parse(t.result_summary),
+          error_message: t.error_message,
+        })),
+        averages: averages.map(a => ({
+          operation: a.operation,
+          avg_ms: parseInt(a.avg_ms),
+          min_ms: parseInt(a.min_ms),
+          max_ms: parseInt(a.max_ms),
+          count: parseInt(a.count),
+          error_count: parseInt(a.error_count),
+        })),
+      },
+    });
+  });
+
+  // ─── Sync Timings Global (super admin) ────────────────────────────────────
+  fastify.get<{
+    Querystring: { dias?: string; limit?: string };
+  }>('/metrics/sync-timings', async (request, reply) => {
+    if (request.currentUser!.rol.nombre !== 'super_admin') {
+      throw new ApiError(403, 'FORBIDDEN', 'Solo el super administrador puede ver timings globales');
+    }
+
+    const dias = parseInt(request.query.dias ?? '7', 10);
+    const limit = Math.min(parseInt(request.query.limit ?? '50', 10), 200);
+
+    const timings = await query<{
+      id: string; tenant_id: string; nombre_fantasia: string; operation: string;
+      started_at: string; elapsed_ms: string; status: string;
+      result_summary: string; error_message: string | null;
+    }>(
+      `SELECT st.id, st.tenant_id, t.nombre_fantasia, st.operation,
+              st.started_at::text, st.elapsed_ms, st.status,
+              st.result_summary::text, st.error_message
+       FROM sync_timings st
+       JOIN tenants t ON t.id = st.tenant_id
+       WHERE st.created_at >= NOW() - ($1 || ' days')::INTERVAL
+       ORDER BY st.created_at DESC
+       LIMIT $2`,
+      [dias, limit]
+    );
+
+    const averages = await query<{
+      operation: string; avg_ms: string; min_ms: string; max_ms: string;
+      p95_ms: string; count: string; error_count: string;
+    }>(
+      `SELECT operation,
+              ROUND(AVG(elapsed_ms))::text as avg_ms,
+              MIN(elapsed_ms)::text as min_ms,
+              MAX(elapsed_ms)::text as max_ms,
+              ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY elapsed_ms))::text as p95_ms,
+              COUNT(*)::text as count,
+              COUNT(*) FILTER (WHERE status = 'ERROR')::text as error_count
+       FROM sync_timings
+       WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+       GROUP BY operation
+       ORDER BY avg_ms DESC`,
+      [dias]
+    );
+
+    return reply.send({
+      success: true,
+      data: {
+        timings: timings.map(t => ({
+          id: t.id,
+          tenant_id: t.tenant_id,
+          nombre_fantasia: t.nombre_fantasia,
+          operation: t.operation,
+          started_at: t.started_at,
+          elapsed_ms: parseInt(t.elapsed_ms),
+          status: t.status,
+          result_summary: JSON.parse(t.result_summary),
+          error_message: t.error_message,
+        })),
+        averages: averages.map(a => ({
+          operation: a.operation,
+          avg_ms: parseInt(a.avg_ms),
+          min_ms: parseInt(a.min_ms),
+          max_ms: parseInt(a.max_ms),
+          p95_ms: parseInt(a.p95_ms),
+          count: parseInt(a.count),
+          error_count: parseInt(a.error_count),
+        })),
+      },
+    });
+  });
 
   fastify.get('/metrics/saas', async (request, reply) => {
     if (request.currentUser!.rol.nombre !== 'super_admin') {

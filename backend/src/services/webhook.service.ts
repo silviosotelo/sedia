@@ -21,7 +21,8 @@ export type WebhookEvento =
   | 'plan_limite_80'
   | 'plan_limite_100'
   | 'factura_electronica_emitida'
-  | 'clasificacion_aplicada';
+  | 'clasificacion_aplicada'
+  | 'sifen_evento';
 
 interface WebhookRow {
   id: string;

@@ -43,7 +43,21 @@ export function errorHandler(
     return;
   }
 
-  // Catch-all for unexpected errors
+  // Service-level business errors (plain Error with descriptive message)
+  // Forward the actual message so the frontend can display it to users.
+  const msg = error.message || '';
+  if (msg) {
+    void reply.status(400).send({
+      success: false,
+      error: {
+        code: 'BUSINESS_ERROR',
+        message: msg,
+      },
+    });
+    return;
+  }
+
+  // Catch-all for truly unexpected errors (no message available)
   void reply.status(500).send({
     success: false,
     error: {

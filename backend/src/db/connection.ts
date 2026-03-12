@@ -2,6 +2,9 @@ import { Pool, PoolClient } from 'pg';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
 
+// Queries slower than this threshold are logged at WARN level
+const SLOW_QUERY_THRESHOLD_MS = 2_000;
+
 let pool: Pool | null = null;
 let poolStatsInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -80,8 +83,19 @@ export async function query<T = unknown>(
   params?: unknown[]
 ): Promise<T[]> {
   const p = getPool();
+  const startMs = Date.now();
   try {
     const result = await p.query(sql, params);
+    const elapsed = Date.now() - startMs;
+    if (elapsed >= SLOW_QUERY_THRESHOLD_MS) {
+      logger.warn('Query lenta detectada', {
+        sql: sql.substring(0, 300),
+        elapsed_ms: elapsed,
+        rows: result.rowCount,
+        pool_total: p.totalCount,
+        pool_waiting: p.waitingCount,
+      });
+    }
     return result.rows as T[];
   } catch (err) {
     const error = err as Error & { code?: string };
@@ -96,6 +110,25 @@ export async function query<T = unknown>(
     });
     throw error;
   }
+}
+
+/**
+ * Returns a snapshot of the current pool state.
+ * Used by health/diagnostic endpoints.
+ */
+export function getPoolStats(): {
+  total: number;
+  idle: number;
+  waiting: number;
+  max: number;
+} {
+  const p = getPool();
+  return {
+    total: p.totalCount,
+    idle: p.idleCount,
+    waiting: p.waitingCount,
+    max: config.database.poolMax,
+  };
 }
 
 export async function queryOne<T = unknown>(
