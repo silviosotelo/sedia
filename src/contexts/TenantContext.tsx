@@ -20,7 +20,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(false);
 
     const [activeTenantIdState, setActiveTenantIdState] = useState<string | null>(() =>
-        isSuperAdmin ? localStorage.getItem('sedia_global_tenant_id') : userTenantId
+        localStorage.getItem('sedia_global_tenant_id') ?? userTenantId
     );
 
     const refreshTenants = useCallback(async () => {
