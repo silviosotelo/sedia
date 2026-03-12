@@ -86,34 +86,29 @@ function evictCertCache() {
 }
 
 // ─── Internal R2 download helper ─────────────────────────────────────────────
-// StorageService does not expose a download-to-buffer method, so we reach into
-// the same @aws-sdk/client-s3 pattern used by the rest of the codebase.
+// Uses the storageService singleton which is already configured from system_settings DB.
 
 async function downloadR2ToBuffer(r2Key: string): Promise<Buffer> {
-    // Access the private S3 client on the singleton via dynamic require to avoid
-    // coupling — we replicate the pattern used elsewhere in the codebase.
-    const { S3Client: S3, GetObjectCommand: GetObj } = await import('@aws-sdk/client-s3');
+    const { storageService } = require('./storage.service');
 
-    const accountId  = process.env.R2_ACCOUNT_ID       ?? '';
-    const accessKey  = process.env.R2_ACCESS_KEY_ID     ?? '';
-    const secretKey  = process.env.R2_SECRET_ACCESS_KEY ?? '';
-    const bucket     = process.env.R2_BUCKET_NAME       ?? 'sedia-storage';
-
-    if (!accountId || !accessKey || !secretKey) {
-        throw new Error('R2 credentials not configured — cannot download certificate');
+    if (!storageService.isEnabled()) {
+        throw new Error('R2 storage not enabled — cannot download certificate');
     }
 
-    const client = new S3({
-        region: 'auto',
-        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
-        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-    });
+    // storageService doesn't expose a download method, so we access its internal client
+    // via the GetObjectCommand using the same S3 client instance.
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const client = (storageService as any).client;
+    const bucket = (storageService as any).bucket;
 
-    const resp = await client.send(new GetObj({ Bucket: bucket, Key: r2Key }));
+    if (!client) {
+        throw new Error('R2 client not initialized — check storage_config in system_settings');
+    }
+
+    const resp = await client.send(new GetObjectCommand({ Bucket: bucket, Key: r2Key }));
 
     if (!resp.Body) throw new Error(`R2 returned empty body for key: ${r2Key}`);
 
-    // resp.Body is a Readable/ReadableStream in Node.js — collect chunks
     const chunks: Buffer[] = [];
     for await (const chunk of resp.Body as AsyncIterable<Uint8Array>) {
         chunks.push(Buffer.from(chunk));
