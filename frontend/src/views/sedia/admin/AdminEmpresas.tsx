@@ -12,18 +12,20 @@ import {
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Dialog from '@/components/ui/Dialog'
-import Input from '@/components/ui/Input'
-import Switcher from '@/components/ui/Switcher'
 import Tag from '@/components/ui/Tag'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import Loading from '@/components/shared/Loading'
-import { FormItem, FormContainer } from '@/components/ui/Form'
 import Table from '@/components/ui/Table'
 import { useTenantStore } from '@/store/tenantStore'
 import { api } from '@/services/sedia/api'
 import classNames from 'classnames'
 import type { Tenant } from '@/@types/sedia'
+import {
+    TenantFormInner,
+    type TenantFormData,
+} from '../components/TenantFormShared'
+import type { TenantWithConfig } from '@/@types/sedia'
 
 // ─── Extended tenant type (API may return extra fields) ─────────────────────
 
@@ -84,29 +86,6 @@ function TenantAvatar({ tenant }: { tenant: TenantRow }) {
     )
 }
 
-// ─── Form types ─────────────────────────────────────────────────────────────
-
-interface EmpresaForm {
-    nombre_fantasia: string
-    ruc: string
-    email_contacto: string
-    activo: boolean
-}
-
-interface AdminForm {
-    admin_email: string
-    admin_nombre: string
-}
-
-interface EmpresaFormErrors {
-    nombre_fantasia?: string
-    ruc?: string
-    email_contacto?: string
-    admin_email?: string
-}
-
-type FilterTab = 'todas' | 'activas' | 'inactivas'
-
 // ─── Stat pill ───────────────────────────────────────────────────────────────
 
 function StatPill({
@@ -135,6 +114,8 @@ function StatPill({
     )
 }
 
+type FilterTab = 'todas' | 'activas' | 'inactivas'
+
 // ─── Main component ──────────────────────────────────────────────────────────
 
 const AdminEmpresas = () => {
@@ -148,24 +129,14 @@ const AdminEmpresas = () => {
     // Dialog state
     const [showForm, setShowForm] = useState(false)
     const [editTarget, setEditTarget] = useState<TenantRow | null>(null)
-    const [activeTab, setActiveTab] = useState<'empresa' | 'admin'>('empresa')
+    const [editTenantConfig, setEditTenantConfig] = useState<TenantWithConfig | undefined>(
+        undefined,
+    )
+    const [editLoading, setEditLoading] = useState(false)
 
     // Filter/search
     const [search, setSearch] = useState('')
     const [filterTab, setFilterTab] = useState<FilterTab>('todas')
-
-    // Forms
-    const [form, setForm] = useState<EmpresaForm>({
-        nombre_fantasia: '',
-        ruc: '',
-        email_contacto: '',
-        activo: true,
-    })
-    const [adminForm, setAdminForm] = useState<AdminForm>({
-        admin_email: '',
-        admin_nombre: '',
-    })
-    const [formErrors, setFormErrors] = useState<EmpresaFormErrors>({})
 
     // ─── Toast helpers ───────────────────────────────────────────────────────
 
@@ -235,92 +206,42 @@ const AdminEmpresas = () => {
 
     const openCreate = () => {
         setEditTarget(null)
-        setActiveTab('empresa')
-        setFormErrors({})
-        setForm({ nombre_fantasia: '', ruc: '', email_contacto: '', activo: true })
-        setAdminForm({ admin_email: '', admin_nombre: '' })
+        setEditTenantConfig(undefined)
         setShowForm(true)
     }
 
-    const openEdit = (t: TenantRow) => {
+    const openEdit = async (t: TenantRow) => {
         setEditTarget(t)
-        setActiveTab('empresa')
-        setFormErrors({})
-        setForm({
-            nombre_fantasia: t.nombre_fantasia,
-            ruc: t.ruc,
-            email_contacto: t.email_contacto ?? '',
-            activo: t.activo,
-        })
+        setEditTenantConfig(undefined)
+        setEditLoading(true)
         setShowForm(true)
+        try {
+            const full = await api.tenants.get(t.id)
+            setEditTenantConfig(full)
+        } catch {
+            toastError('Error al cargar config')
+            setShowForm(false)
+        } finally {
+            setEditLoading(false)
+        }
     }
 
     const closeForm = () => {
         setShowForm(false)
     }
 
-    // ─── Field setters ────────────────────────────────────────────────────────
-
-    const setField = <K extends keyof EmpresaForm>(key: K, value: EmpresaForm[K]) => {
-        setForm((p) => ({ ...p, [key]: value }))
-        if (formErrors[key as keyof EmpresaFormErrors]) {
-            setFormErrors((e) => ({ ...e, [key]: undefined }))
-        }
-    }
-
-    const setAdminField = <K extends keyof AdminForm>(key: K, value: AdminForm[K]) => {
-        setAdminForm((p) => ({ ...p, [key]: value }))
-        if (key === 'admin_email' && formErrors.admin_email) {
-            setFormErrors((e) => ({ ...e, admin_email: undefined }))
-        }
-    }
-
-    // ─── Validate ────────────────────────────────────────────────────────────
-
-    const validate = (): boolean => {
-        const errs: EmpresaFormErrors = {}
-        if (!form.nombre_fantasia.trim()) errs.nombre_fantasia = 'Requerido'
-        if (!form.ruc.trim()) errs.ruc = 'Requerido'
-        if (!editTarget && !adminForm.admin_email.trim()) errs.admin_email = 'Requerido'
-        setFormErrors(errs)
-        return Object.keys(errs).length === 0
-    }
-
     // ─── Submit ──────────────────────────────────────────────────────────────
 
-    const handleSubmit = async () => {
-        if (!validate()) {
-            // If admin email is missing, switch to admin tab so the user sees the error
-            if (formErrors.admin_email || (!editTarget && !adminForm.admin_email.trim())) {
-                setActiveTab('admin')
-            }
-            toastError('Completá todos los campos requeridos')
-            return
-        }
-
+    const handleFormSubmit = async (data: TenantFormData) => {
         setSaving(true)
         try {
             if (editTarget) {
-                await api.tenants.update(editTarget.id, {
-                    nombre_fantasia: form.nombre_fantasia,
-                    email_contacto: form.email_contacto || null,
-                    activo: form.activo,
-                })
+                await api.tenants.update(editTarget.id, data)
                 toastSuccess('Empresa actualizada')
                 setShowForm(false)
                 void load(true)
             } else {
-                const body: Record<string, unknown> = {
-                    nombre_fantasia: form.nombre_fantasia,
-                    ruc: form.ruc,
-                    email_contacto: form.email_contacto || null,
-                    activo: form.activo,
-                    admin_email: adminForm.admin_email,
-                }
-                if (adminForm.admin_nombre.trim()) {
-                    body.admin_nombre = adminForm.admin_nombre
-                }
-                const result = await api.tenants.create(body)
+                const result = await api.tenants.create(data)
                 setShowForm(false)
 
                 if (result.admin?.password_generada) {
@@ -595,7 +516,7 @@ const AdminEmpresas = () => {
                                         <div className="flex items-center justify-end gap-1">
                                             {/* Edit */}
                                             <button
-                                                onClick={() => openEdit(t)}
+                                                onClick={() => void openEdit(t)}
                                                 className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                                                 title="Editar"
                                             >
@@ -638,9 +559,8 @@ const AdminEmpresas = () => {
             )}
 
             {/* ── Create / Edit dialog ─────────────────────────────────────── */}
-            <Dialog isOpen={showForm} onClose={closeForm} width={520}>
-                {/* Dialog header */}
-                <div className="px-6 pt-5 pb-3">
+            <Dialog isOpen={showForm} onClose={closeForm} width={800}>
+                <div className="px-6 pt-5 pb-2">
                     <h5 className="font-bold text-gray-900 dark:text-white">
                         {editTarget ? 'Editar empresa' : 'Nueva empresa'}
                     </h5>
@@ -651,192 +571,19 @@ const AdminEmpresas = () => {
                     )}
                 </div>
 
-                {/* Tab switcher (only on create) */}
-                {!editTarget && (
-                    <div className="px-6 pb-3">
-                        <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-xl p-1 gap-1 w-fit">
-                            {(
-                                [
-                                    { key: 'empresa', label: 'Datos de la Empresa' },
-                                    { key: 'admin', label: 'Administrador' },
-                                ] as const
-                            ).map((tab) => (
-                                <button
-                                    key={tab.key}
-                                    onClick={() => setActiveTab(tab.key)}
-                                    className={classNames(
-                                        'px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors',
-                                        activeTab === tab.key
-                                            ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-sm'
-                                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200',
-                                    )}
-                                >
-                                    {tab.label}
-                                    {tab.key === 'admin' && formErrors.admin_email && (
-                                        <span className="ml-1.5 inline-flex w-2 h-2 rounded-full bg-red-500" />
-                                    )}
-                                </button>
-                            ))}
+                <div className="px-6 pb-6 overflow-y-auto max-h-[70vh]">
+                    {editLoading ? (
+                        <div className="flex items-center justify-center py-16">
+                            <Loading loading />
                         </div>
-                    </div>
-                )}
-
-                {/* Form body */}
-                <div className="px-6 pb-4 overflow-y-auto max-h-[55vh]">
-                    <FormContainer>
-                        {/* ── Empresa tab ─────────────────────────────────────── */}
-                        {activeTab === 'empresa' && (
-                            <div className="space-y-4">
-                                <FormItem
-                                    label="Nombre de la empresa"
-                                    asterisk
-                                    invalid={!!formErrors.nombre_fantasia}
-                                    errorMessage={formErrors.nombre_fantasia}
-                                >
-                                    <Input
-                                        value={form.nombre_fantasia}
-                                        onChange={(e) =>
-                                            setField('nombre_fantasia', e.target.value)
-                                        }
-                                        placeholder="Ej: Empresa ABC S.A."
-                                        invalid={!!formErrors.nombre_fantasia}
-                                        autoFocus
-                                    />
-                                </FormItem>
-
-                                <FormItem
-                                    label="RUC"
-                                    asterisk={!editTarget}
-                                    invalid={!!formErrors.ruc}
-                                    errorMessage={formErrors.ruc}
-                                >
-                                    {editTarget ? (
-                                        <div className="flex items-center gap-2 h-10 px-3 rounded-xl bg-gray-100 dark:bg-gray-700">
-                                            <span className="text-sm font-mono font-semibold text-gray-700 dark:text-gray-300">
-                                                {form.ruc}
-                                            </span>
-                                            <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
-                                                No editable
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <Input
-                                            value={form.ruc}
-                                            onChange={(e) => setField('ruc', e.target.value)}
-                                            placeholder="Ej: 80000000-0"
-                                            invalid={!!formErrors.ruc}
-                                        />
-                                    )}
-                                </FormItem>
-
-                                <FormItem
-                                    label="Email de contacto"
-                                    invalid={!!formErrors.email_contacto}
-                                    errorMessage={formErrors.email_contacto}
-                                >
-                                    <Input
-                                        type="email"
-                                        value={form.email_contacto}
-                                        onChange={(e) =>
-                                            setField('email_contacto', e.target.value)
-                                        }
-                                        placeholder="contacto@empresa.com"
-                                    />
-                                </FormItem>
-
-                                <FormItem label="Estado">
-                                    <div className="flex items-center gap-3 h-10">
-                                        <Switcher
-                                            checked={form.activo}
-                                            onChange={(checked) => setField('activo', checked)}
-                                        />
-                                        <span className="text-sm font-semibold text-gray-600 dark:text-gray-300">
-                                            {form.activo ? 'Activa' : 'Inactiva'}
-                                        </span>
-                                    </div>
-                                </FormItem>
-                            </div>
-                        )}
-
-                        {/* ── Admin tab (create only) ──────────────────────────── */}
-                        {activeTab === 'admin' && (
-                            <div className="space-y-4">
-                                <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                                    <p className="text-xs text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
-                                        Se creará un usuario <strong>admin_empresa</strong> para
-                                        esta empresa. La contraseña se generará automáticamente y
-                                        se mostrará una vez al confirmar.
-                                    </p>
-                                </div>
-
-                                <FormItem
-                                    label="Email del administrador"
-                                    asterisk
-                                    invalid={!!formErrors.admin_email}
-                                    errorMessage={formErrors.admin_email}
-                                >
-                                    <Input
-                                        type="email"
-                                        value={adminForm.admin_email}
-                                        onChange={(e) =>
-                                            setAdminField('admin_email', e.target.value)
-                                        }
-                                        placeholder="admin@empresa.com"
-                                        invalid={!!formErrors.admin_email}
-                                        autoFocus={activeTab === 'admin'}
-                                    />
-                                </FormItem>
-
-                                <FormItem label="Nombre del administrador">
-                                    <Input
-                                        value={adminForm.admin_nombre}
-                                        onChange={(e) =>
-                                            setAdminField('admin_nombre', e.target.value)
-                                        }
-                                        placeholder="Administrador (opcional)"
-                                    />
-                                </FormItem>
-                            </div>
-                        )}
-                    </FormContainer>
-                </div>
-
-                {/* Dialog footer */}
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex items-center justify-between gap-2">
-                    {/* Nav hint on create */}
-                    {!editTarget && (
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
-                            {activeTab === 'empresa'
-                                ? 'Siguiente: configurá el administrador'
-                                : 'Revisá los datos de la empresa en la pestaña anterior'}
-                        </p>
+                    ) : (
+                        <TenantFormInner
+                            initialData={editTarget ? editTenantConfig : undefined}
+                            onSubmit={handleFormSubmit}
+                            onCancel={closeForm}
+                            loading={saving}
+                        />
                     )}
-                    {editTarget && <span />}
-
-                    <div className="flex items-center gap-2">
-                        <Button size="sm" onClick={closeForm} disabled={saving}>
-                            Cancelar
-                        </Button>
-                        {!editTarget && activeTab === 'empresa' ? (
-                            <Button
-                                size="sm"
-                                variant="solid"
-                                onClick={() => setActiveTab('admin')}
-                            >
-                                Siguiente
-                            </Button>
-                        ) : (
-                            <Button
-                                size="sm"
-                                variant="solid"
-                                loading={saving}
-                                disabled={saving}
-                                onClick={() => void handleSubmit()}
-                            >
-                                {editTarget ? 'Guardar cambios' : 'Crear empresa'}
-                            </Button>
-                        )}
-                    </div>
                 </div>
             </Dialog>
         </div>
