@@ -76,6 +76,8 @@ export function Tenants({
   const { activeTenantId } = useTenant();
   const isAdminEmpresaOnly = !isSuperAdmin && !!userTenantId;
   const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined);
+  // Read saved tenant directly from localStorage as fallback — avoids race with auth/context loading
+  const savedTenantId = localStorage.getItem('sedia_global_tenant_id');
 
   const effectiveInitialId = isAdminEmpresaOnly ? userTenantId : initialTenantId;
 
@@ -164,20 +166,22 @@ export function Tenants({
   );
 
   useEffect(() => {
-    if (authLoading) return;
+    // Determine which tenant to scope to
+    const scopedTenantId = effectiveTenantId || savedTenantId;
     if (isAdminEmpresaOnly) {
       setSelectedId(userTenantId);
       setView('detail');
       setLoading(false);
-    } else if (effectiveTenantId) {
-      // Super admin with tenant selected → show detail directly
-      setSelectedId(effectiveTenantId);
+    } else if (scopedTenantId) {
+      // Tenant selected (super_admin or saved in localStorage) → show detail directly
+      setSelectedId(scopedTenantId);
       setView('detail');
       setLoading(false);
-    } else {
+    } else if (!authLoading) {
+      // No tenant selected and auth done → show full list (super_admin global view)
       loadList();
     }
-  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading, effectiveTenantId]);
+  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading, effectiveTenantId, savedTenantId]);
 
   useEffect(() => {
     if (selectedId && (view === 'detail' || view === 'edit')) {
