@@ -39,4 +39,4 @@ __pycache__/
 supabase/
 
 # Claude Code
-.claude/
+.claude/.vite/
