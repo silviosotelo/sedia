@@ -164,15 +164,20 @@ export function Tenants({
   );
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth to finish before loading data
+    if (authLoading) return;
     if (isAdminEmpresaOnly) {
       setSelectedId(userTenantId);
+      setView('detail');
+      setLoading(false);
+    } else if (effectiveTenantId) {
+      // Super admin with tenant selected → show detail directly
+      setSelectedId(effectiveTenantId);
       setView('detail');
       setLoading(false);
     } else {
       loadList();
     }
-  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading]);
+  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading, effectiveTenantId]);
 
   useEffect(() => {
     if (selectedId && (view === 'detail' || view === 'edit')) {
