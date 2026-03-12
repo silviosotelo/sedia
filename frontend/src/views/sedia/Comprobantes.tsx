@@ -424,7 +424,10 @@ const Comprobantes = () => {
     }
     const checkFeature = (f: string) => isSuperAdmin || (featureMap[f] ?? false)
 
-    const effectiveTenantId = (!isSuperAdmin && userTenantId) ? userTenantId : activeTenantId
+    // Always use the selected tenant — no global views
+    const effectiveTenantId = activeTenantId
+        || (() => { try { const r = localStorage.getItem('sedia_tenant'); if (r) return JSON.parse(r)?.state?.activeTenantId ?? null } catch { /* */ } return null })()
+        || userTenantId
 
     const [comprobantes, setComprobantes] = useState<Comprobante[]>([])
     const [loading, setLoading] = useState(true)

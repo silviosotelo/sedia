@@ -45,6 +45,7 @@
     "marked": "^16.2.0",
     "react": "19.2.3",
     "react-apexcharts": "^1.7.0",
+    "react-bancard-checkout-js": "^1.0.1",
     "react-csv": "^2.2.2",
     "react-dom": "19.2.3",
     "react-highlight-words": "^0.21.0",

@@ -12,7 +12,7 @@ import Loading from '@/components/shared/Loading'
 import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { api } from '@/services/sedia/api'
-import { useSediaUser, useIsSuperAdmin } from '@/utils/hooks/useSediaAuth'
+import { useSediaUser } from '@/utils/hooks/useSediaAuth'
 import { useTenantStore } from '@/store/tenantStore'
 import type { Rol } from '@/@types/sedia'
 
@@ -38,7 +38,6 @@ function toastError(msg: string) {
 }
 
 const Roles = () => {
-    const isSuperAdmin = useIsSuperAdmin()
     const currentUser = useSediaUser()
     const { activeTenantId } = useTenantStore()
 
@@ -55,15 +54,17 @@ const Roles = () => {
         permisosIds: [] as string[],
     })
 
+    // Always resolve tenant — no global views
+    const resolvedTenantId = activeTenantId
+        || (() => { try { const r = localStorage.getItem('sedia_tenant'); if (r) return JSON.parse(r)?.state?.activeTenantId ?? null } catch { /* */ } return null })()
+        || currentUser?.tenant_id
+
     const load = useCallback(async () => {
-        const tenantId = activeTenantId ?? currentUser?.tenant_id
-        if (!isSuperAdmin && !tenantId) return
+        if (!resolvedTenantId) return
         setLoading(true)
         try {
             const [rolesData, p] = await Promise.all([
-                tenantId && !isSuperAdmin
-                    ? api.roles.listForTenant(tenantId)
-                    : api.roles.list(),
+                api.roles.listForTenant(resolvedTenantId),
                 api.get('/permisos'),
             ])
             setRoles(rolesData)
@@ -73,7 +74,7 @@ const Roles = () => {
         } finally {
             setLoading(false)
         }
-    }, [isSuperAdmin, activeTenantId, currentUser?.tenant_id])
+    }, [resolvedTenantId])
 
     useEffect(() => { void load() }, [load])
 

@@ -5,7 +5,6 @@ import {
     Pencil,
     Trash2,
     Shield,
-    Building2,
     CheckCircle2,
     XCircle,
     RefreshCcw,
@@ -24,13 +23,12 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { FormItem, FormContainer } from '@/components/ui/Form'
 import {
     useSediaUser,
-    useIsSuperAdmin,
 } from '@/utils/hooks/useSediaAuth'
 import { useTenantStore } from '@/store/tenantStore'
 import { api } from '@/services/sedia/api'
 import classNames from 'classnames'
 import Table from '@/components/ui/Table'
-import type { Usuario, Rol, Tenant } from '@/@types/sedia'
+import type { Usuario, Rol } from '@/@types/sedia'
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -89,13 +87,11 @@ interface UserForm {
 // ─── Main page component ────────────────────────────────────────────────────────
 
 const Usuarios = () => {
-    const isSuperAdmin = useIsSuperAdmin()
     const currentUser = useSediaUser()
     const activeTenantId = useTenantStore((s) => s.activeTenantId)
 
     const [usuarios, setUsuarios] = useState<Usuario[]>([])
     const [roles, setRoles] = useState<Rol[]>([])
-    const [tenants, setTenants] = useState<Tenant[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -131,30 +127,24 @@ const Usuarios = () => {
         )
     }
 
+    // Always resolve tenant — no global views
+    const resolvedTenantId = activeTenantId
+        || (() => { try { const r = localStorage.getItem('sedia_tenant'); if (r) return JSON.parse(r)?.state?.activeTenantId ?? null } catch { /* */ } return null })()
+        || currentUser?.tenant_id
+
     const load = useCallback(
         async (silent = false) => {
+            if (!resolvedTenantId) return
             if (!silent) setLoading(true)
             else setRefreshing(true)
             try {
-                const tenantIdForRoles = !isSuperAdmin
-                    ? (activeTenantId ?? currentUser?.tenant_id ?? undefined)
-                    : undefined
-                if (!isSuperAdmin && !tenantIdForRoles) return
-
                 const [usuariosData, rolesData] = await Promise.all([
                     api.usuarios.list(),
-                    tenantIdForRoles
-                        ? api.roles.listForTenant(tenantIdForRoles)
-                        : api.roles.list(),
+                    api.roles.listForTenant(resolvedTenantId),
                 ])
                 setUsuarios(usuariosData)
                 setRoles(rolesData)
                 setError(null)
-
-                if (isSuperAdmin) {
-                    const tenantsData = await api.tenants.list()
-                    setTenants(tenantsData)
-                }
             } catch (e) {
                 const msg = e instanceof Error ? e.message : 'Error al cargar usuarios'
                 toastError('Error al cargar usuarios', msg)
@@ -164,8 +154,7 @@ const Usuarios = () => {
                 setRefreshing(false)
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [isSuperAdmin, activeTenantId, currentUser?.tenant_id],
+        [resolvedTenantId],
     )
 
     useEffect(() => {
@@ -224,7 +213,7 @@ const Usuarios = () => {
                     activo: form.activo,
                 }
                 if (form.password) body.password = form.password
-                if (isSuperAdmin) body.rol_id = form.rol_id
+                body.rol_id = form.rol_id
                 await api.usuarios.update(
                     editTarget.id,
                     body as Parameters<typeof api.usuarios.update>[1],
@@ -262,9 +251,7 @@ const Usuarios = () => {
         }
     }
 
-    const availableRoles = isSuperAdmin
-        ? roles
-        : roles.filter((r) => r.nombre !== 'super_admin')
+    const availableRoles = roles.filter((r) => r.nombre !== 'super_admin')
 
     const setField = <K extends keyof UserForm>(key: K, value: UserForm[K]) => {
         setForm((p) => ({ ...p, [key]: value }))
@@ -357,11 +344,6 @@ const Usuarios = () => {
                                 <Th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 py-3">
                                     Rol
                                 </Th>
-                                {isSuperAdmin && (
-                                    <Th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 py-3">
-                                        Empresa
-                                    </Th>
-                                )}
                                 <Th className="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-4 py-3">
                                     Último acceso
                                 </Th>
@@ -402,20 +384,6 @@ const Usuarios = () => {
                                             <RolTag rolNombre={u.rol.nombre} />
                                         </div>
                                     </Td>
-                                    {isSuperAdmin && (
-                                        <Td className="px-4 py-3">
-                                            {u.tenant_nombre ? (
-                                                <span className="flex items-center gap-1 text-xs text-gray-700 dark:text-gray-300">
-                                                    <Building2 className="w-3 h-3 text-gray-400 dark:text-gray-500" />
-                                                    {u.tenant_nombre}
-                                                </span>
-                                            ) : (
-                                                <span className="text-xs text-gray-400 dark:text-gray-500">
-                                                    Global
-                                                </span>
-                                            )}
-                                        </Td>
-                                    )}
                                     <Td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
                                         {u.ultimo_login ? formatDate(u.ultimo_login) : 'Nunca'}
                                     </Td>
@@ -555,38 +523,6 @@ const Usuarios = () => {
                                 />
                             </FormItem>
 
-                            {isSuperAdmin && (
-                                <FormItem label="Empresa (global por defecto)">
-                                    <Select
-                                        options={[
-                                            { value: 'global', label: 'Sin empresa (global)' },
-                                            ...tenants.map((t) => ({
-                                                value: t.id,
-                                                label: `${t.nombre_fantasia} (${t.ruc})`,
-                                            })),
-                                        ]}
-                                        value={(() => {
-                                            if (form.tenant_id === 'global') {
-                                                return {
-                                                    value: 'global',
-                                                    label: 'Sin empresa (global)',
-                                                }
-                                            }
-                                            const t = tenants.find((x) => x.id === form.tenant_id)
-                                            return t
-                                                ? {
-                                                      value: t.id,
-                                                      label: `${t.nombre_fantasia} (${t.ruc})`,
-                                                  }
-                                                : null
-                                        })()}
-                                        onChange={(opt) => {
-                                            if (opt && 'value' in opt)
-                                                setField('tenant_id', opt.value as string)
-                                        }}
-                                    />
-                                </FormItem>
-                            )}
 
                             <FormItem label="Usuario activo">
                                 <div className="flex items-center h-10">
