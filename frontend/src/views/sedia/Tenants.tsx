@@ -58,6 +58,8 @@ export interface TenantFormData {
     nombre_fantasia: string
     ruc: string
     email_contacto: string
+    admin_email?: string
+    admin_nombre?: string
     config: {
         ruc_login: string
         usuario_marangatu: string
@@ -655,6 +657,8 @@ function TenantFormInner({
         nombre_fantasia: initialData?.nombre_fantasia || '',
         ruc: initialData?.ruc || '',
         email_contacto: initialData?.email_contacto || '',
+        admin_email: '',
+        admin_nombre: '',
         config: {
             ruc_login: initialData?.config?.ruc_login || '',
             usuario_marangatu: initialData?.config?.usuario_marangatu || '',
@@ -706,6 +710,8 @@ function TenantFormInner({
         if (!form.config.usuario_marangatu.trim()) newErrors.usuario_marangatu = 'Requerido'
         if (!initialData && !form.config.clave_marangatu.trim())
             newErrors.clave_marangatu = 'Requerido al crear'
+        if (!initialData && form.admin_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.admin_email))
+            newErrors.admin_email = 'Email inválido'
         setErrors(newErrors)
         if (Object.keys(newErrors).length > 0) {
             if (newErrors.nombre_fantasia || newErrors.ruc) setActiveTab('general')
@@ -733,7 +739,15 @@ function TenantFormInner({
             if (!modifiedConfig.ords_token)
                 delete (modifiedConfig as Partial<typeof modifiedConfig>).ords_token
         }
-        return { ...form, config: modifiedConfig }
+        const payload: TenantFormData = { ...form, config: modifiedConfig }
+        if (initialData) {
+            delete payload.admin_email
+            delete payload.admin_nombre
+        } else {
+            if (!payload.admin_email?.trim()) delete payload.admin_email
+            if (!payload.admin_nombre?.trim()) delete payload.admin_nombre
+        }
+        return payload
     }
 
     const handleSubmit = async () => {
@@ -813,6 +827,35 @@ function TenantFormInner({
                                     placeholder="admin@empresa.com.py"
                                 />
                             </Field>
+                            {!initialData && (
+                                <>
+                                    <div className="pt-1 pb-0.5 border-t border-gray-200 dark:border-gray-700">
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mt-3 mb-3">
+                                            Administrador inicial (opcional)
+                                        </p>
+                                    </div>
+                                    <Field
+                                        label="Email del administrador"
+                                        error={errors.admin_email}
+                                        hint="Se creará un usuario admin_empresa con una contraseña generada automáticamente"
+                                    >
+                                        <Input
+                                            type="email"
+                                            value={form.admin_email ?? ''}
+                                            onChange={(e) => set('admin_email', e.target.value)}
+                                            placeholder="admin@empresa.com.py"
+                                            invalid={!!errors.admin_email}
+                                        />
+                                    </Field>
+                                    <Field label="Nombre del administrador">
+                                        <Input
+                                            value={form.admin_nombre ?? ''}
+                                            onChange={(e) => set('admin_nombre', e.target.value)}
+                                            placeholder="Administrador"
+                                        />
+                                    </Field>
+                                </>
+                            )}
                         </>
                     )}
 
@@ -1471,8 +1514,18 @@ const Tenants = () => {
     const handleCreate = async (data: TenantFormData) => {
         setFormLoading(true)
         try {
-            await api.tenants.create(data)
-            toastSuccess('Empresa creada', data.nombre_fantasia)
+            const result = await api.tenants.create(data)
+            if (result.admin) {
+                toast.push(
+                    <Notification type="success" title="Empresa creada">
+                        Admin: {result.admin.email} — Contraseña: {result.admin.password_generada}{' '}
+                        (enviada por email)
+                    </Notification>,
+                    { placement: 'top-center' },
+                )
+            } else {
+                toastSuccess('Empresa creada', data.nombre_fantasia)
+            }
             await loadList()
             setView('list')
         } catch (e: unknown) {

@@ -124,9 +124,9 @@ export const api = {
       if (MOCK_MODE) return mockStore.getTenant(id);
       return request<{ data: TenantWithConfig }>(`/tenants/${id}`).then((r) => r.data);
     },
-    create: (body: unknown): Promise<Tenant> => {
-      if (MOCK_MODE) return mockStore.createTenant(body);
-      return request<{ data: Tenant }>('/tenants', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data);
+    create: (body: unknown): Promise<{ tenant: Tenant; admin?: { email: string; password_generada: string } }> => {
+      if (MOCK_MODE) return (mockStore.createTenant(body) as Promise<Tenant>).then((t) => ({ tenant: t }));
+      return request<{ data: Tenant; admin?: { email: string; password_generada: string } }>('/tenants', { method: 'POST', body: JSON.stringify(body) }).then((r) => ({ tenant: r.data, admin: r.admin }));
     },
     update: (id: string, body: unknown): Promise<Tenant> => {
       if (MOCK_MODE) return mockStore.updateTenant(id, body);
@@ -284,8 +284,9 @@ export const api = {
   },
 
   usuarios: {
-    list: (): Promise<Usuario[]> => {
-      return request<{ data: Usuario[] }>('/usuarios').then((r) => r.data ?? []);
+    list: (tenantId?: string): Promise<Usuario[]> => {
+      const qs = tenantId ? `?tenant_id=${tenantId}` : '';
+      return request<{ data: Usuario[] }>(`/usuarios${qs}`).then((r) => r.data ?? []);
     },
     create: (body: {
       nombre: string;

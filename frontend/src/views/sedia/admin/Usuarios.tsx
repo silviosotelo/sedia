@@ -139,7 +139,7 @@ const Usuarios = () => {
             else setRefreshing(true)
             try {
                 const [usuariosData, rolesData] = await Promise.all([
-                    api.usuarios.list(),
+                    api.usuarios.list(resolvedTenantId),
                     api.roles.listForTenant(resolvedTenantId),
                 ])
                 setUsuarios(usuariosData)
@@ -169,7 +169,7 @@ const Usuarios = () => {
             email: '',
             password: '',
             rol_id: roles[roles.length - 1]?.id ?? '',
-            tenant_id: currentUser?.tenant_id ?? 'global',
+            tenant_id: resolvedTenantId || '',
             activo: true,
         })
         setShowForm(true)
@@ -225,7 +225,7 @@ const Usuarios = () => {
                     email: form.email,
                     password: form.password,
                     rol_id: form.rol_id,
-                    tenant_id: form.tenant_id !== 'global' ? form.tenant_id : undefined,
+                    tenant_id: resolvedTenantId || undefined,
                     activo: form.activo,
                 })
                 toastSuccess('Usuario creado')

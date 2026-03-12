@@ -57,7 +57,8 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
       throw new ApiError(403, 'FORBIDDEN', 'Sin permisos para ver usuarios');
     }
 
-    const tenantFilter = isSuperAdmin ? undefined : currentUser.tenant_id ?? undefined;
+    const { tenant_id: queryTenantId } = request.query as { tenant_id?: string };
+    const tenantFilter = isSuperAdmin ? (queryTenantId || undefined) : (currentUser.tenant_id ?? undefined);
     const usuarios = await listUsuarios(undefined, tenantFilter);
     return reply.send({ success: true, data: usuarios });
   });
@@ -98,6 +99,7 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
     if (!currentUser) throw new ApiError(401, 'UNAUTHORIZED', 'No autenticado');
     const { id } = request.params as { id: string };
     const isSuperAdmin = currentUser.rol.nombre === 'super_admin';
+    const isAdminEmpresa = currentUser.rol.nombre === 'admin_empresa';
 
     if (!isSuperAdmin && !currentUser.permisos.includes('usuarios:editar') && currentUser.id !== id) {
       throw new ApiError(403, 'FORBIDDEN', 'Sin permisos para editar usuarios');
@@ -118,7 +120,7 @@ export async function usuarioRoutes(fastify: FastifyInstance): Promise<void> {
       rol_id?: string;
     };
 
-    if (!isSuperAdmin) {
+    if (!isSuperAdmin && !isAdminEmpresa) {
       delete (body as Record<string, unknown>).rol_id;
     }
 

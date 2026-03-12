@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import crypto from 'crypto';
 import {
   findAllTenants,
   findTenantById,
@@ -12,6 +13,8 @@ import { requireAuth, assertTenantAccess } from '../middleware/auth.middleware';
 import { query, queryOne } from '../../db/connection';
 import { findAllPlans, billingManager } from '../../services/billing.service';
 import { ApiError } from '../../utils/errors';
+import { createUsuario } from '../../services/auth.service';
+import { getSystemSmtp, buildTransporter } from '../../services/notification.service';
 
 const createTenantSchema = z.object({
   nombre_fantasia: z.string().min(1).max(255),
@@ -33,6 +36,8 @@ const createTenantSchema = z.object({
     frecuencia_sincronizacion_minutos: z.number().int().min(1).optional(),
     extra_config: z.record(z.unknown()).optional(),
   }).optional(),
+  admin_email: z.string().email().optional(),
+  admin_nombre: z.string().min(1).optional(),
 });
 
 const updateTenantSchema = z.object({
@@ -101,7 +106,7 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       throw new ApiError(400, 'BAD_REQUEST', 'Datos inválidos', parsed.error.errors );
     }
 
-    const { config: configInput, ...tenantInput } = parsed.data;
+    const { config: configInput, admin_email: _adminEmail, admin_nombre: _adminNombre, ...tenantInput } = parsed.data;
     const tenant = await createTenant(tenantInput);
 
     try {
@@ -113,6 +118,57 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       }
     } catch (e) {
       req.log.error({ err: e }, 'Error al auto-asignar plan free');
+    }
+
+    // Auto-create admin_empresa user if admin_email provided
+    let adminCredentials: { email: string; password: string } | null = null;
+    if (parsed.data.admin_email) {
+      try {
+        const adminRol = await queryOne<{ id: string }>(
+          `SELECT id FROM roles WHERE nombre = 'admin_empresa' LIMIT 1`, []
+        );
+        if (adminRol) {
+          const tempPassword = crypto.randomBytes(9).toString('base64url');
+          await createUsuario({
+            tenant_id: tenant.id,
+            rol_id: adminRol.id,
+            nombre: parsed.data.admin_nombre || 'Administrador',
+            email: parsed.data.admin_email,
+            password: tempPassword,
+            activo: true,
+          });
+          adminCredentials = { email: parsed.data.admin_email, password: tempPassword };
+
+          // Send welcome email
+          try {
+            const smtp = await getSystemSmtp();
+            if (smtp) {
+              const transporter = buildTransporter(smtp);
+              await transporter.sendMail({
+                from: `"${smtp.fromName}" <${smtp.from}>`,
+                to: parsed.data.admin_email,
+                subject: 'Bienvenido a SEDIA — Credenciales de acceso',
+                html: `
+                  <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #2a85ff;">Bienvenido a SEDIA</h2>
+                    <p>Se ha creado tu cuenta de administrador para la empresa <strong>${parsed.data.nombre_fantasia}</strong>.</p>
+                    <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                      <p style="margin: 4px 0;"><strong>Email:</strong> ${parsed.data.admin_email}</p>
+                      <p style="margin: 4px 0;"><strong>Contraseña temporal:</strong> ${tempPassword}</p>
+                    </div>
+                    <p style="color: #666;">Por favor, cambiá tu contraseña después del primer inicio de sesión.</p>
+                    <p style="color: #999; font-size: 12px; margin-top: 24px;">— Equipo SEDIA</p>
+                  </div>
+                `,
+              });
+            }
+          } catch (emailErr) {
+            req.log.error({ err: emailErr }, 'Error al enviar email de bienvenida');
+          }
+        }
+      } catch (userErr) {
+        req.log.error({ err: userErr }, 'Error al crear admin_empresa automático');
+      }
     }
 
     if (configInput) {
@@ -136,7 +192,11 @@ export async function tenantRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    return reply.status(201).send({ success: true, data: tenant });
+    return reply.status(201).send({
+      success: true,
+      data: tenant,
+      admin: adminCredentials ? { email: adminCredentials.email, password_generada: adminCredentials.password } : undefined,
+    });
   });
 
   app.put<{ Params: { id: string } }>('/tenants/:id', async (req, reply) => {
