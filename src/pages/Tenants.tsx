@@ -72,7 +72,7 @@ export function Tenants({
   initialAction,
   onNavigate,
 }: TenantsProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
+  const { isSuperAdmin, userTenantId, loading: authLoading } = useAuth();
   const { activeTenantId } = useTenant();
   const isAdminEmpresaOnly = !isSuperAdmin && !!userTenantId;
   const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined);
@@ -164,6 +164,7 @@ export function Tenants({
   );
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to finish before loading data
     if (isAdminEmpresaOnly) {
       setSelectedId(userTenantId);
       setView('detail');
@@ -171,7 +172,7 @@ export function Tenants({
     } else {
       loadList();
     }
-  }, [loadList, isAdminEmpresaOnly, userTenantId]);
+  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading]);
 
   useEffect(() => {
     if (selectedId && (view === 'detail' || view === 'edit')) {

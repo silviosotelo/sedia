@@ -227,7 +227,7 @@ function MiniRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function Jobs({ toastError, toastSuccess }: JobsProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
+  const { isSuperAdmin, userTenantId, loading: authLoading } = useAuth();
   const { activeTenantId } = useTenant();
   const isTenantUser = !isSuperAdmin && !!userTenantId;
   const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined);
@@ -292,14 +292,16 @@ export function Jobs({ toastError, toastSuccess }: JobsProps) {
   }, [load, toastSuccess, toastError]);
 
   useEffect(() => {
+    if (authLoading) return;
     void loadTenants();
-  }, [loadTenants]);
+  }, [loadTenants, authLoading]);
 
   useEffect(() => {
+    if (authLoading) return;
     load();
     const interval = setInterval(() => load(true), 15000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, authLoading]);
 
   useEffect(() => {
     setPage(1);

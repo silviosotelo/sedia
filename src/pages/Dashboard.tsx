@@ -207,7 +207,7 @@ function ViewAllLink({ label, onClick }: { label: string; onClick: () => void })
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function Dashboard({ onNavigate }: DashboardProps) {
-  const { isSuperAdmin, userTenantId } = useAuth();
+  const { isSuperAdmin, userTenantId, loading: authLoading } = useAuth();
   const { activeTenantId, tenants: allTenants } = useTenant();
   const isTenantUser = !isSuperAdmin && !!userTenantId;
   const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined);
@@ -266,6 +266,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }, [effectiveTenantId, allTenants]);
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to resolve before fetching
     const controller = new AbortController();
     const { signal } = controller;
 
@@ -303,7 +304,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       controller.abort();
       clearInterval(interval);
     };
-  }, [load, activeTid]);
+  }, [load, activeTid, authLoading]);
 
   // Must be before any early return to satisfy Rules of Hooks
   const failedJobs  = useMemo(() => recentJobs.filter((j) => j.estado === 'FAILED'),  [recentJobs]);

@@ -42,7 +42,7 @@ const ROL_LABELS: Record<string, string> = {
 };
 
 export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
-  const { user: currentUser, isSuperAdmin } = useAuth();
+  const { user: currentUser, isSuperAdmin, loading: authLoading } = useAuth();
   const { activeTenantId } = useTenant();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [roles, setRoles] = useState<Rol[]>([]);
@@ -96,8 +96,9 @@ export function Usuarios({ toastError, toastSuccess }: UsuariosProps) {
   }, [toastError, isSuperAdmin, activeTenantId, currentUser?.tenant_id]);
 
   useEffect(() => {
+    if (authLoading) return;
     void load();
-  }, [load]);
+  }, [load, authLoading]);
 
   const openCreate = () => {
     setEditTarget(null);
