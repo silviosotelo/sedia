@@ -2,7 +2,8 @@ import { query, queryOne } from '../db/connection';
 import { logger } from '../config/logger';
 import { sifenConfigService } from './sifenConfig.service';
 
-const setapi = require('facturacionelectronicapy-setapi');
+const _setapi = require('facturacionelectronicapy-setapi');
+const setapi = _setapi.default || _setapi;
 
 /**
  * Maps ambiente to the env string the setapi library expects.
@@ -13,13 +14,11 @@ function toEnvStr(ambiente: string | undefined | null): string {
 }
 
 /**
- * Helper to load the certificate + key from encrypted config.
- * Returns { cert, key } strings for the setapi calls.
+ * Helper to load the certificate + key PEM strings for setapi calls.
+ * Uses R2 PFX (preferred) or falls back to legacy PEM fields.
  */
 async function loadCertKeys(tenantId: string): Promise<{ cert: string; key: string }> {
-    const keys = await sifenConfigService.getMasterKeys(tenantId);
-    if (!keys.privateKey) throw new Error('No hay certificado configurado. Suba el certificado digital en Configuración SIFEN.');
-    return { cert: keys.privateKey, key: keys.passphrase || '' };
+    return sifenConfigService.getCertAndKeyPem(tenantId);
 }
 
 export const sifenConsultaService = {

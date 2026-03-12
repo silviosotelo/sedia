@@ -1,7 +1,8 @@
 import { query, queryOne } from '../db/connection';
 import { logger } from '../config/logger';
 
-const setapi = require('facturacionelectronicapy-setapi');
+const _setapi = require('facturacionelectronicapy-setapi');
+const setapi = _setapi.default || _setapi;
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -245,7 +246,7 @@ export const sifenEventoService = {
             // Intentar usar xmlgen si expone generación de eventos
             let generatedXml: any;
             try {
-                const xmlgen = require('facturacionelectronicapy-xmlgen');
+                const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 generatedXml = await xmlgen.generateXMLEventoCancelacion(eventParams, eventData);
             } catch {
                 // xmlgen no expone este método en la versión instalada;
@@ -364,7 +365,7 @@ export const sifenEventoService = {
         try {
             // Intentar generar el XML a través de xmlgen
             try {
-                const xmlgen = require('facturacionelectronicapy-xmlgen');
+                const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 const generated = await xmlgen.generateXMLEventoInutilizacion(eventParams, eventData);
                 xmlEvento = typeof generated === 'string'
                     ? generated
@@ -447,7 +448,7 @@ export const sifenEventoService = {
 
         try {
             try {
-                const xmlgen = require('facturacionelectronicapy-xmlgen');
+                const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 const generated = await xmlgen.generateXMLEventoConformidad(
                     { ruc: config.ruc, dv: config.dv, ambiente: envStr },
                     eventData
@@ -524,7 +525,7 @@ export const sifenEventoService = {
 
         try {
             try {
-                const xmlgen = require('facturacionelectronicapy-xmlgen');
+                const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 const generated = await xmlgen.generateXMLEventoDisconformidad(
                     { ruc: config.ruc, dv: config.dv, ambiente: envStr },
                     eventData
@@ -601,7 +602,7 @@ export const sifenEventoService = {
 
         try {
             try {
-                const xmlgen = require('facturacionelectronicapy-xmlgen');
+                const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 const generated = await xmlgen.generateXMLEventoDesconocimiento(
                     { ruc: config.ruc, dv: config.dv, ambiente: envStr },
                     eventData

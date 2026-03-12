@@ -1,7 +1,8 @@
 import { queryOne, query } from '../db/connection';
 import { logger } from '../config/logger';
 
-const kude = require('facturacionelectronicapy-kude');
+const _kude = require('facturacionelectronicapy-kude');
+const kude = _kude.default || _kude;
 
 export const sifenKudeService = {
     /**

@@ -2,7 +2,8 @@ import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
 
-const xmlgen = require('facturacionelectronicapy-xmlgen');
+const xmlgenModule = require('facturacionelectronicapy-xmlgen');
+const xmlgen = xmlgenModule.default || xmlgenModule;
 
 /**
  * Genera el XML no firmado de un DE usando datos reales almacenados en sifen_de.

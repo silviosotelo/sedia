@@ -13,7 +13,8 @@ import { dispatchWebhookEvent } from '../services/webhook.service';
 import { enviarNotificacionSifen, enviarSifenDeEmail } from '../services/notification.service';
 import { incrementarUsageSifen } from '../services/billing.service';
 
-const setapi = require('facturacionelectronicapy-setapi');
+const _setapi = require('facturacionelectronicapy-setapi');
+const setapi = _setapi.default || _setapi;
 
 // ─── Handlers principales ────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 import { queryOne, query } from '../db/connection';
-const qrgen = require('facturacionelectronicapy-qrgen');
+const _qrgen = require('facturacionelectronicapy-qrgen');
+const qrgen = _qrgen.default || _qrgen;
 
 export const sifenQrService = {
     /**

@@ -701,7 +701,19 @@ const SifenDocumentos = () => {
                                         <Td className="px-4 py-3 text-right font-mono text-xs">
                                             {doc.total_pago != null ? `${Number(doc.total_pago).toLocaleString('es-PY')} Gs.` : '—'}
                                         </Td>
-                                        <Td className="px-4 py-3"><SifenEstadoTag estado={doc.estado} /></Td>
+                                        <Td className="px-4 py-3">
+                                            <SifenEstadoTag estado={doc.estado} />
+                                            {doc.estado === 'ERROR' && (doc.sifen_mensaje || doc.error_categoria) && (
+                                                <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5 max-w-[180px] truncate" title={doc.sifen_mensaje || doc.error_categoria || ''}>
+                                                    {doc.sifen_mensaje || doc.error_categoria}
+                                                </p>
+                                            )}
+                                            {doc.estado === 'REJECTED' && doc.sifen_mensaje && (
+                                                <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-0.5 max-w-[180px] truncate" title={doc.sifen_mensaje}>
+                                                    {doc.sifen_mensaje}
+                                                </p>
+                                            )}
+                                        </Td>
                                         <Td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
                                             {new Date(doc.fecha_emision).toLocaleDateString('es-PY')}
                                         </Td>

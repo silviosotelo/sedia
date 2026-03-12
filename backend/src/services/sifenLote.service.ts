@@ -1,7 +1,8 @@
 import { queryOne, query } from '../db/connection';
 import { logger } from '../config/logger';
 
-const setapi = require('facturacionelectronicapy-setapi');
+const _setapi = require('facturacionelectronicapy-setapi');
+const setapi = _setapi.default || _setapi;
 
 export const sifenLoteService = {
     /**

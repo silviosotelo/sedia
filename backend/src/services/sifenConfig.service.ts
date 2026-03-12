@@ -412,6 +412,57 @@ export const sifenConfigService = {
         });
     },
 
+    /**
+     * Returns cert PEM + private key PEM strings extracted from the R2-stored PFX.
+     * Used by setapi calls (consulta, consultaRUC, recibe) that need PEM strings
+     * instead of a PFX file path.
+     *
+     * Falls back to legacy PEM fields (private_key_enc, passphrase_enc) if no R2 cert.
+     */
+    async getCertAndKeyPem(tenantId: string): Promise<{ cert: string; key: string }> {
+        // Try R2 PFX first
+        const hasR2 = await this.hasCertR2(tenantId);
+        if (hasR2) {
+            const { filePath, password, cleanup } = await this.getCertFilePath(tenantId);
+            try {
+                const forge = require('node-forge');
+                const pfxBuf = fs.readFileSync(filePath);
+                const pfxDer = forge.util.createBuffer(pfxBuf.toString('binary'));
+                const pfxAsn1 = forge.asn1.fromDer(pfxDer);
+                const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, false, password);
+
+                let certPem = '';
+                let keyPem = '';
+
+                for (const sc of pfx.safeContents) {
+                    for (const bag of sc.safeBags) {
+                        if (bag.cert && !certPem) {
+                            certPem = forge.pki.certificateToPem(bag.cert);
+                        }
+                        if (bag.key && !keyPem) {
+                            keyPem = forge.pki.privateKeyToPem(bag.key);
+                        }
+                    }
+                }
+
+                if (!certPem || !keyPem) {
+                    throw new Error('No se pudo extraer certificado/clave del PFX');
+                }
+
+                return { cert: certPem, key: keyPem };
+            } finally {
+                cleanup();
+            }
+        }
+
+        // Fallback: legacy PEM
+        const keys = await this.getMasterKeys(tenantId);
+        if (!keys.privateKey) {
+            throw new Error('No hay certificado configurado. Suba el certificado digital en Configuración SIFEN.');
+        }
+        return { cert: keys.privateKey, key: keys.passphrase || '' };
+    },
+
     invalidateCache(tenantId: string): void {
         configCache.delete(tenantId);
         certCache.delete(tenantId);

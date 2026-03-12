@@ -1,7 +1,8 @@
 import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
-const xmlsign = require('facturacionelectronicapy-xmlsign');
+const _xmlsign = require('facturacionelectronicapy-xmlsign');
+const xmlsign = _xmlsign.default || _xmlsign;
 
 export const sifenSignService = {
     /**
