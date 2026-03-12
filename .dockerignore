@@ -1,4 +1,5 @@
 node_modules
+**/node_modules
 dist
 dist-ssr
 .git
@@ -6,3 +7,5 @@ dist-ssr
 *.log
 .DS_Store
 backend
+frontend/node_modules
+frontend/dist

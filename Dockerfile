@@ -2,10 +2,10 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY frontend/package*.json ./
 RUN npm install
 
-COPY . .
+COPY frontend/ .
 
 ARG VITE_MOCK_MODE=false
 ENV VITE_MOCK_MODE=$VITE_MOCK_MODE
