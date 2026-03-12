@@ -1,6 +1,6 @@
-name: Deploy to Hostinger VPS
-
-on:
+name: Deploy to Hostinger VPS123123
+123
+on:123123
   push:
     branches: [ main ]
 
