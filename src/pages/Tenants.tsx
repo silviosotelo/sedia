@@ -72,14 +72,10 @@ export function Tenants({
   initialAction,
   onNavigate,
 }: TenantsProps) {
-  const { isSuperAdmin, userTenantId, loading: authLoading } = useAuth();
+  const { isSuperAdmin, userTenantId } = useAuth();
   const { activeTenantId } = useTenant();
-  const isAdminEmpresaOnly = !isSuperAdmin && !!userTenantId;
-  const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined);
-  // Read saved tenant directly from localStorage as fallback — avoids race with auth/context loading
-  const savedTenantId = localStorage.getItem('sedia_global_tenant_id');
-
-  const effectiveInitialId = isAdminEmpresaOnly ? userTenantId : initialTenantId;
+  // The selected tenant — always read from localStorage first (survives reload, no race condition)
+  const currentTenantId = activeTenantId || localStorage.getItem('sedia_global_tenant_id') || userTenantId;
 
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,9 +84,10 @@ export function Tenants({
   const [search, setSearch] = useState('');
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [displayMode, setDisplayMode] = useState<ListDisplayMode>('table');
-  const [view, setView] = useState<PanelView>(effectiveInitialId ? 'detail' : 'list');
+  // If a tenant is selected → go straight to detail. Always.
+  const [view, setView] = useState<PanelView>(currentTenantId || initialTenantId ? 'detail' : 'list');
   const [selectedId, setSelectedId] = useState<string | null>(
-    effectiveInitialId || null,
+    currentTenantId || initialTenantId || null,
   );
   const [selectedTenant, setSelectedTenant] = useState<TenantWithConfig | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -114,14 +111,8 @@ export function Tenants({
       if (!silent) setLoading(true);
       else setRefreshing(true);
       try {
-        if (effectiveTenantId) {
-          // When a specific tenant is selected, show only that tenant
-          const single = await api.tenants.get(effectiveTenantId);
-          setTenants([single]);
-        } else {
-          const data = await api.tenants.list();
-          setTenants(data);
-        }
+        const data = await api.tenants.list();
+        setTenants(data);
         setError(null);
       } catch (e: unknown) {
         toastError(
@@ -134,7 +125,7 @@ export function Tenants({
         setRefreshing(false);
       }
     },
-    [toastError, effectiveTenantId],
+    [toastError],
   );
 
   const loadDetail = useCallback(
@@ -166,22 +157,16 @@ export function Tenants({
   );
 
   useEffect(() => {
-    // Determine which tenant to scope to
-    const scopedTenantId = effectiveTenantId || savedTenantId;
-    if (isAdminEmpresaOnly) {
-      setSelectedId(userTenantId);
+    if (currentTenantId) {
+      // Tenant selected → detail view, no list needed
+      setSelectedId(currentTenantId);
       setView('detail');
       setLoading(false);
-    } else if (scopedTenantId) {
-      // Tenant selected (super_admin or saved in localStorage) → show detail directly
-      setSelectedId(scopedTenantId);
-      setView('detail');
-      setLoading(false);
-    } else if (!authLoading) {
-      // No tenant selected and auth done → show full list (super_admin global view)
+    } else {
+      // No tenant → load full list (shouldn't happen normally)
       loadList();
     }
-  }, [loadList, isAdminEmpresaOnly, userTenantId, authLoading, effectiveTenantId, savedTenantId]);
+  }, [currentTenantId, loadList]);
 
   useEffect(() => {
     if (selectedId && (view === 'detail' || view === 'edit')) {
@@ -360,8 +345,8 @@ export function Tenants({
     return (
       <div className="space-y-6">
         <Header
-          title={isAdminEmpresaOnly ? 'Mi Empresa' : 'Empresas'}
-          subtitle={isAdminEmpresaOnly ? 'Información y configuración de tu empresa' : 'Gestión de tenants multitenant'}
+          title={!!currentTenantId ? 'Mi Empresa' : 'Empresas'}
+          subtitle={!!currentTenantId ? 'Información y configuración de tu empresa' : 'Gestión de tenants multitenant'}
         />
         <ErrorState
           message={error}
@@ -374,14 +359,14 @@ export function Tenants({
   return (
     <div className="animate-fade-in">
       <Header
-        title={isAdminEmpresaOnly ? 'Mi Empresa' : 'Empresas'}
+        title={!!currentTenantId ? 'Mi Empresa' : 'Empresas'}
         subtitle={
-          isAdminEmpresaOnly
+          !!currentTenantId
             ? 'Información y configuración de tu empresa'
             : 'Gestión de tenants multitenant'
         }
         onRefresh={() =>
-          isAdminEmpresaOnly && selectedId
+          !!currentTenantId && selectedId
             ? loadDetail(selectedId)
             : loadList(true)
         }
@@ -649,7 +634,7 @@ export function Tenants({
       {/* ── Detail / Edit panel ── */}
       {(view === 'detail' || view === 'edit') && selectedTenant && (
         <div>
-          {!isAdminEmpresaOnly && (
+          {!!!currentTenantId && (
             <Button
               variant="light"
               onClick={() => setView('list')}
