@@ -132,7 +132,7 @@ export function Tenants({
         setRefreshing(false);
       }
     },
-    [toastError],
+    [toastError, effectiveTenantId],
   );
 
   const loadDetail = useCallback(
