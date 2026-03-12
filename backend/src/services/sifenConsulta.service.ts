@@ -14,11 +14,12 @@ function toEnvStr(ambiente: string | undefined | null): string {
 }
 
 /**
- * Helper to load the certificate + key PEM strings for setapi calls.
- * Uses R2 PFX (preferred) or falls back to legacy PEM fields.
+ * Helper to get a PFX file path + password for setapi calls.
+ * setapi.abrir() opens a PFX file, NOT PEM strings.
+ * Returns { filePath, password, cleanup } — caller MUST call cleanup().
  */
-async function loadCertKeys(tenantId: string): Promise<{ cert: string; key: string }> {
-    return sifenConfigService.getCertAndKeyPem(tenantId);
+async function loadCertFile(tenantId: string): Promise<{ filePath: string; password: string; cleanup: () => void }> {
+    return sifenConfigService.getCertFilePath(tenantId);
 }
 
 export const sifenConsultaService = {
@@ -42,14 +43,14 @@ export const sifenConsultaService = {
         }
 
         const envStr = toEnvStr(config.ambiente);
-        const { cert, key } = await loadCertKeys(tenantId);
         const idCsc = (config as any).id_csc || '1';
+        const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Consultando DE en SET', { tenantId, cdc, ambiente: config.ambiente });
 
         let response: any;
         try {
-            response = await setapi.consulta(idCsc, cdc, envStr, cert, key, {});
+            response = await setapi.consulta(idCsc, cdc, envStr, filePath, password, {});
         } catch (err: any) {
             logger.error('Error llamando setapi.consulta', {
                 tenantId,
@@ -58,6 +59,8 @@ export const sifenConsultaService = {
                 stack: err.stack,
             });
             throw new Error(`Error consultando DE en SIFEN: ${err.message}`);
+        } finally {
+            cleanup();
         }
 
         logger.debug('Respuesta setapi.consulta', { tenantId, cdc, codigo: response?.codigo });
@@ -118,14 +121,14 @@ export const sifenConsultaService = {
         }
 
         const envStr = toEnvStr(config.ambiente);
-        const { cert, key } = await loadCertKeys(tenantId);
         const idCsc = (config as any).id_csc || '1';
+        const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Consultando RUC en SET', { tenantId, ruc, ambiente: config.ambiente });
 
         let response: any;
         try {
-            response = await setapi.consultaRUC(idCsc, ruc, envStr, cert, key, {});
+            response = await setapi.consultaRUC(idCsc, ruc, envStr, filePath, password, {});
         } catch (err: any) {
             logger.error('Error llamando setapi.consultaRUC', {
                 tenantId,
@@ -134,6 +137,8 @@ export const sifenConsultaService = {
                 stack: err.stack,
             });
             throw new Error(`Error consultando RUC en SIFEN: ${err.message}`);
+        } finally {
+            cleanup();
         }
 
         logger.debug('Respuesta setapi.consultaRUC', { tenantId, ruc, codigo: response?.codigo });
@@ -191,8 +196,8 @@ export const sifenConsultaService = {
         }
 
         const envStr = toEnvStr(config.ambiente);
-        const { cert, key } = await loadCertKeys(tenantId);
         const idCsc = (config as any).id_csc || '1';
+        const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Enviando DE sincrónico a SIFEN', {
             tenantId,
@@ -204,7 +209,7 @@ export const sifenConsultaService = {
         // 3. Call setapi.recibe (synchronous endpoint)
         let response: any;
         try {
-            response = await setapi.recibe(idCsc, de.xml_signed, envStr, cert, key, {});
+            response = await setapi.recibe(idCsc, de.xml_signed, envStr, filePath, password, {});
         } catch (err: any) {
             // Mark the DE as ERROR and store the error details
             const errorPayload = JSON.stringify({ error: err.message });
@@ -227,6 +232,8 @@ export const sifenConsultaService = {
                 stack: err.stack,
             });
             throw new Error(`Error enviando DE a SIFEN (sincrónico): ${err.message}`);
+        } finally {
+            cleanup();
         }
 
         logger.debug('Respuesta setapi.recibe', {

@@ -130,36 +130,35 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         let certNotBefore: Date | null    = null;
         let certNotAfter:  Date | null    = null;
         let certPem: string | null        = null;
+        let privateKeyPem: string | null  = null;
 
         try {
             const pfxDer   = forge.util.createBuffer(certBuffer.toString('binary'));
             const pfxAsn1  = forge.asn1.fromDer(pfxDer);
             const pfx      = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
 
-            // Extract the end-entity certificate
-            const certBags = pfx.getBags({ bagType: forge.pki.oids.certBag });
-            const bags = certBags[forge.pki.oids.certBag] ?? [];
+            // Extract cert + private key from all safe bags
+            for (const sc of pfx.safeContents) {
+                for (const bag of sc.safeBags) {
+                    if (bag.cert && !certPem) {
+                        const cert = bag.cert;
+                        const cnAttr = cert.subject.getField('CN');
+                        certSubject   = cnAttr ? String(cnAttr.value) : null;
+                        certSerial    = cert.serialNumber ?? null;
+                        certNotBefore = cert.validity.notBefore ?? null;
+                        certNotAfter  = cert.validity.notAfter  ?? null;
+                        certPem       = forge.pki.certificateToPem(cert);
+                    }
+                    if (bag.key && !privateKeyPem) {
+                        privateKeyPem = forge.pki.privateKeyToPem(bag.key);
+                    }
+                }
+            }
 
-            if (bags.length === 0) {
+            if (!certPem) {
                 throw new ApiError(400, 'NO_CERTIFICATE_IN_PFX', 'El archivo PFX no contiene ningún certificado');
             }
-
-            // Find the end-entity cert (not a CA) — typically the last leaf cert
-            const leafBag  = bags[bags.length - 1];
-            const cert     = leafBag?.cert;
-
-            if (cert) {
-                const cnAttr = cert.subject.getField('CN');
-                certSubject  = cnAttr ? String(cnAttr.value) : null;
-                certSerial   = cert.serialNumber ?? null;
-                certNotBefore = cert.validity.notBefore ?? null;
-                certNotAfter  = cert.validity.notAfter  ?? null;
-
-                // Export certificate as PEM (public cert only, never the private key)
-                certPem = forge.pki.certificateToPem(cert);
-            }
         } catch (err: any) {
-            // node-forge throws generic Error on wrong password or corrupt file
             if (err instanceof ApiError) throw err;
             logger.warn('sifenRoutes: PFX validation failed', { tenantId, error: err.message });
             throw new ApiError(400, 'INVALID_PFX', 'No se pudo abrir el certificado con la contraseña proporcionada. Verifique que el archivo y la contraseña sean correctos.');
@@ -205,6 +204,18 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
             certNotAfter,
             certPem,
         }, req.ip ?? null, req.headers['user-agent'] as string ?? null);
+
+        // Also persist extracted PEM key+cert in legacy fields so queries work
+        // even without R2 (local dev) — these are the fields getMasterKeys() reads.
+        if (privateKeyPem) {
+            const privateKeyEnc = encrypt(privateKeyPem);
+            await query(
+                `UPDATE sifen_config
+                    SET private_key_enc = $2, passphrase_enc = $3, cert_pem = $4, updated_at = NOW()
+                  WHERE tenant_id = $1`,
+                [tenantId, privateKeyEnc, passwordEnc, certPem]
+            );
+        }
 
         return reply.status(200).send({
             success: true,

@@ -298,10 +298,8 @@ export const sifenConfigService = {
      *   }
      */
     async getCertFilePath(tenantId: string): Promise<CertFileResult> {
-        // Evict stale entries on each call (low-overhead since map is small)
         evictCertCache();
 
-        // Check memory cache first
         const cached = certCache.get(tenantId);
         const now = Date.now();
 
@@ -312,39 +310,74 @@ export const sifenConfigService = {
             pfxBuffer = cached.buffer;
             password  = cached.password;
         } else {
-            // Fetch cert metadata from DB
             const row = await queryOne<{
                 cert_r2_key: string | null;
                 cert_password_enc: string | null;
+                private_key_enc: string | null;
+                passphrase_enc: string | null;
+                cert_pem: string | null;
             }>(
-                `SELECT cert_r2_key, cert_password_enc FROM sifen_config WHERE tenant_id = $1`,
+                `SELECT cert_r2_key, cert_password_enc, private_key_enc, passphrase_enc, cert_pem
+                   FROM sifen_config WHERE tenant_id = $1`,
                 [tenantId]
             );
 
-            if (!row?.cert_r2_key) {
-                throw new Error(`Tenant ${tenantId} does not have an R2 certificate configured`);
-            }
-            if (!row.cert_password_enc) {
-                throw new Error(`Tenant ${tenantId} certificate password is not stored`);
+            if (!row) {
+                throw new Error('No hay certificado configurado. Suba el certificado digital en Configuración SIFEN.');
             }
 
-            password  = decrypt(row.cert_password_enc);
-            pfxBuffer = await downloadR2ToBuffer(row.cert_r2_key);
+            // Strategy 1: Download PFX from R2
+            if (row.cert_r2_key && row.cert_password_enc) {
+                try {
+                    password  = decrypt(row.cert_password_enc);
+                    pfxBuffer = await downloadR2ToBuffer(row.cert_r2_key);
+                    certCache.set(tenantId, { buffer: pfxBuffer, password, cachedAt: now });
+                    logger.info('sifenConfig: PFX downloaded from R2', { tenantId });
+                } catch (r2Err: any) {
+                    logger.warn('sifenConfig: R2 download failed, trying PEM fallback', {
+                        tenantId, error: r2Err.message,
+                    });
+                    // Fall through to PEM reconstruction
+                    pfxBuffer = null as any;
+                    password  = '';
+                }
+            } else {
+                pfxBuffer = null as any;
+                password  = '';
+            }
 
-            certCache.set(tenantId, { buffer: pfxBuffer, password, cachedAt: now });
-            logger.info('sifenConfig: PFX downloaded from R2 and cached', { tenantId, r2Key: row.cert_r2_key });
+            // Strategy 2: Reconstruct PFX from PEM fields in DB (local dev / R2 failure)
+            if (!pfxBuffer && row.private_key_enc && row.cert_pem) {
+                const forge = require('node-forge');
+                const keyPem = decrypt(row.private_key_enc);
+                password = row.cert_password_enc ? decrypt(row.cert_password_enc)
+                         : row.passphrase_enc    ? decrypt(row.passphrase_enc)
+                         : '';
+
+                const privateKey = forge.pki.privateKeyFromPem(keyPem);
+                const cert = forge.pki.certificateFromPem(row.cert_pem);
+
+                const p12Asn1 = forge.pkcs12.toPkcs12Asn1(privateKey, [cert], password, {
+                    algorithm: '3des',
+                    friendlyName: 'sifen-cert',
+                });
+                const p12Der = forge.asn1.toDer(p12Asn1).getBytes();
+                pfxBuffer = Buffer.from(p12Der, 'binary');
+
+                certCache.set(tenantId, { buffer: pfxBuffer, password, cachedAt: now });
+                logger.info('sifenConfig: PFX reconstructed from PEM fields', { tenantId });
+            }
+
+            if (!pfxBuffer) {
+                throw new Error('No hay certificado configurado. Suba el certificado digital en Configuración SIFEN.');
+            }
         }
 
-        // Write to a unique temp file — each caller gets its own path
         const tmpFile = path.join(os.tmpdir(), `sifen_cert_${tenantId}_${Date.now()}_${Math.random().toString(36).slice(2)}.pfx`);
         fs.writeFileSync(tmpFile, pfxBuffer);
 
         const cleanup = () => {
-            try {
-                fs.unlinkSync(tmpFile);
-            } catch {
-                // Best-effort — file may have already been removed
-            }
+            try { fs.unlinkSync(tmpFile); } catch { /* best-effort */ }
         };
 
         return { filePath: tmpFile, password, cleanup };
@@ -423,39 +456,46 @@ export const sifenConfigService = {
         // Try R2 PFX first
         const hasR2 = await this.hasCertR2(tenantId);
         if (hasR2) {
-            const { filePath, password, cleanup } = await this.getCertFilePath(tenantId);
             try {
-                const forge = require('node-forge');
-                const pfxBuf = fs.readFileSync(filePath);
-                const pfxDer = forge.util.createBuffer(pfxBuf.toString('binary'));
-                const pfxAsn1 = forge.asn1.fromDer(pfxDer);
-                const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, false, password);
+                const { filePath, password, cleanup } = await this.getCertFilePath(tenantId);
+                try {
+                    const forge = require('node-forge');
+                    const pfxBuf = fs.readFileSync(filePath);
+                    const pfxDer = forge.util.createBuffer(pfxBuf.toString('binary'));
+                    const pfxAsn1 = forge.asn1.fromDer(pfxDer);
+                    const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, false, password);
 
-                let certPem = '';
-                let keyPem = '';
+                    let certPem = '';
+                    let keyPem = '';
 
-                for (const sc of pfx.safeContents) {
-                    for (const bag of sc.safeBags) {
-                        if (bag.cert && !certPem) {
-                            certPem = forge.pki.certificateToPem(bag.cert);
-                        }
-                        if (bag.key && !keyPem) {
-                            keyPem = forge.pki.privateKeyToPem(bag.key);
+                    for (const sc of pfx.safeContents) {
+                        for (const bag of sc.safeBags) {
+                            if (bag.cert && !certPem) {
+                                certPem = forge.pki.certificateToPem(bag.cert);
+                            }
+                            if (bag.key && !keyPem) {
+                                keyPem = forge.pki.privateKeyToPem(bag.key);
+                            }
                         }
                     }
-                }
 
-                if (!certPem || !keyPem) {
-                    throw new Error('No se pudo extraer certificado/clave del PFX');
-                }
+                    if (!certPem || !keyPem) {
+                        throw new Error('No se pudo extraer certificado/clave del PFX');
+                    }
 
-                return { cert: certPem, key: keyPem };
-            } finally {
-                cleanup();
+                    return { cert: certPem, key: keyPem };
+                } finally {
+                    cleanup();
+                }
+            } catch (r2Err: any) {
+                // R2 download failed — fall through to legacy PEM fields
+                logger.warn('getCertAndKeyPem: R2 PFX failed, trying legacy PEM', {
+                    tenantId, error: r2Err.message,
+                });
             }
         }
 
-        // Fallback: legacy PEM
+        // Fallback: legacy PEM fields (populated during PFX upload)
         const keys = await this.getMasterKeys(tenantId);
         if (!keys.privateKey) {
             throw new Error('No hay certificado configurado. Suba el certificado digital en Configuración SIFEN.');

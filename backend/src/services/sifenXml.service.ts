@@ -33,33 +33,56 @@ export const sifenXmlService = {
         if (!items.length) throw new Error('El DE no tiene ítems. Agréguelos antes de generar el XML.');
 
         const tipoDoc = parseInt(de.tipo_documento, 10);
-        const ambienteCode = config.ambiente === 'PRODUCCION' ? '1' : '2';
+        // Not used directly in params — xmlgen derives it from data.tipoEmision
 
-        // Parámetros del emisor
+        // Parámetros del emisor — format required by facturacionelectronicapy-xmlgen:
+        //   ruc: "RUC-DV" format (with hyphen)
+        //   establecimientos: array of {codigo, denominacion, direccion, numeroCasa, departamento, distrito, ciudad, ...}
+        //   actividadesEconomicas: array of {codigo, descripcion}
+        const establecimientoCodigo = String(config.establecimiento).padStart(3, '0');
         const deParams = {
-            ruc: config.ruc,
-            dv: config.dv,
+            ruc: `${config.ruc}-${config.dv}`,
             razonSocial: config.razon_social,
-            ambiente: ambienteCode,
-            establecimiento: config.establecimiento,
-            punto: config.punto_expedicion,
-            numero: de.numero_documento || '0000001',
+            nombreFantasia: adicionales.nombre_fantasia || null,
+            actividadesEconomicas: adicionales.actividades_economicas || [
+                { codigo: adicionales.actividad_economica || '00000', descripcion: adicionales.actividad_economica_desc || 'Actividades no especificadas' }
+            ],
+            establecimientos: adicionales.establecimientos || [
+                {
+                    codigo: establecimientoCodigo,
+                    denominacion: adicionales.establecimiento_denominacion || config.razon_social,
+                    direccion: adicionales.direccion_emisor || 'Sin dirección',
+                    numeroCasa: adicionales.numero_casa_emisor || '0',
+                    complementoDireccion1: adicionales.complemento_dir1 || null,
+                    complementoDireccion2: adicionales.complemento_dir2 || null,
+                    departamento: adicionales.departamento_emisor || 11,
+                    distrito: adicionales.distrito_emisor || 1,
+                    ciudad: adicionales.ciudad_emisor || 1,
+                    telefono: adicionales.telefono_emisor || null,
+                    email: adicionales.email_emisor || null,
+                }
+            ],
             timbradoNumero: config.timbrado,
             timbradoFecha: config.inicio_vigencia
                 ? new Date(config.inicio_vigencia).toISOString().slice(0, 10)
                 : new Date().toISOString().slice(0, 10),
             tipoContribuyente: adicionales.tipo_contribuyente || 1,
             tipoRegimen: adicionales.tipo_regimen || 8,
-            actividadEconomica: adicionales.actividad_economica || '00000',
             cSeg: String(Math.floor(Math.random() * 900000000) + 100000000),
-            moneda: de.moneda || 'PYG',
-            tipoEmision: de.tipo_emision || 1,
         };
 
         const deData: any = {
             tipoDocumento: tipoDoc,
+            establecimiento: Number(config.establecimiento) || 1,
+            punto: Number(config.punto_expedicion) || 1,
+            numero: Number(de.numero_documento) || 1,
             fechaEmision: new Date(de.fecha_emision).toISOString(),
             tipoEmision: de.tipo_emision || 1,
+            tipoImpuesto: adicionales.tipo_impuesto || 1,
+            tipoTransaccion: adicionales.tipo_transaccion || 1,
+            moneda: de.moneda || 'PYG',
+            condicionTipoCambio: de.moneda && de.moneda !== 'PYG' ? 1 : undefined,
+            cambio: de.moneda && de.moneda !== 'PYG' ? (adicionales.tipo_cambio || 1) : undefined,
             descripcion: adicionales.descripcion || 'Operación comercial',
             observacion: adicionales.observacion || null,
             receptor: tipoDoc === 4
@@ -94,7 +117,7 @@ export const sifenXmlService = {
             };
         }
 
-        logger.debug('Generando XML DE', { deId, tipoDoc, numero: deParams.numero });
+        logger.debug('Generando XML DE', { deId, tipoDoc, numero: deData.numero });
 
         let result: any;
         try {
