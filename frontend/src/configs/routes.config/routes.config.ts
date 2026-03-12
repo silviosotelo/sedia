@@ -102,6 +102,12 @@ export const protectedRoutes: Routes = [
     },
     // Admin
     {
+        key: 'admin.empresas',
+        path: '/admin/empresas',
+        component: lazy(() => import('@/views/sedia/admin/AdminEmpresas')),
+        authority: ['super_admin'],
+    },
+    {
         key: 'admin.usuarios',
         path: '/admin/usuarios',
         component: lazy(() => import('@/views/sedia/admin/Usuarios')),

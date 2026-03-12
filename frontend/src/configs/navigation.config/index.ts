@@ -349,6 +349,16 @@ const navigationConfig: NavigationTree[] = [
         authority: [],
         subMenu: [
             {
+                key: 'admin.empresas',
+                path: '/admin/empresas',
+                title: 'Empresas',
+                translateKey: '',
+                icon: 'empresas',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: ['super_admin'],
+                subMenu: [],
+            },
+            {
                 key: 'admin.usuarios',
                 path: '/admin/usuarios',
                 title: 'Usuarios',
