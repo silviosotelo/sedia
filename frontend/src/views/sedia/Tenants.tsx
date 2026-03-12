@@ -43,6 +43,7 @@ import Loading from '@/components/shared/Loading'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import { FormItem, FormContainer } from '@/components/ui/Form'
 import { useIsSuperAdmin, useUserTenantId } from '@/utils/hooks/useSediaAuth'
+import { useTenantStore } from '@/store/tenantStore'
 import { api } from '@/services/sedia/api'
 import classNames from 'classnames'
 import type { Tenant, TenantWithConfig, AuthType } from '@/@types/sedia'
@@ -1340,7 +1341,17 @@ const Tenants = () => {
     const navigate = useNavigate()
     const isSuperAdmin = useIsSuperAdmin()
     const userTenantId = useUserTenantId()
-    const isAdminEmpresaOnly = !isSuperAdmin && !!userTenantId
+    const { activeTenantId } = useTenantStore()
+    // The active tenant — from store, localStorage fallback, or user's own tenant
+    const currentTenantId = activeTenantId
+        || (() => {
+            try {
+                const raw = localStorage.getItem('sedia_tenant')
+                if (raw) return JSON.parse(raw)?.state?.activeTenantId ?? null
+            } catch { /* ignore */ }
+            return null
+        })()
+        || userTenantId
 
     const [tenants, setTenants] = useState<Tenant[]>([])
     const [loading, setLoading] = useState(true)
@@ -1349,11 +1360,12 @@ const Tenants = () => {
     const [search, setSearch] = useState('')
     const [statusTab, setStatusTab] = useState<StatusTab>('all')
     const [displayMode, setDisplayMode] = useState<ListDisplayMode>('table')
+    // If tenant selected → detail view directly
     const [view, setView] = useState<PanelView>(
-        isAdminEmpresaOnly ? 'detail' : 'list',
+        currentTenantId ? 'detail' : 'list',
     )
     const [selectedId, setSelectedId] = useState<string | null>(
-        isAdminEmpresaOnly ? (userTenantId ?? null) : null,
+        currentTenantId ?? null,
     )
     const [selectedTenant, setSelectedTenant] = useState<TenantWithConfig | null>(null)
     const [detailLoading, setDetailLoading] = useState(false)
@@ -1435,14 +1447,15 @@ const Tenants = () => {
     )
 
     useEffect(() => {
-        if (isAdminEmpresaOnly) {
-            setSelectedId(userTenantId)
+        if (currentTenantId) {
+            // Tenant selected → go to detail, no list
+            setSelectedId(currentTenantId)
             setView('detail')
             setLoading(false)
         } else {
             void loadList()
         }
-    }, [loadList, isAdminEmpresaOnly, userTenantId])
+    }, [loadList, currentTenantId])
 
     useEffect(() => {
         if (selectedId && (view === 'detail' || view === 'edit')) {
@@ -1614,10 +1627,10 @@ const Tenants = () => {
                 <div className="flex items-center justify-between">
                     <div>
                         <h3 className="font-bold text-gray-900 dark:text-white text-xl">
-                            {isAdminEmpresaOnly ? 'Mi Empresa' : 'Empresas'}
+                            {!!currentTenantId ? 'Mi Empresa' : 'Empresas'}
                         </h3>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                            {isAdminEmpresaOnly
+                            {!!currentTenantId
                                 ? 'Información y configuración de tu empresa'
                                 : 'Gestión de tenants multitenant'}
                         </p>
@@ -1639,10 +1652,10 @@ const Tenants = () => {
             <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                        {isAdminEmpresaOnly ? 'Mi Empresa' : 'Empresas'}
+                        {!!currentTenantId ? 'Mi Empresa' : 'Empresas'}
                     </h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                        {isAdminEmpresaOnly
+                        {!!currentTenantId
                             ? 'Información y configuración de tu empresa'
                             : 'Gestión de tenants multitenant'}
                     </p>
@@ -1653,7 +1666,7 @@ const Tenants = () => {
                         icon={<RefreshCcw className="w-4 h-4" />}
                         loading={refreshing}
                         onClick={() =>
-                            isAdminEmpresaOnly && selectedId
+                            !!currentTenantId && selectedId
                                 ? void loadDetail(selectedId)
                                 : void loadList(true)
                         }
@@ -1945,7 +1958,7 @@ const Tenants = () => {
                         </div>
                     ) : selectedTenant ? (
                         <div className="space-y-5">
-                            {!isAdminEmpresaOnly && (
+                            {!!!currentTenantId && (
                                 <button
                                     onClick={() => setView('list')}
                                     className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 hover:text-[rgb(var(--brand-rgb))] transition-colors -ml-1 mb-1"

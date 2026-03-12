@@ -1028,11 +1028,18 @@ const Dashboard = () => {
     const userTenantId = useUserTenantId()
     const { tenants: allTenants, activeTenantId } = useTenantStore()
 
-    const isTenantUser = !isSuperAdmin && !!userTenantId
-    const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined)
-    // When super_admin has a tenant selected, show tenant-specific view (same as admin_empresa)
-    const showTenantView = isTenantUser || (isSuperAdmin && !!activeTenantId)
-    const activeTid = activeTenantId ?? ''
+    // Always resolve active tenant — store, localStorage fallback, or user's tenant
+    const resolvedTenantId = activeTenantId || (() => {
+        try {
+            const raw = localStorage.getItem('sedia_tenant')
+            if (raw) return JSON.parse(raw)?.state?.activeTenantId ?? null
+        } catch { /* ignore */ }
+        return null
+    })() || userTenantId
+    const effectiveTenantId = resolvedTenantId ?? undefined
+    // Always show tenant-scoped view when a tenant is selected
+    const showTenantView = !!resolvedTenantId
+    const activeTid = resolvedTenantId ?? ''
 
     const [recentJobs, setRecentJobs] = useState<Job[]>([])
     const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -1720,7 +1727,7 @@ const Dashboard = () => {
             )}
 
             {/* Advanced fiscal analysis */}
-            {(isTenantUser || isSuperAdmin) && (
+            {resolvedTenantId && (
                 <div className="space-y-4">
                     <div className="flex items-center gap-2">
                         <BarChart3 className="w-4 h-4 text-gray-400 dark:text-gray-500" />

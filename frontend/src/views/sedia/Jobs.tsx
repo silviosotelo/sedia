@@ -311,9 +311,15 @@ const Jobs = () => {
     const isSuperAdmin = useIsSuperAdmin()
     const userTenantId = useUserTenantId()
     const { activeTenantId } = useTenantStore()
-    // Always use the active tenant — super_admin uses the selector, regular users use their own
-    const effectiveTenantId = isSuperAdmin ? (activeTenantId ?? undefined) : (userTenantId ?? undefined)
-    const isTenantUser = !isSuperAdmin && !!userTenantId
+    // Always resolve tenant — store, localStorage, or user's own
+    const resolvedTenantId = activeTenantId || (() => {
+        try {
+            const raw = localStorage.getItem('sedia_tenant')
+            if (raw) return JSON.parse(raw)?.state?.activeTenantId ?? null
+        } catch { /* ignore */ }
+        return null
+    })() || userTenantId
+    const effectiveTenantId = resolvedTenantId ?? undefined
 
     const [jobs, setJobs] = useState<Job[]>([])
     const [tenants, setTenants] = useState<Tenant[]>([])
@@ -346,8 +352,8 @@ const Jobs = () => {
 
     const loadTenants = useCallback(async () => {
         try {
-            const tenantsData = isTenantUser
-                ? await api.tenants.get(userTenantId!).then((t) => [t])
+            const tenantsData = effectiveTenantId
+                ? await api.tenants.get(effectiveTenantId).then((t) => [t])
                 : await api.tenants.list()
             setTenants(tenantsData)
         } catch (e: unknown) {
@@ -357,7 +363,7 @@ const Jobs = () => {
             )
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isTenantUser, userTenantId])
+    }, [effectiveTenantId])
 
     const load = useCallback(
         async (silent = false) => {
