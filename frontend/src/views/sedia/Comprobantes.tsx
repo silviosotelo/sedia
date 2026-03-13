@@ -684,13 +684,22 @@ const Comprobantes = () => {
                 'fecha',
                 'tipo',
                 'numero_comprobante',
-                'ruc_vendedor',
-                'razon_social',
+                'cdc',
+                'ruc_emisor',
+                'razon_social_emisor',
+                'ruc_receptor',
+                'razon_social_receptor',
+                'condicion_venta',
+                'moneda',
                 'monto_total',
                 'iva_10',
                 'iva_5',
-                'moneda',
-                'estado',
+                'exentas',
+                'iva_total',
+                'forma_pago',
+                'timbrado',
+                'estado_sifen',
+                'items',
             ]
 
             const escape = (v: string) => {
@@ -699,18 +708,35 @@ const Comprobantes = () => {
                 return v
             }
 
-            const rows = allRows.map((c) => [
-                escape(c.fecha_emision ?? ''),
-                escape(c.tipo_comprobante ?? ''),
-                escape(c.numero_comprobante ?? ''),
-                escape(c.ruc_vendedor ?? ''),
-                escape(c.razon_social_vendedor ?? ''),
-                formatNum(c.total_operacion),
-                formatNum(c.detalles_xml?.totales?.iva10),
-                formatNum(c.detalles_xml?.totales?.iva5),
-                escape(c.detalles_xml?.operacion?.moneda ?? 'PYG'),
-                escape(c.estado_sifen ?? ''),
-            ])
+            const rows = allRows.map((c) => {
+                const dx = c.detalles_xml
+                const iva10 = dx?.totales?.iva10 ?? 0
+                const iva5 = dx?.totales?.iva5 ?? 0
+                const itemsStr = (dx?.items ?? [])
+                    .map((it: any) => `${it.cantidad}x ${it.descripcion} @${it.precioUnitario}`)
+                    .join(' | ')
+                return [
+                    escape(c.fecha_emision ?? ''),
+                    escape(c.tipo_comprobante ?? ''),
+                    escape(c.numero_comprobante ?? ''),
+                    escape(c.cdc ?? ''),
+                    escape(c.ruc_vendedor ?? ''),
+                    escape(c.razon_social_vendedor ?? ''),
+                    escape(dx?.receptor?.ruc ?? dx?.receptor?.numeroIdentificacion ?? ''),
+                    escape(dx?.receptor?.razonSocial ?? ''),
+                    escape(dx?.operacion?.condicionVentaDesc ?? ''),
+                    escape(dx?.operacion?.moneda ?? 'PYG'),
+                    formatNum(c.total_operacion),
+                    formatNum(iva10),
+                    formatNum(iva5),
+                    formatNum(dx?.totales?.exentas),
+                    formatNum(iva10 + iva5),
+                    escape((dx?.pagos ?? []).map((p: any) => p.tipoPagoDesc || p.tipoPago).join('; ')),
+                    escape(dx?.timbrado ?? ''),
+                    escape(c.estado_sifen ?? ''),
+                    escape(itemsStr),
+                ]
+            })
 
             const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
             const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })

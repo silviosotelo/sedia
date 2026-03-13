@@ -1,6 +1,6 @@
 import Container from '@/components/shared/Container'
 import classNames from '@/utils/classNames'
-import { APP_NAME } from '@/constants/app.constant'
+import { useBrandingStore } from '@/store/brandingStore'
 import { PAGE_CONTAINER_GUTTER_X } from '@/constants/theme.constant'
 import { Link } from 'react-router'
 
@@ -12,11 +12,12 @@ type FooterProps = {
 }
 
 const FooterContent = () => {
+    const appName = useBrandingStore((s) => s.nombre_app) || 'SEDIA'
     return (
         <div className="flex items-center justify-between flex-auto w-full">
             <span>
                 Copyright &copy; {`${new Date().getFullYear()}`}{' '}
-                <span className="font-semibold">{`${APP_NAME}`}</span> Todos
+                <span className="font-semibold">{appName}</span> Todos
                 los derechos reservados.
             </span>
             <div>

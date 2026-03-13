@@ -1,5 +1,5 @@
 import classNames from 'classnames'
-import { APP_NAME } from '@/constants/app.constant'
+import { useBrandingStore } from '@/store/brandingStore'
 import type { CommonProps } from '@/@types/common'
 
 interface LogoProps extends CommonProps {
@@ -18,6 +18,9 @@ const Logo = (props: LogoProps) => {
         logoWidth = 'auto',
     } = props
 
+    const nombreApp = useBrandingStore((s) => s.nombre_app) || 'SEDIA'
+    const logoUrl = useBrandingStore((s) => s.logo_url)
+
     return (
         <div
             className={classNames('logo', className)}
@@ -31,10 +34,25 @@ const Logo = (props: LogoProps) => {
                 type === 'streamline' ? 'text-xl' : 'text-2xl',
                 mode === 'dark' ? 'text-white' : 'text-gray-900'
             )}>
-                <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white text-sm font-bold">
-                    S
+                {logoUrl ? (
+                    <img
+                        src={logoUrl}
+                        alt={nombreApp}
+                        className={classNames('h-8 object-contain', type === 'streamline' && 'h-7')}
+                        onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement
+                            if (fallback) fallback.style.display = 'flex'
+                        }}
+                    />
+                ) : null}
+                <div
+                    className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white text-sm font-bold shrink-0"
+                    style={logoUrl ? { display: 'none' } : undefined}
+                >
+                    {nombreApp.charAt(0).toUpperCase()}
                 </div>
-                {type === 'full' && <span>{APP_NAME}</span>}
+                {type === 'full' && <span>{nombreApp}</span>}
             </div>
         </div>
     )

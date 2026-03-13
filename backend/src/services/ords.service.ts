@@ -17,22 +17,27 @@ interface OrdsResponse {
 
 function buildOrdsPayload(
   comprobante: Comprobante,
-  tenantRuc: string
+  _tenantRuc: string
 ): OrdsPayload {
+  // Enviar el comprobante completo con los nombres originales de la DB
   return {
-    rucVendedor: comprobante.ruc_vendedor,
-    razonSocialVendedor: comprobante.razon_social_vendedor,
-    cdc: comprobante.cdc,
-    numeroComprobante: comprobante.numero_comprobante,
-    tipoComprobante: comprobante.tipo_comprobante,
-    fechaEmision: comprobante.fecha_emision instanceof Date
-      ? comprobante.fecha_emision.toISOString().split('T')[0]
-      : String(comprobante.fecha_emision),
-    totalOperacion: parseFloat(String(comprobante.total_operacion)),
+    id: comprobante.id,
+    numero_comprobante: comprobante.numero_comprobante,
+    tipo_comprobante: comprobante.tipo_comprobante,
     origen: comprobante.origen,
-    tenantRuc,
-    detalles: comprobante.detalles_xml,
-    metadatos: comprobante.raw_payload,
+    fecha_emision: comprobante.fecha_emision instanceof Date
+      ? comprobante.fecha_emision.toISOString()
+      : String(comprobante.fecha_emision),
+    total_operacion: String(comprobante.total_operacion),
+    cdc: comprobante.cdc,
+    ruc_vendedor: comprobante.ruc_vendedor,
+    razon_social_vendedor: comprobante.razon_social_vendedor,
+    xml_descargado_at: comprobante.xml_descargado_at
+      ? (comprobante.xml_descargado_at instanceof Date
+          ? comprobante.xml_descargado_at.toISOString()
+          : String(comprobante.xml_descargado_at))
+      : null,
+    detalles_xml: comprobante.detalles_xml,
   };
 }
 

@@ -219,17 +219,17 @@ export interface DetallesXml {
 }
 
 export interface OrdsPayload {
-  rucVendedor: string;
-  razonSocialVendedor: string | null;
-  cdc: string | null;
-  numeroComprobante: string;
-  tipoComprobante: string;
-  fechaEmision: string;
-  totalOperacion: number;
+  id: string;
+  numero_comprobante: string;
+  tipo_comprobante: string;
   origen: string;
-  tenantRuc: string;
-  detalles: DetallesXml | null;
-  metadatos: Record<string, unknown>;
+  fecha_emision: string;
+  total_operacion: string;
+  cdc: string | null;
+  ruc_vendedor: string;
+  razon_social_vendedor: string | null;
+  xml_descargado_at: string | null;
+  detalles_xml: DetallesXml | null;
 }
 
 export interface SyncJobPayload {

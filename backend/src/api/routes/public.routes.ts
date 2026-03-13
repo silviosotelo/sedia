@@ -5,23 +5,49 @@ import { logger } from '../../config/logger';
 import { systemService } from '../../services/system.service';
 
 export async function publicRoutes(app: FastifyInstance): Promise<void> {
-    // Branding del sistema (sin auth — usado por super_admin sin tenant)
+    // Branding + SEO del sistema (sin auth — usado por frontend al cargar)
     app.get('/branding/system', async (_req, reply) => {
-        const [name, primary, secondary, logo, favicon] = await Promise.all([
+        const [
+            name, primary, secondary, logo, favicon,
+            seoTitle, seoDesc, seoKeywords, seoOgImage, seoOgType,
+            seoOgUrl, seoTwitterCard, seoRobots, seoLang, seoThemeColor,
+        ] = await Promise.all([
             systemService.getSetting<string>('brand_name'),
             systemService.getSetting<string>('brand_color_primary'),
             systemService.getSetting<string>('brand_color_secondary'),
             systemService.getSetting<string>('brand_logo_url'),
             systemService.getSetting<string>('brand_favicon_url'),
+            systemService.getSetting<string>('seo_title'),
+            systemService.getSetting<string>('seo_description'),
+            systemService.getSetting<string>('seo_keywords'),
+            systemService.getSetting<string>('seo_og_image'),
+            systemService.getSetting<string>('seo_og_type'),
+            systemService.getSetting<string>('seo_og_url'),
+            systemService.getSetting<string>('seo_twitter_card'),
+            systemService.getSetting<string>('seo_robots'),
+            systemService.getSetting<string>('seo_language'),
+            systemService.getSetting<string>('seo_theme_color'),
         ]);
         return reply.send({
             success: true,
             data: {
                 nombre_app: name ?? 'SEDIA',
-                color_primario: primary ?? '#18181b',
-                color_secundario: secondary ?? '#f4f4f5',
+                color_primario: primary ?? '#2a85ff',
+                color_secundario: secondary ?? '#f5f5f5',
                 logo_url: logo ?? '',
                 favicon_url: favicon ?? '',
+                seo: {
+                    title: seoTitle ?? '',
+                    description: seoDesc ?? 'Plataforma SaaS para gestión de comprobantes fiscales del SET Paraguay.',
+                    keywords: seoKeywords ?? '',
+                    og_image: seoOgImage ?? '',
+                    og_type: seoOgType ?? 'website',
+                    og_url: seoOgUrl ?? '',
+                    twitter_card: seoTwitterCard ?? 'summary_large_image',
+                    robots: seoRobots ?? 'index, follow',
+                    language: seoLang ?? 'es',
+                    theme_color: seoThemeColor ?? '',
+                },
             },
         });
     });
