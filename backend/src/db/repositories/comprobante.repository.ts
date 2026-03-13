@@ -160,6 +160,7 @@ export async function findComprobantesByTenant(
       `SELECT c.id, c.tenant_id, c.origen, c.ruc_vendedor, c.razon_social_vendedor,
               c.cdc, c.numero_comprobante, c.tipo_comprobante, c.fecha_emision,
               c.total_operacion, c.hash_unico, c.xml_url, c.xml_descargado_at,
+              c.detalles_xml, c.estado_sifen,
               c.nro_ot, c.sincronizar, c.sincronizar_actualizado_at,
               c.sincronizar_actualizado_por, c.created_at, c.updated_at,
               COALESCE(ce_agg.etiquetas, '[]'::json) AS etiquetas

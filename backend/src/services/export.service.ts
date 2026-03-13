@@ -45,28 +45,34 @@ export async function exportarComprobantesXLSX(
     { header: 'Tipo', key: 'tipo', width: 15 },
     { header: 'Origen', key: 'origen', width: 12 },
     { header: 'Fecha Emisión', key: 'fecha_emision', width: 16 },
-    { header: 'RUC Vendedor', key: 'ruc_vendedor', width: 16 },
-    { header: 'Razón Social', key: 'razon_social', width: 35 },
+    { header: 'RUC Emisor', key: 'ruc_vendedor', width: 16 },
+    { header: 'Razón Social Emisor', key: 'razon_social', width: 35 },
+    { header: 'RUC Receptor', key: 'ruc_receptor', width: 16 },
+    { header: 'Razón Social Receptor', key: 'razon_social_receptor', width: 35 },
     { header: 'CDC', key: 'cdc', width: 44 },
+    { header: 'Condición Venta', key: 'condicion_venta', width: 14 },
+    { header: 'Moneda', key: 'moneda', width: 8 },
     { header: 'Total Operación', key: 'total', width: 18 },
     { header: 'IVA 5%', key: 'iva5', width: 14 },
     { header: 'IVA 10%', key: 'iva10', width: 14 },
+    { header: 'Exentas', key: 'exentas', width: 14 },
     { header: 'IVA Total', key: 'iva_total', width: 14 },
+    { header: 'Forma de Pago', key: 'forma_pago', width: 20 },
+    { header: 'Timbrado', key: 'timbrado', width: 14 },
     { header: 'Con XML', key: 'con_xml', width: 10 },
   ];
 
   // Header styling
-  sheet.getRow(1).font = { bold: true };
-  sheet.getRow(1).fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF1E40AF' },
+  const styleHeader = (ws: ExcelJS.Worksheet) => {
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
   };
-  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  styleHeader(sheet);
 
   for (const c of comprobantes) {
-    const { iva5, iva10 } = calcularIva(c);
+    const { iva5, iva10, exentas } = calcularIva(c);
     const total = parseFloat(c.total_operacion) || 0;
+    const dx = c.detalles_xml;
 
     sheet.addRow({
       numero: c.numero_comprobante,
@@ -75,18 +81,65 @@ export async function exportarComprobantesXLSX(
       fecha_emision: c.fecha_emision ? new Date(c.fecha_emision).toLocaleDateString('es-PY') : '',
       ruc_vendedor: c.ruc_vendedor,
       razon_social: c.razon_social_vendedor ?? '',
+      ruc_receptor: dx?.receptor?.ruc ?? dx?.receptor?.numeroIdentificacion ?? '',
+      razon_social_receptor: dx?.receptor?.razonSocial ?? '',
       cdc: c.cdc ?? '',
+      condicion_venta: dx?.operacion?.condicionVentaDesc ?? '',
+      moneda: dx?.operacion?.moneda ?? 'PYG',
       total,
       iva5,
       iva10,
+      exentas,
       iva_total: iva5 + iva10,
+      forma_pago: (dx?.pagos ?? []).map((p: any) => p.tipoPagoDesc || p.tipoPago).join(', ') || '',
+      timbrado: dx?.timbrado ?? '',
       con_xml: c.xml_descargado_at ? 'Sí' : 'No',
     });
   }
 
   // Number formatting for currency columns
-  ['H', 'I', 'J', 'K'].forEach((col) => {
+  ['L', 'M', 'N', 'O', 'P'].forEach((col) => {
     sheet.getColumn(col).numFmt = '#,##0';
+  });
+
+  // Items detail sheet
+  const itemsSheet = workbook.addWorksheet('Detalle Items');
+  itemsSheet.columns = [
+    { header: 'Nro. Comprobante', key: 'numero', width: 20 },
+    { header: 'Código', key: 'codigo', width: 16 },
+    { header: 'Descripción', key: 'descripcion', width: 40 },
+    { header: 'Cantidad', key: 'cantidad', width: 12 },
+    { header: 'Unidad', key: 'unidad', width: 10 },
+    { header: 'Precio Unitario', key: 'precio_unitario', width: 18 },
+    { header: 'Descuento', key: 'descuento', width: 14 },
+    { header: 'Subtotal', key: 'subtotal', width: 18 },
+    { header: 'Tasa IVA', key: 'tasa_iva', width: 10 },
+    { header: 'IVA', key: 'iva', width: 14 },
+    { header: 'Afectación', key: 'afectacion', width: 16 },
+  ];
+  styleHeader(itemsSheet);
+
+  for (const c of comprobantes) {
+    if (!c.detalles_xml?.items?.length) continue;
+    for (const item of c.detalles_xml.items) {
+      itemsSheet.addRow({
+        numero: c.numero_comprobante,
+        codigo: item.codigo ?? '',
+        descripcion: item.descripcion ?? '',
+        cantidad: item.cantidad ?? 0,
+        unidad: item.unidadMedida ?? '',
+        precio_unitario: item.precioUnitario ?? 0,
+        descuento: item.descuento ?? 0,
+        subtotal: item.subtotal ?? 0,
+        tasa_iva: item.tasaIva != null ? `${item.tasaIva}%` : '',
+        iva: item.iva ?? 0,
+        afectacion: item.afectacionIva ?? '',
+      });
+    }
+  }
+
+  ['F', 'G', 'H', 'J'].forEach((col) => {
+    itemsSheet.getColumn(col).numFmt = '#,##0';
   });
 
   // Resumen sheet
@@ -94,15 +147,20 @@ export async function exportarComprobantesXLSX(
   const totalMonto = comprobantes.reduce((s, c) => s + (parseFloat(c.total_operacion) || 0), 0);
   const totalIva5 = comprobantes.reduce((s, c) => s + calcularIva(c).iva5, 0);
   const totalIva10 = comprobantes.reduce((s, c) => s + calcularIva(c).iva10, 0);
+  const totalExentas = comprobantes.reduce((s, c) => s + calcularIva(c).exentas, 0);
+  const totalItems = comprobantes.reduce((s, c) => s + (c.detalles_xml?.items?.length ?? 0), 0);
 
   resumenSheet.addRows([
     ['Empresa', tenant.nombre_fantasia],
     ['RUC', tenant.ruc],
+    ['Fecha de exportación', new Date().toLocaleString('es-PY')],
     ['Total comprobantes', comprobantes.length],
+    ['Total items detallados', totalItems],
     ['Monto total', totalMonto],
-    ['IVA 5% estimado', totalIva5],
-    ['IVA 10% estimado', totalIva10],
+    ['IVA 5%', totalIva5],
+    ['IVA 10%', totalIva10],
     ['IVA total', totalIva5 + totalIva10],
+    ['Exentas', totalExentas],
     ['Con XML', comprobantes.filter((c) => c.xml_descargado_at).length],
     ['Sin XML', comprobantes.filter((c) => !c.xml_descargado_at).length],
   ]);
@@ -144,32 +202,36 @@ export async function exportarComprobantesPDF(
       : 'Todo el período';
 
     // Header
-    doc.fontSize(16).font('Helvetica-Bold').text('SEDIA — Exportación de Comprobantes', { align: 'center' });
-    doc.fontSize(10).font('Helvetica').text(`${tenant.nombre_fantasia} (RUC: ${tenant.ruc})`, { align: 'center' });
-    doc.text(`Período: ${periodo}`, { align: 'center' });
-    doc.text(`Generado: ${new Date().toLocaleString('es-PY')}`, { align: 'center' });
-    doc.moveDown(1);
+    doc.fontSize(14).font('Helvetica-Bold').text('Exportación de Comprobantes', { align: 'center' });
+    doc.fontSize(9).font('Helvetica').text(`${tenant.nombre_fantasia} (RUC: ${tenant.ruc})`, { align: 'center' });
+    doc.text(`Período: ${periodo} | Generado: ${new Date().toLocaleString('es-PY')}`, { align: 'center' });
+    doc.moveDown(0.5);
 
     // Table header
     const tableTop = doc.y;
     const cols = [
-      { label: 'Número', x: 40, w: 130 },
-      { label: 'Tipo', x: 175, w: 90 },
-      { label: 'Fecha', x: 270, w: 80 },
-      { label: 'RUC Vendedor', x: 355, w: 95 },
-      { label: 'Razón Social', x: 455, w: 140 },
-      { label: 'Origen', x: 600, w: 45 },
-      { label: 'Total', x: 650, w: 80 },
+      { label: 'Número', x: 40, w: 105 },
+      { label: 'Tipo', x: 148, w: 55 },
+      { label: 'Fecha', x: 206, w: 58 },
+      { label: 'RUC Emisor', x: 267, w: 68 },
+      { label: 'Razón Social Emisor', x: 338, w: 110 },
+      { label: 'Receptor', x: 451, w: 110 },
+      { label: 'IVA 10%', x: 564, w: 55 },
+      { label: 'IVA 5%', x: 622, w: 50 },
+      { label: 'Total', x: 675, w: 65 },
     ];
 
-    // Draw header row background
-    doc.rect(40, tableTop, 700, 18).fill('#1E40AF');
-    doc.fillColor('white').fontSize(8).font('Helvetica-Bold');
-    cols.forEach((col) => {
-      doc.text(col.label, col.x, tableTop + 4, { width: col.w });
-    });
+    const drawTableHeader = (yPos: number) => {
+      doc.rect(40, yPos, 700, 16).fill('#1E40AF');
+      doc.fillColor('white').fontSize(6.5).font('Helvetica-Bold');
+      cols.forEach((col) => {
+        doc.text(col.label, col.x, yPos + 4, { width: col.w });
+      });
+    };
 
-    let y = tableTop + 20;
+    drawTableHeader(tableTop);
+
+    let y = tableTop + 18;
     let pageNum = 1;
     const pageHeight = doc.page.height - 60;
 
@@ -178,7 +240,7 @@ export async function exportarComprobantesPDF(
         .text(`Página ${pageNum}`, 40, doc.page.height - 30, { align: 'center' });
     };
 
-    doc.fillColor('black').fontSize(7).font('Helvetica');
+    doc.fillColor('black').fontSize(6.5).font('Helvetica');
 
     comprobantes.forEach((c, idx) => {
       if (y > pageHeight) {
@@ -186,34 +248,50 @@ export async function exportarComprobantesPDF(
         doc.addPage({ size: 'A4', layout: 'landscape', margin: 40 });
         pageNum++;
         y = 40;
-        // Re-draw header on new page
-        doc.rect(40, y, 700, 18).fill('#1E40AF');
-        doc.fillColor('white').fontSize(8).font('Helvetica-Bold');
-        cols.forEach((col) => {
-          doc.text(col.label, col.x, y + 4, { width: col.w });
-        });
-        y += 20;
-        doc.fillColor('black').fontSize(7).font('Helvetica');
+        drawTableHeader(y);
+        y += 18;
+        doc.fillColor('black').fontSize(6.5).font('Helvetica');
       }
 
       if (idx % 2 === 0) {
-        doc.rect(40, y, 700, 14).fill('#F8FAFC');
+        doc.rect(40, y, 700, 13).fill('#F8FAFC');
       }
       doc.fillColor('black');
 
       const total = parseFloat(c.total_operacion) || 0;
+      const { iva5, iva10 } = calcularIva(c);
       const fecha = c.fecha_emision ? new Date(c.fecha_emision).toLocaleDateString('es-PY') : '';
+      const receptor = c.detalles_xml?.receptor?.razonSocial ?? '';
 
-      doc.text(c.numero_comprobante, 40, y + 3, { width: 130 });
-      doc.text(c.tipo_comprobante, 175, y + 3, { width: 90 });
-      doc.text(fecha, 270, y + 3, { width: 80 });
-      doc.text(c.ruc_vendedor, 355, y + 3, { width: 95 });
-      doc.text((c.razon_social_vendedor ?? '').slice(0, 30), 455, y + 3, { width: 140 });
-      doc.text(c.origen, 600, y + 3, { width: 45 });
-      doc.text(total.toLocaleString('es-PY'), 650, y + 3, { width: 80, align: 'right' });
+      doc.text(c.numero_comprobante, 40, y + 3, { width: 105 });
+      doc.text(c.tipo_comprobante, 148, y + 3, { width: 55 });
+      doc.text(fecha, 206, y + 3, { width: 58 });
+      doc.text(c.ruc_vendedor, 267, y + 3, { width: 68 });
+      doc.text((c.razon_social_vendedor ?? '').slice(0, 25), 338, y + 3, { width: 110 });
+      doc.text(receptor.slice(0, 25), 451, y + 3, { width: 110 });
+      doc.text(iva10 ? iva10.toLocaleString('es-PY') : '-', 564, y + 3, { width: 55, align: 'right' });
+      doc.text(iva5 ? iva5.toLocaleString('es-PY') : '-', 622, y + 3, { width: 50, align: 'right' });
+      doc.text(total.toLocaleString('es-PY'), 675, y + 3, { width: 65, align: 'right' });
 
-      y += 14;
+      y += 13;
     });
+
+    // Totals row
+    if (y + 16 > pageHeight) {
+      addPageNum();
+      doc.addPage({ size: 'A4', layout: 'landscape', margin: 40 });
+      pageNum++;
+      y = 40;
+    }
+    const totalMontoPdf = comprobantes.reduce((s, c) => s + (parseFloat(c.total_operacion) || 0), 0);
+    const totalIva5Pdf = comprobantes.reduce((s, c) => s + calcularIva(c).iva5, 0);
+    const totalIva10Pdf = comprobantes.reduce((s, c) => s + calcularIva(c).iva10, 0);
+    doc.rect(40, y, 700, 14).fill('#EFF6FF');
+    doc.fillColor('#1E40AF').fontSize(7).font('Helvetica-Bold');
+    doc.text(`TOTALES (${comprobantes.length} comprobantes)`, 40, y + 3, { width: 520 });
+    doc.text(totalIva10Pdf.toLocaleString('es-PY'), 564, y + 3, { width: 55, align: 'right' });
+    doc.text(totalIva5Pdf.toLocaleString('es-PY'), 622, y + 3, { width: 50, align: 'right' });
+    doc.text(totalMontoPdf.toLocaleString('es-PY'), 675, y + 3, { width: 65, align: 'right' });
 
     addPageNum();
     doc.end();

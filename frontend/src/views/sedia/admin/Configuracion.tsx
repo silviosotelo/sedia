@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import {
     BarChart3, Cloud, Bell, Shield, Eye, EyeOff,
     HardDrive, Mail, Save, Database, Palette, CreditCard, Send,
-    FileText, Upload, CheckCircle, AlertTriangle,
+    FileText, Upload, CheckCircle, AlertTriangle, Search, Globe,
 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -753,6 +753,159 @@ function PlatformSifenConfigForm({ onToast }: { onToast: (type: 'success' | 'err
     )
 }
 
+/* ── SEO Config Form ─────────────────────────────────────────────────────── */
+
+function SeoConfigForm({ settings, onSave, saving }: {
+    settings: SystemSetting[]; onSave: (keys: Record<string, unknown>) => Promise<void>; saving: boolean
+}) {
+    const get = (key: string, def = '') => {
+        const s = settings.find((x) => x.key === key)
+        return typeof s?.value === 'string' ? s.value : def
+    }
+
+    const [seoTitle, setSeoTitle] = useState(get('seo_title', 'SEDIA - Plataforma de Comprobantes Fiscales'))
+    const [seoDesc, setSeoDesc] = useState(get('seo_description', 'Plataforma SaaS para gestión de comprobantes fiscales del SET Paraguay.'))
+    const [seoKeywords, setSeoKeywords] = useState(get('seo_keywords', 'comprobantes fiscales, SET Paraguay, Marangatu, eKuatia, SIFEN'))
+    const [seoOgImage, setSeoOgImage] = useState(get('seo_og_image'))
+    const [seoOgType, setSeoOgType] = useState(get('seo_og_type', 'website'))
+    const [seoOgUrl, setSeoOgUrl] = useState(get('seo_og_url'))
+    const [seoTwitterCard, setSeoTwitterCard] = useState(get('seo_twitter_card', 'summary_large_image'))
+    const [seoRobots, setSeoRobots] = useState(get('seo_robots', 'index, follow'))
+    const [seoLang, setSeoLang] = useState(get('seo_language', 'es'))
+    const [seoThemeColor, setSeoThemeColor] = useState(get('seo_theme_color', '#2a85ff'))
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                <Search className="w-5 h-5 text-emerald-500" />
+                <div>
+                    <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm">SEO y Meta Tags</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Configuración de título, descripción, keywords y Open Graph para buscadores y redes sociales</p>
+                </div>
+            </div>
+
+            <FormContainer>
+                {/* Básico */}
+                <FormItem label="Título del sitio (title tag)">
+                    <Input value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} placeholder="SEDIA - Plataforma de Comprobantes Fiscales" />
+                    <p className="text-[10px] text-gray-400 mt-1">Aparece en la pestaña del navegador y en resultados de Google</p>
+                </FormItem>
+                <FormItem label="Descripción (meta description)">
+                    <Input
+                        textArea
+                        value={seoDesc}
+                        onChange={(e) => setSeoDesc(e.target.value)}
+                        placeholder="Plataforma SaaS para gestión de comprobantes fiscales..."
+                        rows={3}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">Máximo 160 caracteres recomendado — {seoDesc.length}/160</p>
+                </FormItem>
+                <FormItem label="Keywords (separadas por coma)">
+                    <Input
+                        textArea
+                        value={seoKeywords}
+                        onChange={(e) => setSeoKeywords(e.target.value)}
+                        placeholder="comprobantes fiscales, SET Paraguay, Marangatu, eKuatia, SIFEN"
+                        rows={2}
+                    />
+                </FormItem>
+
+                {/* Open Graph */}
+                <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h6 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <Globe className="w-4 h-4" /> Open Graph (Redes Sociales)
+                    </h6>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormItem label="URL de imagen (og:image)">
+                            <Input value={seoOgImage} onChange={(e) => setSeoOgImage(e.target.value)} placeholder="https://tusitio.com/og-image.png" />
+                            <p className="text-[10px] text-gray-400 mt-1">Tamaño recomendado: 1200×630px</p>
+                        </FormItem>
+                        <FormItem label="URL canónica (og:url)">
+                            <Input value={seoOgUrl} onChange={(e) => setSeoOgUrl(e.target.value)} placeholder="https://tusitio.com" />
+                        </FormItem>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormItem label="Tipo OG">
+                            <div className="flex gap-2">
+                                {['website', 'article', 'product'].map((t) => (
+                                    <Button key={t} variant={seoOgType === t ? 'solid' : 'default'} size="xs" onClick={() => setSeoOgType(t)}>
+                                        {t}
+                                    </Button>
+                                ))}
+                            </div>
+                        </FormItem>
+                        <FormItem label="Twitter Card">
+                            <div className="flex gap-2">
+                                {['summary', 'summary_large_image'].map((t) => (
+                                    <Button key={t} variant={seoTwitterCard === t ? 'solid' : 'default'} size="xs" onClick={() => setSeoTwitterCard(t)}>
+                                        {t === 'summary' ? 'Summary' : 'Large Image'}
+                                    </Button>
+                                ))}
+                            </div>
+                        </FormItem>
+                    </div>
+                    {seoOgImage && (
+                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider">Preview OG Image</p>
+                            <img src={seoOgImage} alt="OG Preview" className="max-h-32 rounded-lg object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                        </div>
+                    )}
+                </div>
+
+                {/* Técnico */}
+                <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <h6 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                        <Shield className="w-4 h-4" /> Configuración técnica
+                    </h6>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <FormItem label="Robots">
+                            <div className="flex gap-2">
+                                {['index, follow', 'noindex, nofollow', 'index, nofollow'].map((r) => (
+                                    <Button key={r} variant={seoRobots === r ? 'solid' : 'default'} size="xs" onClick={() => setSeoRobots(r)}>
+                                        {r}
+                                    </Button>
+                                ))}
+                            </div>
+                        </FormItem>
+                        <FormItem label="Idioma (lang)">
+                            <Input value={seoLang} onChange={(e) => setSeoLang(e.target.value)} placeholder="es" className="font-mono" />
+                        </FormItem>
+                        <FormItem label="Theme color">
+                            <div className="flex gap-2 items-center">
+                                <input type="color" value={seoThemeColor} onChange={(e) => setSeoThemeColor(e.target.value)} className="w-10 h-9 rounded border border-gray-200 dark:border-gray-700 cursor-pointer" />
+                                <Input value={seoThemeColor} onChange={(e) => setSeoThemeColor(e.target.value)} className="font-mono" placeholder="#2a85ff" />
+                            </div>
+                        </FormItem>
+                    </div>
+                </div>
+            </FormContainer>
+
+            <div className="flex justify-end pt-2">
+                <Button
+                    variant="solid"
+                    icon={<Save className="w-4 h-4" />}
+                    loading={saving}
+                    disabled={saving}
+                    onClick={() => void onSave({
+                        seo_title: seoTitle,
+                        seo_description: seoDesc,
+                        seo_keywords: seoKeywords,
+                        seo_og_image: seoOgImage,
+                        seo_og_type: seoOgType,
+                        seo_og_url: seoOgUrl,
+                        seo_twitter_card: seoTwitterCard,
+                        seo_robots: seoRobots,
+                        seo_language: seoLang,
+                        seo_theme_color: seoThemeColor,
+                    })}
+                >
+                    Guardar SEO
+                </Button>
+            </div>
+        </div>
+    )
+}
+
 /* ── Main Component ───────────────────────────────────────────────────────── */
 
 const Configuracion = () => {
@@ -835,6 +988,7 @@ const Configuracion = () => {
     const tabs = [
         { id: 'overview', label: 'Resumen', icon: BarChart3 },
         { id: 'branding', label: 'Branding', icon: Palette },
+        { id: 'seo', label: 'SEO', icon: Search },
         { id: 'almacenamiento', label: 'Almacenamiento', icon: HardDrive },
         { id: 'pagos', label: 'Pasarela de Pagos', icon: Shield },
         { id: 'correo', label: 'Correo', icon: Mail },
@@ -930,6 +1084,12 @@ const Configuracion = () => {
                     <Tabs.TabContent value="branding">
                         <Card>
                             <BrandingConfigForm settings={systemConfig} onSave={handleSaveBranding} saving={savingConfig} />
+                        </Card>
+                    </Tabs.TabContent>
+
+                    <Tabs.TabContent value="seo">
+                        <Card>
+                            <SeoConfigForm settings={systemConfig} onSave={handleSaveBranding} saving={savingConfig} />
                         </Card>
                     </Tabs.TabContent>
 

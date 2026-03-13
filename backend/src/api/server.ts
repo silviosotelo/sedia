@@ -126,7 +126,7 @@ export async function buildServer() {
   await app.register(userNotificationRoutes, { prefix: '/api' });
   await app.register(platformSifenRoutes, { prefix: '/api' });
   await app.register(sifenRefRoutes, { prefix: '/api' });
-  await app.register(publicRoutes); // No lleva prefijo /api porque es público
+  await app.register(publicRoutes, { prefix: '/api' });
 
   logger.info('Servidor Fastify configurado');
   return app;

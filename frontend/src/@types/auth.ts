@@ -84,10 +84,24 @@ export type OauthSignInCallbackPayload = {
     redirect: () => void
 }
 
+export type SeoConfig = {
+    title: string
+    description: string
+    keywords: string
+    og_image: string
+    og_type: string
+    og_url: string
+    twitter_card: string
+    robots: string
+    language: string
+    theme_color: string
+}
+
 export type Branding = {
     nombre_app: string
     color_primario: string
     color_secundario: string
     logo_url: string
     favicon_url: string
+    seo?: SeoConfig
 }

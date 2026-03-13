@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react'
 import Select from '@/components/ui/Select'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import { useTenantStore } from '@/store/tenantStore'
+import { useBrandingStore } from '@/store/brandingStore'
 import { useSediaUser, useIsSuperAdmin } from '@/utils/hooks/useSediaAuth'
 import { api } from '@/services/sedia/api'
 import { Building2 } from 'lucide-react'
@@ -60,8 +61,9 @@ const _TenantSelector = () => {
     }
 
     // Add platform tenant as first option for super_admin
+    const appName = useBrandingStore((s) => s.nombre_app) || 'SEDIA'
     const options: TenantOption[] = [
-        { value: PLATFORM_TENANT_ID, label: 'SEDIA Plataforma' },
+        { value: PLATFORM_TENANT_ID, label: `${appName} Plataforma` },
         ...tenants.map((t) => ({
             value: t.id,
             label: `${t.nombre_fantasia} (${t.ruc})`,
