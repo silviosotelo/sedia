@@ -5,7 +5,7 @@
   }
   
   .dialog-content {
-    @apply p-6 rounded-2xl shadow-xl mx-4 my-8 sm:mx-0 sm:my-16 relative h-full bg-white dark:bg-gray-800;
+    @apply rounded-2xl shadow-xl mx-4 my-8 sm:mx-0 sm:my-16 relative bg-white dark:bg-gray-800 flex flex-col max-h-[90vh];
   }
   
   .dialog-overlay {

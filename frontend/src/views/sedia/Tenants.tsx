@@ -217,7 +217,7 @@ function SyncModal({
             onClose={onClose}
             width={480}
         >
-            <div className="px-6 pt-5 pb-2">
+            <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-white mb-0.5">Sincronizar comprobantes</h5>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{tenantName}</p>
             </div>
@@ -285,7 +285,7 @@ function SyncModal({
                 </p>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" onClick={onClose} disabled={loading}>
                     Cancelar
                 </Button>
@@ -338,7 +338,7 @@ function VirtualSyncModal({
 
     return (
         <Dialog isOpen={open} onClose={onClose} width={480}>
-            <div className="px-6 pt-5 pb-2">
+            <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-white mb-0.5">
                     Sincronizar facturas virtuales
                 </h5>
@@ -454,7 +454,7 @@ function VirtualSyncModal({
                 </p>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" onClick={onClose} disabled={loading}>
                     Cancelar
                 </Button>
@@ -1147,7 +1147,7 @@ const Tenants = () => {
                 onClose={() => setView('list')}
                 width={680}
             >
-                <div className="px-6 pt-5 pb-2">
+                <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white mb-0.5">
                         Nueva empresa
                     </h5>
@@ -1155,13 +1155,11 @@ const Tenants = () => {
                         Completá los datos básicos y configurá las credenciales de Marangatu
                     </p>
                 </div>
-                <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
-                    <TenantFormInner
-                        onSubmit={handleCreate}
-                        onCancel={() => setView('list')}
-                        loading={formLoading}
-                    />
-                </div>
+                <TenantFormInner
+                    onSubmit={handleCreate}
+                    onCancel={() => setView('list')}
+                    loading={formLoading}
+                />
             </Dialog>
 
             {/* Detail / edit view */}
@@ -1546,7 +1544,7 @@ const Tenants = () => {
                             onClose={() => setView('detail')}
                             width={680}
                         >
-                            <div className="px-6 pt-5 pb-2">
+                            <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                                 <h5 className="font-bold text-gray-900 dark:text-white mb-0.5">
                                     Editar empresa
                                 </h5>
@@ -1554,14 +1552,12 @@ const Tenants = () => {
                                     {selectedTenant.nombre_fantasia}
                                 </p>
                             </div>
-                            <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
-                                <TenantFormInner
-                                    initialData={selectedTenant}
-                                    onSubmit={handleUpdate}
-                                    onCancel={() => setView('detail')}
-                                    loading={formLoading}
-                                />
-                            </div>
+                            <TenantFormInner
+                                initialData={selectedTenant}
+                                onSubmit={handleUpdate}
+                                onCancel={() => setView('detail')}
+                                loading={formLoading}
+                            />
                         </Dialog>
                     )}
                 </div>
@@ -1591,7 +1587,7 @@ const Tenants = () => {
                 onClose={() => setXmlModalOpen(false)}
                 width={440}
             >
-                <div className="px-6 pt-5 pb-2">
+                <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white mb-0.5">
                         Descargar XMLs
                     </h5>
@@ -1610,7 +1606,7 @@ const Tenants = () => {
                         eKuatia.
                     </p>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button
                         size="sm"
                         onClick={() => setXmlModalOpen(false)}

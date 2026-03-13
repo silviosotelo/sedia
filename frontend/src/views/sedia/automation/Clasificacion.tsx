@@ -73,81 +73,83 @@ function ReglaForm({ initial, onSave, onCancel, saving }: {
     }
 
     return (
-        <div className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Nombre de la regla</label>
-                    <Input placeholder="Proveedor XYZ" value={form.nombre} onChange={(e) => setField('nombre', e.target.value)} />
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Nombre de la regla</label>
+                        <Input placeholder="Proveedor XYZ" value={form.nombre} onChange={(e) => setField('nombre', e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Etiqueta a aplicar</label>
+                        <Input placeholder="Gasto operativo" value={form.etiqueta} onChange={(e) => setField('etiqueta', e.target.value)} />
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Etiqueta a aplicar</label>
-                    <Input placeholder="Gasto operativo" value={form.etiqueta} onChange={(e) => setField('etiqueta', e.target.value)} />
-                </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Campo</label>
-                    <Select
-                        options={campoOptions}
-                        value={campoOptions.find((o) => o.value === form.campo) ?? null}
-                        onChange={(opt) => { if (opt) handleCampoChange(opt.value as ClasificacionRegla['campo']) }}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Operador</label>
-                    <Select
-                        options={operadorOptions}
-                        value={operadorOptions.find((o) => o.value === form.operador) ?? null}
-                        onChange={(opt) => { if (opt) setField('operador', opt.value as ClasificacionRegla['operador']) }}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Valor</label>
-                    {form.campo === 'tipo_comprobante' ? (
+                <div className="grid grid-cols-3 gap-4">
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Campo</label>
                         <Select
-                            options={TIPO_COMP_OPTIONS}
-                            value={TIPO_COMP_OPTIONS.find((o) => o.value === form.valor) ?? null}
-                            onChange={(opt) => setField('valor', opt?.value ?? '')}
+                            options={campoOptions}
+                            value={campoOptions.find((o) => o.value === form.campo) ?? null}
+                            onChange={(opt) => { if (opt) handleCampoChange(opt.value as ClasificacionRegla['campo']) }}
                         />
-                    ) : (
-                        <Input
-                            placeholder={form.campo.includes('monto') ? 'Ej: 1000000' : 'Ej: 80012345-6'}
-                            value={form.valor}
-                            onChange={(e) => setField('valor', e.target.value)}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Operador</label>
+                        <Select
+                            options={operadorOptions}
+                            value={operadorOptions.find((o) => o.value === form.operador) ?? null}
+                            onChange={(opt) => { if (opt) setField('operador', opt.value as ClasificacionRegla['operador']) }}
                         />
-                    )}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Valor</label>
+                        {form.campo === 'tipo_comprobante' ? (
+                            <Select
+                                options={TIPO_COMP_OPTIONS}
+                                value={TIPO_COMP_OPTIONS.find((o) => o.value === form.valor) ?? null}
+                                onChange={(opt) => setField('valor', opt?.value ?? '')}
+                            />
+                        ) : (
+                            <Input
+                                placeholder={form.campo.includes('monto') ? 'Ej: 1000000' : 'Ej: 80012345-6'}
+                                value={form.valor}
+                                onChange={(e) => setField('valor', e.target.value)}
+                            />
+                        )}
+                    </div>
                 </div>
-            </div>
-            <div className="grid grid-cols-12 gap-4 items-end">
-                <div className="col-span-12 sm:col-span-5">
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Color de etiqueta</label>
-                    <div className="flex items-center gap-2 h-10">
-                        <div className="flex gap-1.5 flex-wrap">
-                            {COLORES_PRESET.map((c) => (
-                                <button
-                                    key={c}
-                                    type="button"
-                                    onClick={() => setField('color', c)}
-                                    className={`w-6 h-6 rounded-full border-2 transition-transform ${form.color === c ? 'border-gray-400 dark:border-gray-500 scale-110' : 'border-transparent'}`}
-                                    style={{ backgroundColor: c }}
-                                />
-                            ))}
+                <div className="grid grid-cols-12 gap-4 items-end">
+                    <div className="col-span-12 sm:col-span-5">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Color de etiqueta</label>
+                        <div className="flex items-center gap-2 h-10">
+                            <div className="flex gap-1.5 flex-wrap">
+                                {COLORES_PRESET.map((c) => (
+                                    <button
+                                        key={c}
+                                        type="button"
+                                        onClick={() => setField('color', c)}
+                                        className={`w-6 h-6 rounded-full border-2 transition-transform ${form.color === c ? 'border-gray-400 dark:border-gray-500 scale-110' : 'border-transparent'}`}
+                                        style={{ backgroundColor: c }}
+                                    />
+                                ))}
+                            </div>
+                            <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200 dark:border-gray-700 flex-shrink-0" />
                         </div>
-                        <input type="color" value={form.color} onChange={(e) => setField('color', e.target.value)} className="w-8 h-8 rounded cursor-pointer border border-gray-200 dark:border-gray-700 flex-shrink-0" />
                     </div>
-                </div>
-                <div className="col-span-7 sm:col-span-4">
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Prioridad</label>
-                    <Input type="number" min={0} max={999} value={form.prioridad} onChange={(e) => setField('prioridad', parseInt(e.target.value) || 0)} />
-                </div>
-                <div className="col-span-5 sm:col-span-3">
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Activa</label>
-                    <div className="flex items-center h-10 pl-1">
-                        <Switcher checked={form.activo} onChange={(checked) => setField('activo', checked)} />
+                    <div className="col-span-7 sm:col-span-4">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Prioridad</label>
+                        <Input type="number" min={0} max={999} value={form.prioridad} onChange={(e) => setField('prioridad', parseInt(e.target.value) || 0)} />
+                    </div>
+                    <div className="col-span-5 sm:col-span-3">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Activa</label>
+                        <div className="flex items-center h-10 pl-1">
+                            <Switcher checked={form.activo} onChange={(checked) => setField('activo', checked)} />
+                        </div>
                     </div>
                 </div>
             </div>
-            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button variant="default" onClick={onCancel} disabled={saving}>Cancelar</Button>
                 <Button variant="solid" onClick={() => void onSave(form)} disabled={saving || !form.nombre || !form.etiqueta || !form.valor} loading={saving}>
                     Guardar regla
@@ -333,39 +335,35 @@ const Clasificacion = () => {
             )}
 
             <Dialog isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} width={580}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Nueva regla</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    <ReglaForm onSave={handleCreate} onCancel={() => setShowCreateModal(false)} saving={saving} />
-                </div>
+                <ReglaForm onSave={handleCreate} onCancel={() => setShowCreateModal(false)} saving={saving} />
             </Dialog>
 
             <Dialog isOpen={!!editingRegla} onClose={() => setEditingRegla(null)} width={580}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Editar regla</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    {editingRegla && (
-                        <ReglaForm
-                            key={editingRegla.id}
-                            initial={{
-                                nombre: editingRegla.nombre,
-                                descripcion: editingRegla.descripcion ?? '',
-                                campo: editingRegla.campo,
-                                operador: editingRegla.operador,
-                                valor: editingRegla.valor,
-                                etiqueta: editingRegla.etiqueta,
-                                color: editingRegla.color,
-                                prioridad: editingRegla.prioridad,
-                                activo: editingRegla.activo,
-                            }}
-                            onSave={handleUpdate}
-                            onCancel={() => setEditingRegla(null)}
-                            saving={saving}
-                        />
-                    )}
-                </div>
+                {editingRegla && (
+                    <ReglaForm
+                        key={editingRegla.id}
+                        initial={{
+                            nombre: editingRegla.nombre,
+                            descripcion: editingRegla.descripcion ?? '',
+                            campo: editingRegla.campo,
+                            operador: editingRegla.operador,
+                            valor: editingRegla.valor,
+                            etiqueta: editingRegla.etiqueta,
+                            color: editingRegla.color,
+                            prioridad: editingRegla.prioridad,
+                            activo: editingRegla.activo,
+                        }}
+                        onSave={handleUpdate}
+                        onCancel={() => setEditingRegla(null)}
+                        saving={saving}
+                    />
+                )}
             </Dialog>
 
             <ConfirmDialog

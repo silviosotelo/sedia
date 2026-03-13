@@ -121,12 +121,12 @@ function UploadModal({
 
     return (
         <Dialog isOpen={isOpen} onClose={onClose} width={480}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-gray-100">Importar extracto</h5>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Carga el archivo del banco para conciliar</p>
             </div>
 
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-5">
                     <div
                         onDragOver={(e) => e.preventDefault()}
@@ -167,7 +167,7 @@ function UploadModal({
                 </div>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" variant="default" onClick={onClose} disabled={uploading}>
                     Cancelar
                 </Button>
@@ -220,11 +220,11 @@ function NewAccountModal({
 
     return (
         <Dialog isOpen={isOpen} onClose={onClose} width={480}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-gray-100">Nueva cuenta</h5>
             </div>
 
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-4">
                     <FormItem label="Banco">
                         {(() => {
@@ -292,7 +292,7 @@ function NewAccountModal({
                 </div>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" variant="default" onClick={onClose} disabled={saving}>
                     Cancelar
                 </Button>

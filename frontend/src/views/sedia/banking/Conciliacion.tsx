@@ -68,11 +68,11 @@ function RunModal({
 
     return (
         <Dialog isOpen={true} onClose={onClose} width={440}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-gray-100">Nueva conciliacion</h5>
             </div>
 
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-4">
                     <FormItem label="Cuenta bancaria (opcional)">
                         {(() => {
@@ -109,7 +109,7 @@ function RunModal({
                 </div>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" variant="default" onClick={onClose} disabled={creating}>
                     Cancelar
                 </Button>
@@ -197,14 +197,14 @@ function ManualMatchModal({
 
     return (
         <Dialog isOpen={true} onClose={onClose} width={600}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-gray-100">Conciliacion Manual</h5>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                     Transaccion bancaria de {formatCurrency(Math.abs(matchDoc.diferencia_monto ?? 0))}. Selecciona los comprobantes a saldar.
                 </p>
             </div>
 
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-3 min-h-[200px]">
                     {loadingComps ? (
                         <div className="py-8 flex justify-center">
@@ -258,7 +258,7 @@ function ManualMatchModal({
                 </div>
             </div>
 
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex items-center justify-between gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex items-center justify-between gap-2">
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                     Total asignado:{' '}
                     <strong className="text-gray-900 dark:text-gray-100">{formatCurrency(totalAsignado)}</strong>

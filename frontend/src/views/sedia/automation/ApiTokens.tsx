@@ -36,10 +36,10 @@ function TokenRevealDialog({ token, onClose }: { token: string; onClose: () => v
 
     return (
         <Dialog isOpen={true} onClose={onClose} width={520}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-white">Token generado</h5>
             </div>
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-4">
                     <div className="flex items-start gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
                         <Shield className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -64,7 +64,7 @@ function TokenRevealDialog({ token, onClose }: { token: string; onClose: () => v
                     </div>
                 </div>
             </div>
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" variant="solid" onClick={onClose}>Entendido, ya lo copié</Button>
             </div>
         </Dialog>
@@ -280,10 +280,10 @@ const ApiTokens = () => {
 
             {/* Create Token Dialog */}
             <Dialog isOpen={showForm} onClose={() => { setShowForm(false); setNombre(''); setExpiraAt('') }} width={440}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Nuevo token de API</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div className="space-y-4">
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Nombre descriptivo</label>
@@ -300,7 +300,7 @@ const ApiTokens = () => {
                         </div>
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" variant="default" onClick={() => { setShowForm(false); setNombre(''); setExpiraAt('') }} disabled={saving}>
                         Cancelar
                     </Button>

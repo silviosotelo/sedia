@@ -400,10 +400,10 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
 
             {/* Anular Dialog */}
             <Dialog isOpen={anularOpen} onClose={() => { if (!anulando) { setAnularOpen(false); setAnularMotivo('') } }} width={480}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Anular Documento Electrónico</h4>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg mb-4">
                         <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
                         <div className="text-sm text-red-700 dark:text-red-300">
@@ -419,7 +419,7 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                         )}
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" disabled={anulando} onClick={() => { setAnularOpen(false); setAnularMotivo('') }}>Cancelar</Button>
                     <Button size="sm" variant="solid" customColorClass={() => 'bg-red-500 text-white hover:bg-red-600'} loading={anulando} disabled={anulando || anularMotivo.trim().length < 10} onClick={handleAnularConfirm}>
                         Confirmar Anulación
@@ -429,16 +429,16 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
 
             {/* Email Dialog */}
             <Dialog isOpen={emailOpen} onClose={() => { if (actionLoading !== 'email') setEmailOpen(false) }} width={420}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Enviar por Email</h4>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div>
                         <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 block mb-1">Email destino (vacío = email del receptor)</label>
                         <Input value={emailDestino} onChange={e => setEmailDestino(e.target.value)} placeholder="receptor@empresa.com" type="email" />
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" onClick={() => setEmailOpen(false)}>Cancelar</Button>
                     <Button size="sm" variant="solid" loading={actionLoading === 'email'} onClick={handleEnviarEmail}>Enviar</Button>
                 </div>
@@ -770,10 +770,10 @@ const SifenDocumentos = () => {
 
             {/* Anular Dialog */}
             <Dialog isOpen={!!anularTarget} onClose={() => { if (!anulando) { setAnularTarget(null); setAnularMotivo('') } }} width={480}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Anular Documento Electrónico</h4>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg mb-4">
                         <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
                         <div className="text-sm text-red-700 dark:text-red-300">
@@ -789,7 +789,7 @@ const SifenDocumentos = () => {
                         )}
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" disabled={anulando} onClick={() => { setAnularTarget(null); setAnularMotivo('') }}>Cancelar</Button>
                     <Button size="sm" variant="solid" customColorClass={() => 'bg-red-500 text-white hover:bg-red-600'} loading={anulando} disabled={anulando || anularMotivo.trim().length < 10} onClick={handleAnularConfirm}>
                         Confirmar Anulación
@@ -799,10 +799,10 @@ const SifenDocumentos = () => {
 
             {/* Vincular Dialog */}
             <Dialog isOpen={!!vincularTarget} onClose={() => { if (!vinculando) { setVincularTarget(null); setVincularComprobanteId('') } }} width={420}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Vincular a Comprobante</h4>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
                         <Link2 className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                         <p className="text-sm text-blue-700 dark:text-blue-300">Vinculá este documento electrónico a un comprobante existente para mantener la trazabilidad.</p>
@@ -812,7 +812,7 @@ const SifenDocumentos = () => {
                         <Input value={vincularComprobanteId} onChange={e => setVincularComprobanteId(e.target.value)} placeholder="UUID del comprobante a vincular" />
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" disabled={vinculando} onClick={() => { setVincularTarget(null); setVincularComprobanteId('') }}>Cancelar</Button>
                     <Button size="sm" variant="solid" loading={vinculando} disabled={vinculando || !vincularComprobanteId.trim()} onClick={handleVincularConfirm}>Vincular</Button>
                 </div>

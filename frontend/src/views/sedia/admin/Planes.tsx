@@ -94,54 +94,57 @@ function PlanForm({ initial, onSave, onCancel, loading }: {
     }
 
     return (
-        <FormContainer>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormItem label="Nombre *">
-                    <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="FREE, PRO, ENTERPRISE..." />
-                </FormItem>
-                <FormItem label="Precio mensual (Gs.)">
-                    <Input type="number" value={precio} onChange={(e) => { setPrecio(e.target.value); recalcAnual(e.target.value, descuentoAnual) }} min={0} />
-                </FormItem>
-                <FormItem label="Descuento anual (%)">
-                    <Input type="number" value={descuentoAnual} onChange={(e) => { setDescuentoAnual(e.target.value); recalcAnual(precio, e.target.value) }} min={0} max={100} placeholder="20" />
-                </FormItem>
-                <FormItem label="Precio anual (Gs.)">
-                    <Input type="number" value={precioAnual} onChange={(e) => setPrecioAnual(e.target.value)} min={0} />
-                    {Number(precio) > 0 && Number(precioAnual) > 0 && (
-                        <span className="text-[11px] text-gray-400 mt-0.5">
-                            Equivale a {fmtGs(Math.round(Number(precioAnual) / 12))}/mes ({Math.round((1 - Number(precioAnual) / (Number(precio) * 12)) * 100)}% ahorro)
-                        </span>
-                    )}
-                </FormItem>
-                <FormItem label="Limite comprobantes/mes (vacio = ilimitado)">
-                    <Input type="number" value={limiteComp} onChange={(e) => setLimiteComp(e.target.value)} min={0} placeholder="Ilimitado" />
-                </FormItem>
-                <FormItem label="Limite usuarios">
-                    <Input type="number" value={limiteUsuarios} onChange={(e) => setLimiteUsuarios(e.target.value)} min={1} />
-                </FormItem>
-            </div>
-            <FormItem label="Descripcion">
-                <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
-            </FormItem>
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
+                <FormContainer>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormItem label="Nombre *">
+                            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="FREE, PRO, ENTERPRISE..." />
+                        </FormItem>
+                        <FormItem label="Precio mensual (Gs.)">
+                            <Input type="number" value={precio} onChange={(e) => { setPrecio(e.target.value); recalcAnual(e.target.value, descuentoAnual) }} min={0} />
+                        </FormItem>
+                        <FormItem label="Descuento anual (%)">
+                            <Input type="number" value={descuentoAnual} onChange={(e) => { setDescuentoAnual(e.target.value); recalcAnual(precio, e.target.value) }} min={0} max={100} placeholder="20" />
+                        </FormItem>
+                        <FormItem label="Precio anual (Gs.)">
+                            <Input type="number" value={precioAnual} onChange={(e) => setPrecioAnual(e.target.value)} min={0} />
+                            {Number(precio) > 0 && Number(precioAnual) > 0 && (
+                                <span className="text-[11px] text-gray-400 mt-0.5">
+                                    Equivale a {fmtGs(Math.round(Number(precioAnual) / 12))}/mes ({Math.round((1 - Number(precioAnual) / (Number(precio) * 12)) * 100)}% ahorro)
+                                </span>
+                            )}
+                        </FormItem>
+                        <FormItem label="Limite comprobantes/mes (vacio = ilimitado)">
+                            <Input type="number" value={limiteComp} onChange={(e) => setLimiteComp(e.target.value)} min={0} placeholder="Ilimitado" />
+                        </FormItem>
+                        <FormItem label="Limite usuarios">
+                            <Input type="number" value={limiteUsuarios} onChange={(e) => setLimiteUsuarios(e.target.value)} min={1} />
+                        </FormItem>
+                    </div>
+                    <FormItem label="Descripcion">
+                        <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
+                    </FormItem>
 
-            <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Funcionalidades incluidas</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-                    {PLAN_FEATURES.map(({ id: key }) => {
-                        const val = features[key]
-                        const displayVal = val === undefined ? false : val
-                        return <FeatureToggle key={key} featureKey={key} value={displayVal} onChange={handleFeatureChange} />
-                    })}
-                </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Funcionalidades incluidas</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                            {PLAN_FEATURES.map(({ id: key }) => {
+                                const val = features[key]
+                                const displayVal = val === undefined ? false : val
+                                return <FeatureToggle key={key} featureKey={key} value={displayVal} onChange={handleFeatureChange} />
+                            })}
+                        </div>
+                    </div>
+                </FormContainer>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-4">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button variant="default" onClick={onCancel}>Cancelar</Button>
                 <Button variant="solid" icon={<Save className="w-4 h-4" />} loading={loading} disabled={loading || !nombre} onClick={() => void handleSubmit()}>
                     {loading ? 'Guardando...' : 'Guardar plan'}
                 </Button>
             </div>
-        </FormContainer>
+        </div>
     )
 }
 
@@ -160,41 +163,44 @@ function AddonForm({ initial, onSave, onCancel, loading }: { initial?: any; onSa
     }
 
     return (
-        <FormContainer>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormItem label="Codigo * (ej: SIFEN)">
-                    <Input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} disabled={!!initial?.id} placeholder="CODIGO_ADDON" className="font-mono" />
-                </FormItem>
-                <FormItem label="Precio mensual (Gs.)">
-                    <Input type="number" value={precio} onChange={(e) => setPrecio(e.target.value)} min={0} />
-                </FormItem>
-            </div>
-            <FormItem label="Nombre *">
-                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
-            </FormItem>
-            <FormItem label="Descripcion">
-                <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
-            </FormItem>
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
+                <FormContainer>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormItem label="Codigo * (ej: SIFEN)">
+                            <Input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} disabled={!!initial?.id} placeholder="CODIGO_ADDON" className="font-mono" />
+                        </FormItem>
+                        <FormItem label="Precio mensual (Gs.)">
+                            <Input type="number" value={precio} onChange={(e) => setPrecio(e.target.value)} min={0} />
+                        </FormItem>
+                    </div>
+                    <FormItem label="Nombre *">
+                        <Input value={nombre} onChange={(e) => setNombre(e.target.value)} />
+                    </FormItem>
+                    <FormItem label="Descripcion">
+                        <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
+                    </FormItem>
 
-            <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Features que activa</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-                    {PLAN_FEATURES.map(({ id: key, label }) => (
-                        <label key={key} className="flex items-center gap-2 cursor-pointer">
-                            <Switcher checked={!!features[key]} onChange={(checked) => setFeatures((prev) => ({ ...prev, [key]: checked }))} />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-                        </label>
-                    ))}
-                </div>
+                    <div>
+                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Features que activa</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                            {PLAN_FEATURES.map(({ id: key, label }) => (
+                                <label key={key} className="flex items-center gap-2 cursor-pointer">
+                                    <Switcher checked={!!features[key]} onChange={(checked) => setFeatures((prev) => ({ ...prev, [key]: checked }))} />
+                                    <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                </FormContainer>
             </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-4">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button variant="default" onClick={onCancel}>Cancelar</Button>
                 <Button variant="solid" icon={<Save className="w-4 h-4" />} loading={loading} disabled={loading || !codigo || !nombre} onClick={() => void handleSubmit()}>
                     {loading ? 'Guardando...' : 'Guardar add-on'}
                 </Button>
             </div>
-        </FormContainer>
+        </div>
     )
 }
 
@@ -221,51 +227,55 @@ function PaymentMethodForm({ initial, onSave, onCancel, loading }: { initial?: a
     }
 
     return (
-        <FormContainer>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormItem label="Codigo *">
-                    <Input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} disabled={!!initial?.id} placeholder="BANCARD, EFECTIVO..." className="font-mono" />
-                </FormItem>
-                <FormItem label="Tipo *">
-                    <Select
-                        options={[
-                            { value: 'gateway', label: 'Gateway (Bancard, etc.)' },
-                            { value: 'manual', label: 'Manual (Efectivo, Transferencia...)' },
-                        ]}
-                        value={{ value: tipo, label: tipo === 'gateway' ? 'Gateway (Bancard, etc.)' : 'Manual (Efectivo, Transferencia...)' }}
-                        onChange={(opt) => setTipo(((opt as { value: string } | null)?.value ?? 'manual') as 'gateway' | 'manual')}
-                    />
-                </FormItem>
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
+                <FormContainer>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormItem label="Codigo *">
+                            <Input value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} disabled={!!initial?.id} placeholder="BANCARD, EFECTIVO..." className="font-mono" />
+                        </FormItem>
+                        <FormItem label="Tipo *">
+                            <Select
+                                options={[
+                                    { value: 'gateway', label: 'Gateway (Bancard, etc.)' },
+                                    { value: 'manual', label: 'Manual (Efectivo, Transferencia...)' },
+                                ]}
+                                value={{ value: tipo, label: tipo === 'gateway' ? 'Gateway (Bancard, etc.)' : 'Manual (Efectivo, Transferencia...)' }}
+                                onChange={(opt) => setTipo(((opt as { value: string } | null)?.value ?? 'manual') as 'gateway' | 'manual')}
+                            />
+                        </FormItem>
+                    </div>
+                    <FormItem label="Nombre *">
+                        <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Bancard, Efectivo, Transferencia..." />
+                    </FormItem>
+                    <FormItem label="Descripcion">
+                        <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
+                    </FormItem>
+                    {tipo === 'manual' && (
+                        <FormItem label="Configuracion (JSON)" invalid={!!configError} errorMessage={configError}>
+                            <Input textArea value={configRaw} onChange={(e) => { setConfigRaw(e.target.value); setConfigError('') }} rows={4} className="font-mono text-xs" />
+                        </FormItem>
+                    )}
+                    <div className="grid grid-cols-2 gap-4">
+                        <FormItem label="Orden">
+                            <Input type="number" value={orden} onChange={(e) => setOrden(e.target.value)} min={0} />
+                        </FormItem>
+                        <div className="flex items-end pb-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <Switcher checked={activo} onChange={(checked) => setActivo(checked)} />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">Activo</span>
+                            </label>
+                        </div>
+                    </div>
+                </FormContainer>
             </div>
-            <FormItem label="Nombre *">
-                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Bancard, Efectivo, Transferencia..." />
-            </FormItem>
-            <FormItem label="Descripcion">
-                <Input textArea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={2} />
-            </FormItem>
-            {tipo === 'manual' && (
-                <FormItem label="Configuracion (JSON)" invalid={!!configError} errorMessage={configError}>
-                    <Input textArea value={configRaw} onChange={(e) => { setConfigRaw(e.target.value); setConfigError('') }} rows={4} className="font-mono text-xs" />
-                </FormItem>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-                <FormItem label="Orden">
-                    <Input type="number" value={orden} onChange={(e) => setOrden(e.target.value)} min={0} />
-                </FormItem>
-                <div className="flex items-end pb-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                        <Switcher checked={activo} onChange={(checked) => setActivo(checked)} />
-                        <span className="text-sm text-gray-700 dark:text-gray-300">Activo</span>
-                    </label>
-                </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700 mt-4">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button variant="default" onClick={onCancel}>Cancelar</Button>
                 <Button variant="solid" icon={<Save className="w-4 h-4" />} loading={loading} disabled={loading || !codigo || !nombre} onClick={() => void handleSubmit()}>
                     {loading ? 'Guardando...' : 'Guardar metodo'}
                 </Button>
             </div>
-        </FormContainer>
+        </div>
     )
 }
 
@@ -567,20 +577,16 @@ const Planes = () => {
 
             {/* Plan Modals */}
             <Dialog isOpen={showNewPlan} onClose={() => setShowNewPlan(false)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Nuevo plan</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    <PlanForm onSave={handleCreatePlan} onCancel={() => setShowNewPlan(false)} loading={formLoading} />
-                </div>
+                <PlanForm onSave={handleCreatePlan} onCancel={() => setShowNewPlan(false)} loading={formLoading} />
             </Dialog>
             <Dialog isOpen={!!editingPlan} onClose={() => setEditingPlan(null)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Editar plan</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    {editingPlan && <PlanForm initial={editingPlan} onSave={handleUpdatePlan} onCancel={() => setEditingPlan(null)} loading={formLoading} />}
-                </div>
+                {editingPlan && <PlanForm initial={editingPlan} onSave={handleUpdatePlan} onCancel={() => setEditingPlan(null)} loading={formLoading} />}
             </Dialog>
             <ConfirmDialog isOpen={!!deletePlanId} type="danger" title="Eliminar plan" onClose={() => setDeletePlanId(null)} onRequestClose={() => setDeletePlanId(null)} onCancel={() => setDeletePlanId(null)} onConfirm={() => void handleDeletePlan()}>
                 <p>Los tenants que lo usan no seran afectados inmediatamente.</p>
@@ -588,20 +594,16 @@ const Planes = () => {
 
             {/* Addon Modals */}
             <Dialog isOpen={showNewAddon} onClose={() => setShowNewAddon(false)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Nuevo add-on</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    <AddonForm onSave={handleCreateAddon} onCancel={() => setShowNewAddon(false)} loading={addonFormLoading} />
-                </div>
+                <AddonForm onSave={handleCreateAddon} onCancel={() => setShowNewAddon(false)} loading={addonFormLoading} />
             </Dialog>
             <Dialog isOpen={!!editingAddon} onClose={() => setEditingAddon(null)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Editar add-on</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    {editingAddon && <AddonForm initial={editingAddon} onSave={handleUpdateAddon} onCancel={() => setEditingAddon(null)} loading={addonFormLoading} />}
-                </div>
+                {editingAddon && <AddonForm initial={editingAddon} onSave={handleUpdateAddon} onCancel={() => setEditingAddon(null)} loading={addonFormLoading} />}
             </Dialog>
             <ConfirmDialog isOpen={!!deleteAddonId} type="danger" title="Desactivar add-on" onClose={() => setDeleteAddonId(null)} onRequestClose={() => setDeleteAddonId(null)} onCancel={() => setDeleteAddonId(null)} onConfirm={() => void handleDeleteAddon()}>
                 <p>Los tenants que lo tienen activo seguiran teniendolo hasta que se desactive manualmente.</p>
@@ -609,20 +611,16 @@ const Planes = () => {
 
             {/* Payment Method Modals */}
             <Dialog isOpen={showNewPm} onClose={() => setShowNewPm(false)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Nuevo metodo de pago</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    <PaymentMethodForm onSave={handleCreatePm} onCancel={() => setShowNewPm(false)} loading={pmFormLoading} />
-                </div>
+                <PaymentMethodForm onSave={handleCreatePm} onCancel={() => setShowNewPm(false)} loading={pmFormLoading} />
             </Dialog>
             <Dialog isOpen={!!editingPm} onClose={() => setEditingPm(null)} width={680}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">Editar metodo de pago</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    {editingPm && <PaymentMethodForm initial={editingPm} onSave={handleUpdatePm} onCancel={() => setEditingPm(null)} loading={pmFormLoading} />}
-                </div>
+                {editingPm && <PaymentMethodForm initial={editingPm} onSave={handleUpdatePm} onCancel={() => setEditingPm(null)} loading={pmFormLoading} />}
             </Dialog>
             <ConfirmDialog isOpen={!!deletePmId} type="danger" title="Eliminar metodo de pago" onClose={() => setDeletePmId(null)} onRequestClose={() => setDeletePmId(null)} onCancel={() => setDeletePmId(null)} onConfirm={() => void handleDeletePm()}>
                 <p>Esta accion no puede deshacerse.</p>

@@ -317,9 +317,9 @@ export function TenantFormInner({
     )?.smtp_host
 
     return (
-        <div>
+        <div className="flex flex-col flex-1 min-h-0">
             {/* Tab navigation */}
-            <div className="flex border-b border-gray-200 dark:border-gray-700 mb-5 overflow-x-auto">
+            <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto flex-shrink-0 px-6">
                 {FORM_TABS.map((t) => (
                     <button
                         key={t}
@@ -337,8 +337,8 @@ export function TenantFormInner({
                 ))}
             </div>
 
-            <FormContainer>
-                <div className="space-y-4">
+            <FormContainer className="flex-1 min-h-0 overflow-y-auto px-6">
+                <div className="space-y-4 pb-2">
                     {/* General tab */}
                     {activeTab === 'general' && (
                         <>
@@ -836,7 +836,7 @@ export function TenantFormInner({
                 </div>
             </FormContainer>
 
-            <div className="flex justify-end gap-3 pt-5 mt-5 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex justify-end gap-3 px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
                 <Button size="sm" onClick={onCancel} disabled={loading}>
                     Cancelar
                 </Button>

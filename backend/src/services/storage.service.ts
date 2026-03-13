@@ -17,25 +17,11 @@ export class StorageService {
   private publicUrl: string;
 
   constructor() {
-    this.enabled = process.env.R2_ENABLED === 'true';
-    this.bucket = process.env.R2_BUCKET_NAME ?? 'sedia-storage';
-    this.publicUrl = process.env.R2_PUBLIC_URL ?? '';
+    this.enabled = false;
+    this.bucket = 'sedia-storage';
+    this.publicUrl = '';
     this.client = null;
-
-    if (this.enabled) {
-      const accountId = process.env.R2_ACCOUNT_ID;
-      const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-      const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-
-      if (accountId && accessKeyId && secretAccessKey) {
-        this.initClient({ accountId, accessKeyId, secretAccessKey });
-      } else {
-        logger.warn('StorageService: R2_ENABLED=true pero faltan credenciales en ENV');
-        this.enabled = false;
-      }
-    } else {
-      logger.warn('StorageService: R2 deshabilitado inicialmente (usando ENV)');
-    }
+    // Storage se configura exclusivamente desde system_settings via reconfigureFromDB()
   }
 
   private initClient(config: { accountId: string; accessKeyId: string; secretAccessKey: string }) {
@@ -61,11 +47,11 @@ export class StorageService {
     if (!config) return;
 
     // Normalizar campos: soportar ambos formatos de config de la DB
-    const accountId = config.account_id || config.r2_account_id || process.env.R2_ACCOUNT_ID;
-    const accessKeyId = config.access_key_id || config.r2_access_key || process.env.R2_ACCESS_KEY_ID;
-    const secretAccessKey = config.secret_access_key || config.r2_secret_key || process.env.R2_SECRET_ACCESS_KEY;
-    const bucket = config.bucket || config.r2_bucket || this.bucket;
-    const publicUrl = config.public_url || config.r2_public_url || this.publicUrl;
+    const accountId = config.account_id || config.r2_account_id;
+    const accessKeyId = config.access_key_id || config.r2_access_key;
+    const secretAccessKey = config.secret_access_key || config.r2_secret_key;
+    const bucket = config.bucket || config.r2_bucket || 'sedia-storage';
+    const publicUrl = config.public_url || config.r2_public_url || '';
 
     // Determinar si está habilitado
     const isEnabled = config.enabled !== undefined

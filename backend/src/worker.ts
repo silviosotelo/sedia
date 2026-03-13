@@ -10,6 +10,15 @@ async function main(): Promise<void> {
     maxConcurrentJobs: config.worker.maxConcurrentJobs,
   });
 
+  // Cargar configuración de storage (R2) desde la DB — necesario para descargar certificados SIFEN
+  try {
+    const { storageService } = require('./services/storage.service');
+    await storageService.reconfigureFromDB();
+    logger.info('Storage configurado desde DB para worker');
+  } catch (err) {
+    logger.warn('No se pudo cargar configuración de storage desde la DB', { error: (err as Error).message });
+  }
+
   const controller = new AbortController();
 
   startScheduler();

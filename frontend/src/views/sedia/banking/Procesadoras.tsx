@@ -619,12 +619,12 @@ const Procesadoras = () => {
 
             {/* Config Modal */}
             <Dialog isOpen={isConfigModalOpen} onClose={() => !saving && setIsConfigModalOpen(false)} width={480}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">
                         Configuracion: {selectedProcessor?.nombre}
                     </h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="config-form" onSubmit={(e) => void handleConfigSubmit(e)} className="space-y-4">
                         <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 text-sm p-3 rounded-xl flex items-start gap-2 border border-blue-100 dark:border-blue-800">
                             <Key className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
@@ -662,7 +662,7 @@ const Procesadoras = () => {
                         </FormItem>
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" type="button" variant="default" onClick={() => setIsConfigModalOpen(false)} disabled={saving}>
                         Cancelar
                     </Button>
@@ -682,12 +682,12 @@ const Procesadoras = () => {
 
             {/* Import Modal */}
             <Dialog isOpen={isImportModalOpen} onClose={() => !saving && setIsImportModalOpen(false)} width={440}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">
                         Importar: {selectedProcessor?.nombre}
                     </h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="import-form" onSubmit={(e) => void handleImportSubmit(e)} className="space-y-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Seleccione el periodo contable que desea extraer desde la plataforma de {selectedProcessor?.nombre}.
@@ -722,7 +722,7 @@ const Procesadoras = () => {
                         </div>
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" type="button" variant="default" onClick={() => setIsImportModalOpen(false)} disabled={saving}>
                         Cancelar
                     </Button>
@@ -742,12 +742,12 @@ const Procesadoras = () => {
 
             {/* Upload CSV Modal */}
             <Dialog isOpen={isUploadModalOpen} onClose={() => !uploading && setIsUploadModalOpen(false)} width={480}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">
                         Subir CSV: {selectedProcessor?.nombre}
                     </h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="upload-form" onSubmit={(e) => void handleUploadSubmit(e)} className="space-y-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                             Carga un archivo CSV con las transacciones de {selectedProcessor?.nombre}.
@@ -780,7 +780,7 @@ const Procesadoras = () => {
                         </div>
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" type="button" variant="default" onClick={() => setIsUploadModalOpen(false)} disabled={uploading}>
                         Cancelar
                     </Button>
@@ -800,12 +800,12 @@ const Procesadoras = () => {
 
             {/* Create / Edit Modal */}
             <Dialog isOpen={isModalOpen} onClose={() => !saving && setIsModalOpen(false)} width={520}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-gray-100">
                         {selectedProcessor ? 'Editar Procesadora' : 'Nueva Procesadora'}
                     </h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="processor-form" onSubmit={(e) => void handleProcessorSubmit(e)} className="space-y-4">
                         <FormItem label="Nombre">
                             <Input
@@ -843,7 +843,7 @@ const Procesadoras = () => {
                         />
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" type="button" variant="default" onClick={() => setIsModalOpen(false)} disabled={saving}>
                         Cancelar
                     </Button>

@@ -453,10 +453,10 @@ const Alertas = () => {
                 onClose={() => setShowCreateModal(false)}
                 width={560}
             >
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Nueva alerta</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <AlertaForm
                         webhooks={webhooks}
                         onSave={handleCreate}
@@ -472,10 +472,10 @@ const Alertas = () => {
                 onClose={() => setEditingAlerta(null)}
                 width={560}
             >
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Editar alerta</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     {editingAlerta && (
                         <AlertaForm
                             key={editingAlerta.id}
@@ -503,13 +503,13 @@ const Alertas = () => {
                 onClose={() => setShowLogModal(false)}
                 width={560}
             >
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Historial de disparos</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     {tenantId && <AlertaLogPanel tenantId={tenantId} />}
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" onClick={() => setShowLogModal(false)}>Cerrar</Button>
                 </div>
             </Dialog>

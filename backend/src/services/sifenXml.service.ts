@@ -85,9 +85,9 @@ export const sifenXmlService = {
             cambio: de.moneda && de.moneda !== 'PYG' ? (adicionales.tipo_cambio || 1) : undefined,
             descripcion: adicionales.descripcion || 'Operación comercial',
             observacion: adicionales.observacion || null,
-            receptor: tipoDoc === 4
-                ? buildReceptorAutofactura(receptor)
-                : buildReceptor(receptor),
+            cliente: tipoDoc === 4
+                ? buildClienteAutofactura(receptor)
+                : buildCliente(receptor),
             items: items.map((it: any) => buildItem(it, tipoDoc)),
             condicion: buildCondicion(adicionales),
         };
@@ -145,48 +145,47 @@ export const sifenXmlService = {
 
 // ─── Helpers de mapeo ────────────────────────────────────────────────────────
 
-function buildReceptor(receptor: any): any {
+/**
+ * Builds the `data.cliente` object for xmlgen.
+ * xmlgen expects: contribuyente (bool), tipoOperacion, ruc ("RUC-DV"), pais, razonSocial, etc.
+ */
+function buildCliente(receptor: any): any {
+    const hasRuc = !!(receptor.ruc && receptor.dv);
     return {
-        naturaleza: receptor.naturaleza || 1,
+        contribuyente: hasRuc,
         tipoOperacion: receptor.tipo_operacion || 1,
-        ruc: receptor.ruc || null,
-        dv: receptor.dv || null,
+        ruc: hasRuc ? `${receptor.ruc}-${receptor.dv}` : undefined,
+        tipoContribuyente: receptor.tipo_contribuyente || (hasRuc ? 1 : undefined),
         razonSocial: receptor.razon_social,
-        nombreFantasia: receptor.nombre_fantasia || null,
-        tipoContribuyente: receptor.tipo_contribuyente || null,
+        nombreFantasia: receptor.nombre_fantasia || undefined,
         pais: receptor.pais || 'PRY',
-        paisDescripcion: receptor.pais_descripcion || 'Paraguay',
-        documentoTipo: receptor.documento_tipo || null,
-        documentoNumero: receptor.documento_numero || null,
-        telefono: receptor.telefono || null,
-        celular: receptor.celular || null,
-        email: receptor.email || null,
-        direccion: receptor.direccion || null,
+        documentoTipo: !hasRuc ? (receptor.documento_tipo || 1) : undefined,
+        documentoNumero: !hasRuc ? (receptor.documento_numero || '') : undefined,
+        telefono: receptor.telefono || undefined,
+        celular: receptor.celular || undefined,
+        email: receptor.email || undefined,
+        direccion: receptor.direccion || undefined,
         numeroCasa: receptor.numero_casa || '0',
-        departamento: receptor.departamento || null,
-        departamentoDescripcion: receptor.departamento_descripcion || null,
-        distrito: receptor.distrito || null,
-        distritoDescripcion: receptor.distrito_descripcion || null,
-        ciudad: receptor.ciudad || null,
-        ciudadDescripcion: receptor.ciudad_descripcion || null,
+        departamento: receptor.departamento || undefined,
+        distrito: receptor.distrito || undefined,
+        ciudad: receptor.ciudad || undefined,
     };
 }
 
-function buildReceptorAutofactura(receptor: any): any {
+function buildClienteAutofactura(receptor: any): any {
     return {
-        naturaleza: 2,
+        contribuyente: false,
         tipoOperacion: 4,
         razonSocial: receptor.razon_social,
         pais: 'PRY',
-        paisDescripcion: 'Paraguay',
         documentoTipo: receptor.documento_tipo || 1,
         documentoNumero: receptor.documento_numero || '',
-        telefono: receptor.telefono || null,
-        email: receptor.email || null,
-        direccion: receptor.direccion || null,
+        telefono: receptor.telefono || undefined,
+        email: receptor.email || undefined,
+        direccion: receptor.direccion || undefined,
         numeroCasa: receptor.numero_casa || '0',
-        departamento: receptor.departamento || null,
-        ciudad: receptor.ciudad || null,
+        departamento: receptor.departamento || undefined,
+        ciudad: receptor.ciudad || undefined,
     };
 }
 

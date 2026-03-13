@@ -147,7 +147,6 @@ const _Search = ({ className }: { className?: string }) => {
                 <PiMagnifyingGlassDuotone />
             </div>
             <Dialog
-                contentClassName="p-0"
                 isOpen={searchDialogOpen}
                 closable={false}
                 onRequestClose={handleSearchClose}

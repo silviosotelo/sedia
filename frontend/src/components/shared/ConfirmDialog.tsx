@@ -99,8 +99,8 @@ const ConfirmDialog = (props: ConfirmDialogProps) => {
     }
 
     return (
-        <Dialog contentClassName="pb-0 px-0" {...rest}>
-            <div className="px-6 pb-6 pt-2 flex">
+        <Dialog {...rest}>
+            <div className="px-6 pb-6 pt-6 flex">
                 <div>
                     <StatusIcon status={type} />
                 </div>
@@ -109,7 +109,7 @@ const ConfirmDialog = (props: ConfirmDialogProps) => {
                     {children}
                 </div>
             </div>
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
                 <div className="flex justify-end items-center gap-2">
                     <Button
                         size="sm"

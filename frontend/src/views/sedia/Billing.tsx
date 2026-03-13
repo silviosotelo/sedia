@@ -305,53 +305,55 @@ function DatosFiscalesForm({ initial, onSave, onCancel, saving }: {
     const inputClass = "w-full border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 placeholder:text-gray-400"
 
     return (
-        <form onSubmit={(e) => { e.preventDefault(); onSave(form) }} className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Para emitir facturas necesitamos tus datos fiscales. Completá el formulario antes de continuar con el pago.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">RUC</label>
-                    <input type="text" value={form.ruc} onChange={(e) => set('ruc', e.target.value)} required placeholder="ej: 80012345" className={inputClass} />
+        <form onSubmit={(e) => { e.preventDefault(); onSave(form) }} className="flex flex-col flex-1 min-h-0">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0 space-y-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Para emitir facturas necesitamos tus datos fiscales. Completá el formulario antes de continuar con el pago.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">RUC</label>
+                        <input type="text" value={form.ruc} onChange={(e) => set('ruc', e.target.value)} required placeholder="ej: 80012345" className={inputClass} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">DV</label>
+                        <input type="text" value={form.dv} onChange={(e) => set('dv', e.target.value.slice(0, 1))} required maxLength={1} placeholder="0" className={inputClass} />
+                    </div>
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">DV</label>
-                    <input type="text" value={form.dv} onChange={(e) => set('dv', e.target.value.slice(0, 1))} required maxLength={1} placeholder="0" className={inputClass} />
-                </div>
-            </div>
-            <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Razon Social</label>
-                <input type="text" value={form.razon_social} onChange={(e) => set('razon_social', e.target.value)} required placeholder="Nombre completo o empresa" className={inputClass} />
-            </div>
-            <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Tipo Contribuyente</label>
-                {(() => {
-                    const tipoOptions = [
-                        { value: '1', label: '1 - Persona Fisica' },
-                        { value: '2', label: '2 - Persona Juridica' },
-                    ]
-                    return (
-                        <Select
-                            options={tipoOptions}
-                            value={tipoOptions.find((o) => o.value === String(form.tipo_contribuyente))}
-                            onChange={(opt) => set('tipo_contribuyente', Number(opt?.value ?? 2))}
-                        />
-                    )
-                })()}
-            </div>
-            <div>
-                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Direccion</label>
-                <Input textArea rows={2} value={form.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Calle, numero, ciudad" className="resize-none" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Email Factura</label>
-                    <input type="email" value={form.email_factura} onChange={(e) => set('email_factura', e.target.value)} placeholder="facturacion@empresa.com" className={inputClass} />
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Razon Social</label>
+                    <input type="text" value={form.razon_social} onChange={(e) => set('razon_social', e.target.value)} required placeholder="Nombre completo o empresa" className={inputClass} />
                 </div>
                 <div>
-                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Telefono</label>
-                    <input type="text" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="+595 21 000000" className={inputClass} />
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Tipo Contribuyente</label>
+                    {(() => {
+                        const tipoOptions = [
+                            { value: '1', label: '1 - Persona Fisica' },
+                            { value: '2', label: '2 - Persona Juridica' },
+                        ]
+                        return (
+                            <Select
+                                options={tipoOptions}
+                                value={tipoOptions.find((o) => o.value === String(form.tipo_contribuyente))}
+                                onChange={(opt) => set('tipo_contribuyente', Number(opt?.value ?? 2))}
+                            />
+                        )
+                    })()}
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Direccion</label>
+                    <Input textArea rows={2} value={form.direccion} onChange={(e) => set('direccion', e.target.value)} placeholder="Calle, numero, ciudad" className="resize-none" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Email Factura</label>
+                        <input type="email" value={form.email_factura} onChange={(e) => set('email_factura', e.target.value)} placeholder="facturacion@empresa.com" className={inputClass} />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">Telefono</label>
+                        <input type="text" value={form.telefono} onChange={(e) => set('telefono', e.target.value)} placeholder="+595 21 000000" className={inputClass} />
+                    </div>
                 </div>
             </div>
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex items-center justify-end gap-3">
                 <Button variant="default" type="button" onClick={onCancel} disabled={saving}>Cancelar</Button>
                 <Button variant="solid" type="submit" disabled={saving || !form.ruc || !form.dv || !form.razon_social} loading={saving}>
                     Guardar y continuar
@@ -381,11 +383,11 @@ function InvoiceDetailModal({ inv, onClose }: { inv: Invoice | null; onClose: ()
 
     return (
         <Dialog isOpen={inv !== null} onClose={onClose} width={520}>
-            <div className="px-6 pt-5 pb-3">
+            <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                 <h5 className="font-bold text-gray-900 dark:text-white">Detalle de Factura</h5>
                 {det?.numero_factura && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">N° {det.numero_factura}</p>}
             </div>
-            <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+            <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
                         <div>
@@ -445,7 +447,7 @@ function InvoiceDetailModal({ inv, onClose }: { inv: Invoice | null; onClose: ()
                     </div>
                 </div>
             </div>
-            <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+            <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                 <Button size="sm" variant="default" onClick={onClose}>Cerrar</Button>
                 <Button size="sm" variant="solid" icon={<Download className="w-4 h-4" />} onClick={() => { downloadReceipt(inv); onClose() }}>
                     Descargar Recibo
@@ -950,26 +952,24 @@ const Billing = () => {
 
             {/* Datos Fiscales Dialog */}
             <Dialog isOpen={showDatosFiscalesModal} onClose={() => { setShowDatosFiscalesModal(false); pendingActionRef.current = null }} width={520}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Datos Fiscales</h5>
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Requerido para emitir facturas</p>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
-                    <DatosFiscalesForm
-                        initial={datosFiscales ?? undefined}
-                        onSave={handleSaveDatosFiscales}
-                        onCancel={() => { setShowDatosFiscalesModal(false); pendingActionRef.current = null }}
-                        saving={savingDatosFiscales}
-                    />
-                </div>
+                <DatosFiscalesForm
+                    initial={datosFiscales ?? undefined}
+                    onSave={handleSaveDatosFiscales}
+                    onCancel={() => { setShowDatosFiscalesModal(false); pendingActionRef.current = null }}
+                    saving={savingDatosFiscales}
+                />
             </Dialog>
 
             {/* Checkout Dialog */}
             <Dialog isOpen={showCheckout} onClose={closeCheckout} width={500}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Finalizar Suscripción</h5>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     {!checkoutData ? (
                         <div className="space-y-4 py-4 text-center">
                             <p className="text-sm text-gray-500 dark:text-gray-400">Seleccioná tu método de pago para continuar</p>
@@ -1031,11 +1031,11 @@ const Billing = () => {
                 onClose={() => { setShowTransferInstructions(false); setTransferConfig(null); setSelectedPaymentMethod(null) }}
                 width={440}
             >
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">Transferencia Bancaria</h5>
                     {selectedPaymentMethod?.nombre && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{selectedPaymentMethod.nombre}</p>}
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <div className="space-y-4">
                         <div className="bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 p-4 space-y-3">
                             <div className="flex items-center gap-2 mb-3">
@@ -1059,7 +1059,7 @@ const Billing = () => {
                         </div>
                     </div>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" variant="solid" onClick={() => { setShowTransferInstructions(false); setTransferConfig(null); setSelectedPaymentMethod(null) }}>
                         Entendido
                     </Button>

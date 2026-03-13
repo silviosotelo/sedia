@@ -560,7 +560,7 @@ const AdminEmpresas = () => {
 
             {/* ── Create / Edit dialog ─────────────────────────────────────── */}
             <Dialog isOpen={showForm} onClose={closeForm} width={800}>
-                <div className="px-6 pt-5 pb-2">
+                <div className="px-6 pt-5 pb-2 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h5 className="font-bold text-gray-900 dark:text-white">
                         {editTarget ? 'Editar empresa' : 'Nueva empresa'}
                     </h5>
@@ -571,20 +571,18 @@ const AdminEmpresas = () => {
                     )}
                 </div>
 
-                <div className="px-6 pb-6 overflow-y-auto max-h-[70vh]">
-                    {editLoading ? (
-                        <div className="flex items-center justify-center py-16">
-                            <Loading loading />
-                        </div>
-                    ) : (
-                        <TenantFormInner
-                            initialData={editTarget ? editTenantConfig : undefined}
-                            onSubmit={handleFormSubmit}
-                            onCancel={closeForm}
-                            loading={saving}
-                        />
-                    )}
-                </div>
+                {editLoading ? (
+                    <div className="flex items-center justify-center py-16 flex-1">
+                        <Loading loading />
+                    </div>
+                ) : (
+                    <TenantFormInner
+                        initialData={editTarget ? editTenantConfig : undefined}
+                        onSubmit={handleFormSubmit}
+                        onCancel={closeForm}
+                        loading={saving}
+                    />
+                )}
             </Dialog>
         </div>
     )

@@ -283,11 +283,11 @@ const SifenEventos = () => {
 
             {/* Modal: Crear Evento */}
             <Dialog isOpen={activeModal === 'crear'} onClose={closeModal} width={520}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Crear Evento SIFEN</h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Registra un evento de conformidad, disconformidad o desconocimiento ante la SET.</p>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="crear-evento-form" onSubmit={handleCrearEvento} className="space-y-4">
                         <FieldRow label="Tipo de Evento">
                             <Select options={TIPO_EVENTO_CREAR_OPTIONS} value={TIPO_EVENTO_CREAR_OPTIONS.find(o => o.value === crearForm.tipoEvento)}
@@ -317,7 +317,7 @@ const SifenEventos = () => {
                         </FieldRow>
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" disabled={submitting} onClick={closeModal}>Cancelar</Button>
                     <Button size="sm" variant="solid" type="submit" form="crear-evento-form" loading={submitting} disabled={submitting}>
                         {submitting ? 'Enviando...' : 'Crear Evento'}
@@ -327,11 +327,11 @@ const SifenEventos = () => {
 
             {/* Modal: Inutilizar */}
             <Dialog isOpen={activeModal === 'inutilizacion'} onClose={closeModal} width={520}>
-                <div className="px-6 pt-5 pb-3">
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                     <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Inutilizar Numeración</h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Registra ante la SET el rango de numeración inutilizada para un tipo de documento.</p>
                 </div>
-                <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                <div className="px-6 py-4 overflow-y-auto flex-1 min-h-0">
                     <form id="inutilizar-form" onSubmit={handleInutilizar} className="space-y-4">
                         <FieldRow label="Tipo de Documento">
                             <Select options={TIPO_DOCUMENTO_OPTIONS} value={TIPO_DOCUMENTO_OPTIONS.find(o => o.value === inutForm.tipo_documento)}
@@ -365,7 +365,7 @@ const SifenEventos = () => {
                         </FieldRow>
                     </form>
                 </div>
-                <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                <div className="px-6 py-3.5 border-t border-gray-100 dark:border-gray-700 flex-shrink-0 flex justify-end gap-2">
                     <Button size="sm" disabled={submitting} onClick={closeModal}>Cancelar</Button>
                     <Button size="sm" variant="solid" customColorClass={() => 'bg-red-500 text-white hover:bg-red-600'} type="submit" form="inutilizar-form" loading={submitting} disabled={submitting}>
                         Inutilizar

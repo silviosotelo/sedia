@@ -333,13 +333,10 @@ function ExportDropdown({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div>
-            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+            <h6 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
                 {label}
-            </p>
-            <dl
-                className="space-y-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-xl p-4 border-l-4"
-                style={{ borderLeftColor: 'rgb(var(--brand-rgb))' }}
-            >
+            </h6>
+            <dl className="space-y-2.5">
                 {children}
             </dl>
         </div>
@@ -348,11 +345,11 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 
 function DR({ label, value }: { label: string; value: React.ReactNode }) {
     return (
-        <div className="flex items-start gap-2">
-            <dt className="text-xs text-gray-500 dark:text-gray-400 w-28 flex-shrink-0 pt-0.5">
+        <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                 {label}
             </dt>
-            <dd className="text-sm text-gray-900 dark:text-white flex-1 min-w-0">{value}</dd>
+            <dd className="text-sm text-gray-900 dark:text-white text-right">{value}</dd>
         </div>
     )
 }
@@ -1283,7 +1280,7 @@ const Comprobantes = () => {
             >
                 {selectedComprobante && (
                     <>
-                        <div className="px-6 pt-5 pb-3">
+                        <div className="px-6 pt-6 pb-4 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
                             <h5 className="font-bold text-gray-900 dark:text-gray-100 text-lg">
                                 {selectedComprobante.numero_comprobante}
                             </h5>
@@ -1293,7 +1290,7 @@ const Comprobantes = () => {
                             </p>
                         </div>
 
-                        <div className="px-6 pb-4 overflow-y-auto max-h-[60vh]">
+                        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
                         <Tabs defaultValue="info" value={detailView} onChange={(val) => setDetailView(val as 'info' | 'xml' | 'detalles')}>
                             <Tabs.TabList className="mb-4">
                                 <Tabs.TabNav value="info">Información</Tabs.TabNav>
@@ -1586,136 +1583,134 @@ const Comprobantes = () => {
                                     {/* Totals row */}
                                     {(selectedComprobante.detalles_xml?.totales ||
                                         selectedComprobante.detalles_virtual?.totales) && (
-                                        <div className="col-span-2">
-                                            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+                                        <div className="col-span-2 mt-2">
+                                            <h6 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
                                                 Totales
-                                            </p>
-                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                                {[
-                                                    {
-                                                        label: 'Gravado 5%',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.subtotalIva5 ??
-                                                            selectedComprobante.detalles_virtual
-                                                                ?.totales?.iva5 ??
-                                                            0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.subtotalIva5 ??
+                                            </h6>
+                                            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
+                                                    {[
+                                                        {
+                                                            label: 'Gravado 5%',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.subtotalIva5 ??
                                                                 selectedComprobante.detalles_virtual
                                                                     ?.totales?.iva5 ??
-                                                                0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'Gravado 10%',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.subtotalIva10 ??
-                                                            selectedComprobante.detalles_virtual
-                                                                ?.totales?.iva10 ??
-                                                            0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.subtotalIva10 ??
+                                                                0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.subtotalIva5 ??
+                                                                    selectedComprobante.detalles_virtual
+                                                                        ?.totales?.iva5 ??
+                                                                    0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'Gravado 10%',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.subtotalIva10 ??
                                                                 selectedComprobante.detalles_virtual
                                                                     ?.totales?.iva10 ??
-                                                                0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'Exentas',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.exentas ??
-                                                            selectedComprobante.detalles_virtual
-                                                                ?.totales?.exentas ??
-                                                            0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.exentas ??
+                                                                0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.subtotalIva10 ??
+                                                                    selectedComprobante.detalles_virtual
+                                                                        ?.totales?.iva10 ??
+                                                                    0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'Exentas',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.exentas ??
                                                                 selectedComprobante.detalles_virtual
                                                                     ?.totales?.exentas ??
-                                                                0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'Descuento',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.descuento ?? 0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.descuento ?? 0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'IVA 5%',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.iva5 ?? 0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.iva5 ?? 0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'IVA 10%',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.iva10 ?? 0,
-                                                        show:
-                                                            (selectedComprobante.detalles_xml
-                                                                ?.totales?.iva10 ?? 0) > 0,
-                                                    },
-                                                    {
-                                                        label: 'IVA Total',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.ivaTotal ??
-                                                            (selectedComprobante.detalles_virtual
-                                                                ?.totales?.iva5 || 0) +
+                                                                0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.exentas ??
+                                                                    selectedComprobante.detalles_virtual
+                                                                        ?.totales?.exentas ??
+                                                                    0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'Descuento',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.descuento ?? 0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.descuento ?? 0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'IVA 5%',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.iva5 ?? 0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.iva5 ?? 0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'IVA 10%',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.iva10 ?? 0,
+                                                            show:
+                                                                (selectedComprobante.detalles_xml
+                                                                    ?.totales?.iva10 ?? 0) > 0,
+                                                        },
+                                                        {
+                                                            label: 'IVA Total',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.ivaTotal ??
                                                                 (selectedComprobante.detalles_virtual
-                                                                    ?.totales?.iva10 || 0),
-                                                        show: true,
-                                                    },
-                                                    {
-                                                        label: 'Total',
-                                                        value:
-                                                            selectedComprobante.detalles_xml
-                                                                ?.totales?.total ??
-                                                            selectedComprobante.total_operacion,
-                                                        show: true,
-                                                        highlight: true,
-                                                    },
-                                                ]
-                                                    .filter(({ show }) => show)
-                                                    .map(({ label, value, highlight }) => (
-                                                        <Card
-                                                            key={label}
-                                                            className={cn(
-                                                                'text-center',
-                                                                highlight &&
-                                                                    'ring-2 ring-emerald-400/40 bg-emerald-50/40 dark:bg-emerald-900/10',
-                                                            )}
-                                                        >
-                                                            <p className="text-xs text-gray-400 dark:text-gray-500 mb-1">
-                                                                {label}
-                                                            </p>
-                                                            <p
-                                                                className={cn(
-                                                                    'font-mono font-semibold text-sm',
-                                                                    highlight
-                                                                        ? 'text-emerald-700 dark:text-emerald-400'
-                                                                        : 'text-gray-600 dark:text-gray-400',
-                                                                )}
-                                                            >
-                                                                {formatCurrency(value)}
-                                                            </p>
-                                                        </Card>
-                                                    ))}
+                                                                    ?.totales?.iva5 || 0) +
+                                                                    (selectedComprobante.detalles_virtual
+                                                                        ?.totales?.iva10 || 0),
+                                                            show: true,
+                                                        },
+                                                        {
+                                                            label: 'Total',
+                                                            value:
+                                                                selectedComprobante.detalles_xml
+                                                                    ?.totales?.total ??
+                                                                selectedComprobante.total_operacion,
+                                                            show: true,
+                                                            highlight: true,
+                                                        },
+                                                    ]
+                                                        .filter(({ show }) => show)
+                                                        .map(({ label, value, highlight }) => (
+                                                            <div key={label} className="text-center">
+                                                                <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-0.5">
+                                                                    {label}
+                                                                </p>
+                                                                <p
+                                                                    className={cn(
+                                                                        'font-mono font-semibold text-sm',
+                                                                        highlight
+                                                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                                                            : 'text-gray-700 dark:text-gray-300',
+                                                                    )}
+                                                                >
+                                                                    {formatCurrency(value)}
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
 
                                     {/* Downloads row */}
-                                    <div className="col-span-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                    <div className="col-span-2 mt-2">
+                                        <h6 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
+                                            Descargas
+                                        </h6>
                                         <div className="flex items-center gap-2 mb-3">
                                             <Download className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
                                             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1897,7 +1892,7 @@ const Comprobantes = () => {
                         </Tabs>
                         </div>
 
-                        <div className="px-6 py-3 bg-gray-100 dark:bg-gray-700 rounded-bl-2xl rounded-br-2xl flex justify-end gap-2">
+                        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-2">
                             <Button size="sm" onClick={() => setSelectedComprobante(null)}>Cerrar</Button>
                         </div>
                     </>
