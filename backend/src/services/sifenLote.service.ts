@@ -1,4 +1,5 @@
 import { queryOne, query } from '../db/connection';
+import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
 
 const _setapi = require('facturacionelectronicapy-setapi');
@@ -69,13 +70,18 @@ export const sifenLoteService = {
         if (!xmls.length) throw new Error('El lote no tiene XMLs firmados');
 
         const config = await queryOne<any>(
-            `SELECT ambiente, ws_url_recibe_lote FROM sifen_config WHERE tenant_id = $1`,
+            `SELECT ambiente, ws_url_recibe_lote, id_csc FROM sifen_config WHERE tenant_id = $1`,
             [tenantId]
         );
         const envStr = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
+        const idCsc = config?.id_csc || '0001';
+
+        // Get cert file path for setapi (requires PFX path + password)
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
 
         try {
-            const result = await setapi.recibeLote(xmls, envStr, config?.ws_url_recibe_lote);
+            const result = await setapi.recibeLote(idCsc, xmls, envStr, certPath, certPassword, {});
 
             await query(
                 `UPDATE sifen_lote SET estado = 'SENT', numero_lote = $1, respuesta_recibe_lote = $2, updated_at = NOW()
@@ -99,6 +105,8 @@ export const sifenLoteService = {
                 [JSON.stringify({ error: e.message }), loteId]
             );
             throw e;
+        } finally {
+            certCleanup();
         }
     },
 
@@ -114,12 +122,21 @@ export const sifenLoteService = {
         if (!lote?.numero_lote) throw new Error('Lote no enviado o número de lote no disponible');
 
         const config = await queryOne<any>(
-            `SELECT ambiente, ws_url_consulta_lote FROM sifen_config WHERE tenant_id = $1`,
+            `SELECT ambiente, ws_url_consulta_lote, id_csc FROM sifen_config WHERE tenant_id = $1`,
             [tenantId]
         );
         const envStr = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
+        const idCsc = config?.id_csc || '0001';
 
-        const result = await setapi.consultaLote(lote.numero_lote, envStr, config?.ws_url_consulta_lote);
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
+        let result: any;
+        try {
+            result = await setapi.consultaLote(idCsc, lote.numero_lote, envStr, certPath, certPassword, {});
+        } finally {
+            certCleanup();
+        }
         logger.debug('Respuesta consultaLote', { loteId, codigo: result?.codigo });
 
         // 0300=procesado, 0301=rechazado total, 0303=procesado con errores

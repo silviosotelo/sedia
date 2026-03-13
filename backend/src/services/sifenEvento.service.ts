@@ -1,4 +1,5 @@
 import { query, queryOne } from '../db/connection';
+import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
 
 const _setapi = require('facturacionelectronicapy-setapi');
@@ -82,12 +83,12 @@ async function resolveEnvAndUrl(tenantId: string): Promise<{
     config: any;
     envStr: string;
     wsUrl: string;
+    idCsc: string;
 }> {
-    // Incluimos ws_url_evento (agregado en migración 037) junto con los campos base.
     const config = await queryOne<any>(
         `SELECT ambiente, ruc, dv, razon_social, timbrado,
                 establecimiento, punto_expedicion,
-                ws_url_evento
+                ws_url_evento, id_csc
          FROM sifen_config
          WHERE tenant_id = $1`,
         [tenantId]
@@ -98,14 +99,14 @@ async function resolveEnvAndUrl(tenantId: string): Promise<{
     }
 
     const envStr = config.ambiente === 'PRODUCCION' ? 'prod' : 'test';
-
-    // Fallback al WS de homologación si la columna aún no fue poblada
     const wsUrl =
         config.ws_url_evento ||
         'https://sifen-test.set.gov.py/de/ws/eventos/evento.wsdl';
+    const idCsc = config.id_csc || '0001';
 
-    return { config, envStr, wsUrl };
+    return { config, envStr, wsUrl, idCsc };
 }
+
 
 /**
  * Crea el registro inicial del evento en la tabla sifen_eventos y retorna su id.
@@ -215,7 +216,7 @@ export const sifenEventoService = {
             throw new Error('El DE no tiene un CDC válido asignado por SIFEN');
         }
 
-        const { config, envStr, wsUrl } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'CANCELACION', 'EMISOR', {
             de_id: deId,
@@ -226,7 +227,6 @@ export const sifenEventoService = {
 
         logger.info('Enviando evento CANCELACION', { tenantId, deId, cdc: de.cdc, eventoId });
 
-        // Construir parámetros del evento de cancelación para xmlgen
         const eventParams = {
             ruc: config.ruc,
             dv: config.dv,
@@ -242,15 +242,15 @@ export const sifenEventoService = {
         let xmlEvento: string;
         let result: any;
 
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
         try {
-            // Intentar usar xmlgen si expone generación de eventos
             let generatedXml: any;
             try {
                 const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 generatedXml = await xmlgen.generateXMLEventoCancelacion(eventParams, eventData);
             } catch {
-                // xmlgen no expone este método en la versión instalada;
-                // setapi.evento() puede aceptar directamente los datos del evento
                 generatedXml = null;
             }
 
@@ -260,16 +260,16 @@ export const sifenEventoService = {
 
             await marcarEventoEnviado(eventoId, xmlEvento);
 
-            // setapi.evento espera (xmlEvento | eventData, env, wsUrl)
-            result = xmlEvento
-                ? await setapi.evento(xmlEvento, envStr, wsUrl)
-                : await setapi.evento({ ...eventData, tipo: CODIGO_EVENTO.CANCELACION }, envStr, wsUrl);
+            const eventoData = xmlEvento || { ...eventData, tipo: CODIGO_EVENTO.CANCELACION };
+            result = await setapi.evento(idCsc, eventoData, envStr, certPath, certPassword, {});
         } catch (err: any) {
             logger.error('Error enviando evento CANCELACION al SET', {
                 tenantId, deId, eventoId, error: err.message,
             });
             await actualizarRespuestaEvento(eventoId, { error: err.message }, 'ERROR');
             throw new Error(`Error al enviar evento de cancelación: ${err.message}`);
+        } finally {
+            certCleanup();
         }
 
         const estadoFinal = resolverEstadoRespuesta(result);
@@ -314,7 +314,7 @@ export const sifenEventoService = {
             throw new Error('El motivo debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
 
         if (!config.timbrado) {
             throw new Error('Configure el timbrado antes de reportar inutilizaciones');
@@ -339,7 +339,6 @@ export const sifenEventoService = {
             tipoDoc: data.tipo_documento,
         });
 
-        // Parámetros del emisor para el evento de inutilización
         const eventParams = {
             ruc: config.ruc,
             dv: config.dv,
@@ -362,8 +361,10 @@ export const sifenEventoService = {
         let xmlEvento: string = '';
         let result: any;
 
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
         try {
-            // Intentar generar el XML a través de xmlgen
             try {
                 const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
                 const generated = await xmlgen.generateXMLEventoInutilizacion(eventParams, eventData);
@@ -371,25 +372,21 @@ export const sifenEventoService = {
                     ? generated
                     : (generated?.xml || generated?.xmlEvento || '');
             } catch {
-                // xmlgen no soporta este evento — se pasan los datos directamente a setapi
                 xmlEvento = '';
             }
 
             await marcarEventoEnviado(eventoId, xmlEvento);
 
-            result = xmlEvento
-                ? await setapi.evento(xmlEvento, envStr, wsUrl)
-                : await setapi.evento(
-                    { ...eventData, tipo: CODIGO_EVENTO.INUTILIZACION },
-                    envStr,
-                    wsUrl
-                );
+            const eventoDataPayload = xmlEvento || { ...eventData, tipo: CODIGO_EVENTO.INUTILIZACION };
+            result = await setapi.evento(idCsc, eventoDataPayload, envStr, certPath, certPassword, {});
         } catch (err: any) {
             logger.error('Error enviando evento INUTILIZACION al SET', {
                 tenantId, eventoId, error: err.message,
             });
             await actualizarRespuestaEvento(eventoId, { error: err.message }, 'ERROR');
             throw new Error(`Error al enviar evento de inutilización: ${err.message}`);
+        } finally {
+            certCleanup();
         }
 
         const estadoFinal = resolverEstadoRespuesta(result);
@@ -425,7 +422,7 @@ export const sifenEventoService = {
             throw new Error('El CDC debe tener exactamente 44 caracteres');
         }
 
-        const { config, envStr, wsUrl } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const descripcion = motivo?.trim() || 'Conformidad con el documento recibido';
 
@@ -446,6 +443,9 @@ export const sifenEventoService = {
         let xmlEvento: string = '';
         let result: any;
 
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
         try {
             try {
                 const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
@@ -462,19 +462,16 @@ export const sifenEventoService = {
 
             await marcarEventoEnviado(eventoId, xmlEvento);
 
-            result = xmlEvento
-                ? await setapi.evento(xmlEvento, envStr, wsUrl)
-                : await setapi.evento(
-                    { ...eventData, tipo: CODIGO_EVENTO.CONFORMIDAD },
-                    envStr,
-                    wsUrl
-                );
+            const eventoDataPayload = xmlEvento || { ...eventData, tipo: CODIGO_EVENTO.CONFORMIDAD };
+            result = await setapi.evento(idCsc, eventoDataPayload, envStr, certPath, certPassword, {});
         } catch (err: any) {
             logger.error('Error enviando evento CONFORMIDAD al SET', {
                 tenantId, cdc, eventoId, error: err.message,
             });
             await actualizarRespuestaEvento(eventoId, { error: err.message }, 'ERROR');
             throw new Error(`Error al enviar evento de conformidad: ${err.message}`);
+        } finally {
+            certCleanup();
         }
 
         const estadoFinal = resolverEstadoRespuesta(result);
@@ -504,7 +501,7 @@ export const sifenEventoService = {
             throw new Error('El motivo de disconformidad debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'DISCONFORMIDAD', 'RECEPTOR', {
             cdc,
@@ -523,6 +520,9 @@ export const sifenEventoService = {
         let xmlEvento: string = '';
         let result: any;
 
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
         try {
             try {
                 const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
@@ -539,19 +539,16 @@ export const sifenEventoService = {
 
             await marcarEventoEnviado(eventoId, xmlEvento);
 
-            result = xmlEvento
-                ? await setapi.evento(xmlEvento, envStr, wsUrl)
-                : await setapi.evento(
-                    { ...eventData, tipo: CODIGO_EVENTO.DISCONFORMIDAD },
-                    envStr,
-                    wsUrl
-                );
+            const eventoDataPayload = xmlEvento || { ...eventData, tipo: CODIGO_EVENTO.DISCONFORMIDAD };
+            result = await setapi.evento(idCsc, eventoDataPayload, envStr, certPath, certPassword, {});
         } catch (err: any) {
             logger.error('Error enviando evento DISCONFORMIDAD al SET', {
                 tenantId, cdc, eventoId, error: err.message,
             });
             await actualizarRespuestaEvento(eventoId, { error: err.message }, 'ERROR');
             throw new Error(`Error al enviar evento de disconformidad: ${err.message}`);
+        } finally {
+            certCleanup();
         }
 
         const estadoFinal = resolverEstadoRespuesta(result);
@@ -581,7 +578,7 @@ export const sifenEventoService = {
             throw new Error('El motivo de desconocimiento debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'DESCONOCIMIENTO', 'RECEPTOR', {
             cdc,
@@ -600,6 +597,9 @@ export const sifenEventoService = {
         let xmlEvento: string = '';
         let result: any;
 
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
         try {
             try {
                 const _xg = require('facturacionelectronicapy-xmlgen'); const xmlgen = _xg.default || _xg;
@@ -616,19 +616,16 @@ export const sifenEventoService = {
 
             await marcarEventoEnviado(eventoId, xmlEvento);
 
-            result = xmlEvento
-                ? await setapi.evento(xmlEvento, envStr, wsUrl)
-                : await setapi.evento(
-                    { ...eventData, tipo: CODIGO_EVENTO.DESCONOCIMIENTO },
-                    envStr,
-                    wsUrl
-                );
+            const eventoDataPayload = xmlEvento || { ...eventData, tipo: CODIGO_EVENTO.DESCONOCIMIENTO };
+            result = await setapi.evento(idCsc, eventoDataPayload, envStr, certPath, certPassword, {});
         } catch (err: any) {
             logger.error('Error enviando evento DESCONOCIMIENTO al SET', {
                 tenantId, cdc, eventoId, error: err.message,
             });
             await actualizarRespuestaEvento(eventoId, { error: err.message }, 'ERROR');
             throw new Error(`Error al enviar evento de desconocimiento: ${err.message}`);
+        } finally {
+            certCleanup();
         }
 
         const estadoFinal = resolverEstadoRespuesta(result);

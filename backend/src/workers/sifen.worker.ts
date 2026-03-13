@@ -173,13 +173,23 @@ export async function handleAnularSifen(jobId: string, tenantId: string, payload
 
     try {
         const config = await queryOne<any>(
-            `SELECT ambiente, ws_url_consulta FROM sifen_config WHERE tenant_id = $1`,
+            `SELECT ambiente, ws_url_consulta, id_csc FROM sifen_config WHERE tenant_id = $1`,
             [tenantId]
         );
-        const envStr = config?.ambiente === 'PRODUCCION' ? '1' : '2';
+        const envStr = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
+        const idCsc = config?.id_csc || '0001';
 
-        // Llamar API de anulación SIFEN
-        const result = await setapi.anulacion(cdc, motivo || 'Anulación', envStr, config?.ws_url_consulta);
+        // Obtener certificado para setapi
+        const { sifenConfigService } = await import('../services/sifenConfig.service');
+        const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
+            await sifenConfigService.getCertFilePath(tenantId);
+
+        let result: any;
+        try {
+            result = await setapi.anulacion(idCsc, cdc, envStr, certPath, certPassword, {});
+        } finally {
+            certCleanup();
+        }
 
         await query(
             `UPDATE sifen_de SET estado = 'CANCELLED', sifen_respuesta = $1, sifen_mensaje = $2, updated_at = NOW()
