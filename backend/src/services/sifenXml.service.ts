@@ -56,8 +56,8 @@ export const sifenXmlService = {
                     complementoDireccion1: adicionales.complemento_dir1 || null,
                     complementoDireccion2: adicionales.complemento_dir2 || null,
                     departamento: adicionales.departamento_emisor || 11,
-                    distrito: adicionales.distrito_emisor || 1,
-                    ciudad: adicionales.ciudad_emisor || 1,
+                    distrito: adicionales.distrito_emisor || 143,
+                    ciudad: adicionales.ciudad_emisor || 3344,
                     telefono: adicionales.telefono_emisor || null,
                     email: adicionales.email_emisor || null,
                 }
@@ -71,12 +71,17 @@ export const sifenXmlService = {
             cSeg: String(Math.floor(Math.random() * 900000000) + 100000000),
         };
 
+        // xmlgen expects `fecha` (not `fechaEmision`) in format yyyy-MM-ddTHH:mm:ss
+        const fechaDE = de.fecha_emision
+            ? new Date(de.fecha_emision).toISOString().replace('Z', '').split('.')[0]
+            : new Date().toISOString().replace('Z', '').split('.')[0];
+
         const deData: any = {
             tipoDocumento: tipoDoc,
             establecimiento: Number(config.establecimiento) || 1,
             punto: Number(config.punto_expedicion) || 1,
             numero: Number(de.numero_documento) || 1,
-            fechaEmision: new Date(de.fecha_emision).toISOString(),
+            fecha: fechaDE,
             tipoEmision: de.tipo_emision || 1,
             tipoImpuesto: adicionales.tipo_impuesto || 1,
             tipoTransaccion: adicionales.tipo_transaccion || 1,
@@ -91,6 +96,38 @@ export const sifenXmlService = {
             items: items.map((it: any) => buildItem(it, tipoDoc)),
             condicion: buildCondicion(adicionales),
         };
+
+        // Factura (tipo 1) requiere data.factura con presencia obligatorio
+        if (tipoDoc === 1) {
+            deData.factura = {
+                presencia: adicionales.presencia || 1,
+                ...(adicionales.factura || {}),
+            };
+        }
+
+        // Autofactura (tipo 4) requiere data.autoFactura
+        if (tipoDoc === 4) {
+            deData.autoFactura = {
+                tipoVendedor: adicionales.tipo_vendedor || 1,
+                documentoTipo: adicionales.documento_tipo_vendedor || 1,
+                documentoNumero: adicionales.documento_numero_vendedor || '',
+                nombre: adicionales.nombre_vendedor || '',
+                direccion: adicionales.direccion_vendedor || '',
+                numeroCasa: adicionales.numero_casa_vendedor || '0',
+                departamento: adicionales.departamento_vendedor || 11,
+                distrito: adicionales.distrito_vendedor || 143,
+                ciudad: adicionales.ciudad_vendedor || 3344,
+                ...(adicionales.autoFactura || {}),
+            };
+        }
+
+        // Nota de Crédito (tipo 5) requiere data.notaCreditoDebito
+        if (tipoDoc === 5 || tipoDoc === 6) {
+            deData.notaCreditoDebito = {
+                motivo: adicionales.motivo_nc_nd || 1,
+                ...(adicionales.notaCreditoDebito || {}),
+            };
+        }
 
         // Nota de Remisión (tipo 7) no tiene totales ni condición de pago
         if (tipoDoc === 7) {
