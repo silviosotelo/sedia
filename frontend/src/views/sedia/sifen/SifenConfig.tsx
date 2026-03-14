@@ -385,70 +385,8 @@ const SifenConfig = () => {
                             </div>
                         </Card>
 
-                        {/* Datos del Establecimiento / Sucursal */}
-                        <Card className="mt-5">
-                            <div className="p-6 space-y-4">
-                                <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos del Establecimiento (Emisor)</h6>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">Estos datos se incluyen en el XML del DE como información del emisor.</p>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2">
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Denominación Sucursal</label>
-                                        <Input name="denominacion_sucursal" value={(config as any).denominacion_sucursal || ''} onChange={handleChange} placeholder="Casa Matriz" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Dirección</label>
-                                        <Input name="direccion_emisor" value={(config as any).direccion_emisor || ''} onChange={handleChange} placeholder="Av. España 1234" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Número de Casa</label>
-                                        <Input name="numero_casa" value={(config as any).numero_casa || '0'} onChange={handleChange} placeholder="0" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Teléfono</label>
-                                        <Input name="telefono_emisor" value={(config as any).telefono_emisor || ''} onChange={handleChange} placeholder="021-123456" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Email</label>
-                                        <Input name="email_emisor" value={(config as any).email_emisor || ''} onChange={handleChange} placeholder="facturacion@empresa.com.py" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Departamento (código)</label>
-                                        <Input name="departamento" type="number" value={(config as any).departamento || 11} onChange={handleChange} />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Distrito (código)</label>
-                                        <Input name="distrito" type="number" value={(config as any).distrito || 143} onChange={handleChange} />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Ciudad (código)</label>
-                                        <Input name="ciudad" type="number" value={(config as any).ciudad || 3344} onChange={handleChange} />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Actividad Económica (código)</label>
-                                        <Input name="actividad_economica" value={(config as any).actividad_economica || '00000'} onChange={handleChange} />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
-                                        <Input name="actividad_economica_desc" value={(config as any).actividad_economica_desc || ''} onChange={handleChange} placeholder="Venta al por menor" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
-                                        <select name="tipo_contribuyente" value={(config as any).tipo_contribuyente || 1} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
-                                            <option value={1}>1 — Persona Física</option>
-                                            <option value={2}>2 — Persona Jurídica</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
-                                        <Input name="tipo_regimen" type="number" value={(config as any).tipo_regimen || 8} onChange={handleChange} />
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
+                        {/* Establecimientos / Sucursales */}
+                        <EstablecimientosSection tenantId={tenantId} />
                     </TabContent>
 
                     {/* Tab: Certificado */}
@@ -645,6 +583,119 @@ const SifenConfig = () => {
                 </div>
             </form>
         </div>
+    )
+}
+
+// ─── Establecimientos CRUD ───────────────────────────────────────────────────
+
+const EMPTY_EST = { codigo: '', denominacion: '', direccion: '', numero_casa: '0', departamento: 11, distrito: 143, ciudad: 3344, telefono: '', email: '' }
+
+function EstablecimientosSection({ tenantId }: { tenantId: string }) {
+    const [list, setList] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [editEst, setEditEst] = useState<any | null>(null)
+    const [saving, setSaving] = useState(false)
+
+    const load = async () => {
+        setLoading(true)
+        try { const data = await api.sifen.listEstablecimientos(tenantId); setList(data) }
+        catch { /* ignore */ }
+        finally { setLoading(false) }
+    }
+    useEffect(() => { load() }, [tenantId])
+
+    const handleSave = async () => {
+        if (!editEst?.denominacion?.trim()) return
+        setSaving(true)
+        try {
+            if (editEst.id) {
+                await api.sifen.actualizarEstablecimiento(tenantId, editEst.id, editEst)
+            } else {
+                await api.sifen.crearEstablecimiento(tenantId, editEst)
+            }
+            setEditEst(null); load()
+        } catch (err: any) {
+            toast.push(<Notification type="danger" title="Error">{err?.message || 'Error guardando'}</Notification>)
+        } finally { setSaving(false) }
+    }
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('¿Eliminar este establecimiento?')) return
+        try { await api.sifen.eliminarEstablecimiento(tenantId, id); load() }
+        catch (err: any) { toast.push(<Notification type="danger" title="Error">{err?.message || 'Error eliminando'}</Notification>) }
+    }
+
+    const F = ({ label, name, type, placeholder }: { label: string; name: string; type?: string; placeholder?: string }) => (
+        <div>
+            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">{label}</label>
+            <Input type={type} name={name} value={editEst?.[name] ?? ''} onChange={(e: any) => setEditEst((p: any) => ({ ...p, [name]: e.target.value }))} placeholder={placeholder} />
+        </div>
+    )
+
+    return (
+        <Card className="mt-5">
+            <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h6 className="font-semibold text-gray-900 dark:text-gray-100">Establecimientos / Sucursales</h6>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Datos del emisor incluidos en cada DE. Un establecimiento por código.</p>
+                    </div>
+                    <Button size="xs" variant="solid" onClick={() => setEditEst({ ...EMPTY_EST })}>+ Agregar</Button>
+                </div>
+
+                {loading ? <Loading loading /> : list.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-4 text-center">No hay establecimientos. Agregue al menos uno.</p>
+                ) : (
+                    <div className="space-y-2">
+                        {list.map(est => (
+                            <div key={est.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-mono font-bold text-gray-500">{est.codigo}</span>
+                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{est.denominacion}</span>
+                                        {!est.activo && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Inactivo</span>}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-0.5">{est.direccion}{est.telefono ? ` · ${est.telefono}` : ''}{est.email ? ` · ${est.email}` : ''}</p>
+                                    <p className="text-[10px] text-gray-400">Depto: {est.departamento} · Distrito: {est.distrito} · Ciudad: {est.ciudad}</p>
+                                </div>
+                                <div className="flex items-center gap-1 ml-3">
+                                    <Button size="xs" onClick={() => setEditEst({ ...est })}>Editar</Button>
+                                    <Button size="xs" customColorClass={() => 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'} onClick={() => handleDelete(est.id)}>Eliminar</Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Edit/Create Dialog */}
+                <Dialog isOpen={!!editEst} onClose={() => { if (!saving) setEditEst(null) }} width={560}>
+                    {editEst && (
+                        <div className="p-6 space-y-4">
+                            <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                                {editEst.id ? 'Editar Establecimiento' : 'Nuevo Establecimiento'}
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <F label="Código (3 dígitos)" name="codigo" placeholder="001" />
+                                <F label="Denominación" name="denominacion" placeholder="Casa Matriz" />
+                                <div className="col-span-2"><F label="Dirección" name="direccion" placeholder="Av. España 1234" /></div>
+                                <F label="Número de Casa" name="numero_casa" placeholder="0" />
+                                <F label="Teléfono" name="telefono" placeholder="021-123456" />
+                                <F label="Email" name="email" placeholder="sucursal@empresa.com.py" />
+                                <F label="Departamento (código)" name="departamento" type="number" />
+                                <F label="Distrito (código)" name="distrito" type="number" />
+                                <F label="Ciudad (código)" name="ciudad" type="number" />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                                <Button size="sm" variant="plain" onClick={() => setEditEst(null)}>Cancelar</Button>
+                                <Button size="sm" variant="solid" loading={saving} onClick={handleSave}>
+                                    {editEst.id ? 'Guardar' : 'Crear'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </Dialog>
+            </div>
+        </Card>
     )
 }
 

@@ -11,6 +11,7 @@ import { sifenConsultaService } from '../../services/sifenConsulta.service';
 import { sifenEventoService } from '../../services/sifenEvento.service';
 import { sifenContingenciaService } from '../../services/sifenContingencia.service';
 import { sifenHistoryService } from '../../services/sifenHistory.service';
+import { sifenEstablecimientoService } from '../../services/sifenEstablecimiento.service';
 import { storageService } from '../../services/storage.service';
 import { encrypt } from '../../services/crypto.service';
 import { query, queryOne } from '../../db/connection';
@@ -229,6 +230,48 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
             },
             message: 'Certificado subido y validado correctamente',
         });
+    });
+
+    // ═══════════════════════════════════════
+    // NUMERACIÓN
+    // ═══════════════════════════════════════
+    // ESTABLECIMIENTOS
+    // ═══════════════════════════════════════
+
+    app.get<{ Params: { id: string } }>('/tenants/:id/sifen/establecimientos', {
+        preHandler: [requirePermiso('sifen:ver')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const data = await sifenEstablecimientoService.listar(req.params.id);
+        return reply.send({ success: true, data });
+    });
+
+    app.post<{ Params: { id: string } }>('/tenants/:id/sifen/establecimientos', {
+        preHandler: [requirePermiso('sifen:configurar')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const body = req.body as any;
+        if (!body.denominacion) throw new ApiError(400, 'VALIDATION_ERROR', 'denominacion es requerida');
+        const est = await sifenEstablecimientoService.crear(req.params.id, body);
+        return reply.status(201).send({ success: true, data: est });
+    });
+
+    app.put<{ Params: { id: string; estId: string } }>('/tenants/:id/sifen/establecimientos/:estId', {
+        preHandler: [requirePermiso('sifen:configurar')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const est = await sifenEstablecimientoService.actualizar(req.params.id, req.params.estId, req.body as any);
+        if (!est) throw new ApiError(404, 'NOT_FOUND', 'Establecimiento no encontrado');
+        return reply.send({ success: true, data: est });
+    });
+
+    app.delete<{ Params: { id: string; estId: string } }>('/tenants/:id/sifen/establecimientos/:estId', {
+        preHandler: [requirePermiso('sifen:configurar')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const deleted = await sifenEstablecimientoService.eliminar(req.params.id, req.params.estId);
+        if (!deleted) throw new ApiError(404, 'NOT_FOUND', 'Establecimiento no encontrado');
+        return reply.send({ success: true });
     });
 
     // ═══════════════════════════════════════

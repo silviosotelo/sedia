@@ -872,6 +872,16 @@ export const api = {
         method: 'POST', body: JSON.stringify({ receptor, monto, fecha_emision: fechaEmision })
       }).then((r) => r.data ?? []),
 
+    // Establecimientos
+    listEstablecimientos: (tenantId: string) =>
+      request<{ data: any[] }>(`/tenants/${tenantId}/sifen/establecimientos`).then((r) => r.data ?? []),
+    crearEstablecimiento: (tenantId: string, data: any) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/establecimientos`, { method: 'POST', body: JSON.stringify(data) }).then((r) => r.data),
+    actualizarEstablecimiento: (tenantId: string, estId: string, data: any) =>
+      request<{ data: any }>(`/tenants/${tenantId}/sifen/establecimientos/${estId}`, { method: 'PUT', body: JSON.stringify(data) }).then((r) => r.data),
+    eliminarEstablecimiento: (tenantId: string, estId: string) =>
+      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/establecimientos/${estId}`, { method: 'DELETE' }),
+
     // Emitir en contingencia
     emitirContingencia: (tenantId: string, deId: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/emitir-contingencia`, { method: 'POST' }),

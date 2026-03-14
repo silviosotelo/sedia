@@ -1,5 +1,6 @@
 import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
+import { sifenEstablecimientoService } from './sifenEstablecimiento.service';
 import { logger } from '../config/logger';
 
 const xmlgenModule = require('facturacionelectronicapy-xmlgen');
@@ -42,8 +43,10 @@ export const sifenXmlService = {
         const establecimientoCodigo = String(config.establecimiento).padStart(3, '0');
         const codigoSeguridadAleatorio = String(Math.floor(Math.random() * 900000000) + 100000000);
 
-        // Leer datos del establecimiento desde sifen_config (migración 050)
         const cfg = config as any;
+
+        // Buscar establecimiento de la tabla sifen_establecimientos
+        const est = await sifenEstablecimientoService.getByCodigo(tenantId, establecimientoCodigo);
 
         const deParams = {
             version: 150,
@@ -54,7 +57,7 @@ export const sifenXmlService = {
                 { codigo: cfg.actividad_economica || '00000', descripcion: cfg.actividad_economica_desc || 'Actividades no especificadas' }
             ],
             establecimientos: [
-                buildEstablecimiento(establecimientoCodigo, cfg)
+                est ? buildEstablecimientoFromDb(est) : buildEstablecimiento(establecimientoCodigo, cfg)
             ],
             timbradoNumero: config.timbrado,
             timbradoFecha: config.inicio_vigencia
@@ -191,11 +194,28 @@ export const sifenXmlService = {
 // ─── Helpers de mapeo ────────────────────────────────────────────────────────
 
 /**
- * Build establecimiento object from sifen_config fields.
- * xmlgen assigns dTelEmi/dEmailE unconditionally from the object,
- * so we must NOT include keys with falsy values — otherwise xmlgen
- * generates <dTelEmi/> empty tags that SIFEN rejects as 0160.
+ * Build establecimiento object from sifen_establecimientos table row.
+ * xmlgen assigns dTelEmi/dEmailE unconditionally, so we must NOT include
+ * keys with falsy values to avoid empty XML tags (SIFEN 0160).
  */
+function buildEstablecimientoFromDb(row: any): any {
+    const est: any = {
+        codigo: String(row.codigo).padStart(3, '0'),
+        denominacion: row.denominacion,
+        direccion: row.direccion || 'Sin dirección',
+        numeroCasa: row.numero_casa || '0',
+        departamento: row.departamento || 11,
+        distrito: row.distrito || 143,
+        ciudad: row.ciudad || 3344,
+    };
+    if (row.complemento_dir1) est.complementoDireccion1 = row.complemento_dir1;
+    if (row.complemento_dir2) est.complementoDireccion2 = row.complemento_dir2;
+    if (row.telefono) est.telefono = row.telefono;
+    if (row.email) est.email = row.email;
+    return est;
+}
+
+/** Fallback: build from sifen_config flat fields (legacy) */
 function buildEstablecimiento(codigo: string, cfg: any): any {
     const est: any = {
         codigo,
