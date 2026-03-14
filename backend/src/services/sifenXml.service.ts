@@ -51,19 +51,7 @@ export const sifenXmlService = {
                 { codigo: adicionales.actividad_economica || '00000', descripcion: adicionales.actividad_economica_desc || 'Actividades no especificadas' }
             ],
             establecimientos: adicionales.establecimientos || [
-                {
-                    codigo: establecimientoCodigo,
-                    denominacion: adicionales.establecimiento_denominacion || config.razon_social,
-                    direccion: adicionales.direccion_emisor || 'Sin dirección',
-                    numeroCasa: adicionales.numero_casa_emisor || '0',
-                    complementoDireccion1: adicionales.complemento_dir1 || undefined,
-                    complementoDireccion2: adicionales.complemento_dir2 || undefined,
-                    departamento: adicionales.departamento_emisor || 11,
-                    distrito: adicionales.distrito_emisor || 143,
-                    ciudad: adicionales.ciudad_emisor || 3344,
-                    telefono: adicionales.telefono_emisor || undefined,
-                    email: adicionales.email_emisor || undefined,
-                }
+                buildEstablecimiento(establecimientoCodigo, config, adicionales)
             ],
             timbradoNumero: config.timbrado,
             timbradoFecha: config.inicio_vigencia
@@ -198,6 +186,29 @@ export const sifenXmlService = {
 };
 
 // ─── Helpers de mapeo ────────────────────────────────────────────────────────
+
+/**
+ * Build establecimiento object omitting keys with falsy values.
+ * xmlgen assigns dTelEmi/dEmailE unconditionally from the object,
+ * so undefined values generate invalid empty XML tags.
+ */
+function buildEstablecimiento(codigo: string, config: any, adicionales: any): any {
+    const est: any = {
+        codigo,
+        denominacion: adicionales.establecimiento_denominacion || config.razon_social,
+        direccion: adicionales.direccion_emisor || 'Sin dirección',
+        numeroCasa: adicionales.numero_casa_emisor || '0',
+        departamento: adicionales.departamento_emisor || 11,
+        distrito: adicionales.distrito_emisor || 143,
+        ciudad: adicionales.ciudad_emisor || 3344,
+    };
+    // Only include optional fields if they have real values
+    if (adicionales.complemento_dir1) est.complementoDireccion1 = adicionales.complemento_dir1;
+    if (adicionales.complemento_dir2) est.complementoDireccion2 = adicionales.complemento_dir2;
+    if (adicionales.telefono_emisor) est.telefono = adicionales.telefono_emisor;
+    if (adicionales.email_emisor) est.email = adicionales.email_emisor;
+    return est;
+}
 
 /**
  * Builds the `data.cliente` object for xmlgen.
