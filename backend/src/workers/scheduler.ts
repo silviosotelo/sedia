@@ -523,8 +523,8 @@ export function startScheduler(): void {
     }
   });
 
-  // SIFEN auto-arm cada 30 minutos
-  cron.schedule('*/30 * * * *', async () => {
+  // SIFEN auto-arm cada 2 minutos
+  cron.schedule('*/2 * * * *', async () => {
     try {
       await autoArmSifenLotes();
     } catch (err) {
@@ -532,8 +532,8 @@ export function startScheduler(): void {
     }
   });
 
-  // SIFEN auto-poll cada 15 minutos
-  cron.schedule('*/15 * * * *', async () => {
+  // SIFEN auto-poll cada 2 minutos
+  cron.schedule('*/2 * * * *', async () => {
     try {
       await autoPolLSifenLotes();
     } catch (err) {

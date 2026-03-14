@@ -34,18 +34,56 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
         // 3. Generar QR
         await sifenQrService.generarQrDE(tenantId, deId);
 
-        // 4. Marcar como ENQUEUED para ser incluido en el próximo lote
-        await query(
-            `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW()
-             WHERE id = $1 AND tenant_id = $2`,
-            [deId, tenantId]
-        );
+        // 4. Intentar envío sincrónico directo a SET
+        //    Si falla por timeout/conexión, deja en ENQUEUED para lote automático
+        let enviado = false;
+        try {
+            const { sifenConsultaService } = await import('../services/sifenConsulta.service');
+            const result = await sifenConsultaService.enviarSincrono(tenantId, deId);
+            enviado = true;
+
+            await registrarHistorial(tenantId, deId, 'SIGNED', result.estado);
+
+            if (result.estado === 'APPROVED') {
+                await incrementarUsageSifen(tenantId, 'aprobados').catch(() => {});
+                await enviarNotificacionSifen(tenantId, 'SIFEN_DE_APROBADO', { de_id: deId }).catch(() => {});
+                await dispatchWebhookEvent(tenantId, 'sifen_de_aprobado', { de_id: deId }).catch(() => {});
+
+                // Enviar email al receptor si tiene email
+                const de = await queryOne<any>(
+                    `SELECT datos_receptor->>'email' as email_receptor FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+                    [deId, tenantId]
+                );
+                if (de?.email_receptor) {
+                    await query(
+                        `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_ENVIAR_EMAIL', $2)`,
+                        [tenantId, JSON.stringify({ de_id: deId, email: de.email_receptor })]
+                    ).catch(() => {});
+                }
+            } else {
+                await incrementarUsageSifen(tenantId, 'rechazados').catch(() => {});
+                await enviarNotificacionSifen(tenantId, 'SIFEN_DE_RECHAZADO', {
+                    de_id: deId, motivo: result.response?.mensaje || 'Rechazado',
+                }).catch(() => {});
+                await dispatchWebhookEvent(tenantId, 'sifen_de_rechazado', { de_id: deId }).catch(() => {});
+            }
+
+            logger.info(`DE ${deId} enviado sincrónicamente: ${result.estado}`);
+        } catch (sendErr: any) {
+            // Envío sincrónico falló — dejar en ENQUEUED para lote automático
+            logger.warn(`Envío sincrónico falló para DE ${deId}, encolando para lote`, { error: sendErr.message });
+            await query(
+                `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW()
+                 WHERE id = $1 AND tenant_id = $2`,
+                [deId, tenantId]
+            );
+        }
 
         await markJobDone(jobId);
-        logger.info(`DE ${deId} preparado y encolado para batch SIFEN`);
-
-        // Webhook: DE encolado
-        await dispatchWebhookEvent(tenantId, 'sifen_de_encolado', { de_id: deId }).catch(() => {});
+        if (!enviado) {
+            logger.info(`DE ${deId} preparado y encolado para batch SIFEN`);
+            await dispatchWebhookEvent(tenantId, 'sifen_de_encolado', { de_id: deId }).catch(() => {});
+        }
     } catch (err: any) {
         const errorMsg = err.message || 'Error emitiendo documento DE SIFEN';
         const errorCat = categorizarError(errorMsg);
