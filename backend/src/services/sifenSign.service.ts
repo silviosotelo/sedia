@@ -48,6 +48,9 @@ export const sifenSignService = {
             signedXml = await xmlsign.signXML(de.xml_unsigned, keys.privateKey, keys.passphrase || '');
         }
 
+        // Limpiar standalone del XML firmado (SIFEN no lo acepta)
+        signedXml = signedXml.replace(/ standalone="[^"]*"/, '');
+
         await query(
             `UPDATE sifen_de SET xml_signed = $1, estado = 'SIGNED' WHERE id = $2`,
             [signedXml, deId]

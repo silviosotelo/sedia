@@ -188,10 +188,12 @@ export const sifenXmlService = {
         xmlUnsigned = xmlUnsigned
             .replace(/<(\w+)>undefined<\/\1>/g, '')
             .replace(/<(\w+)>null<\/\1>/g, '')
-            .replace(/<(\w+)\s*\/>/g, '');
+            .replace(/<(\w+)\s*\/>/g, '')
+            // Quitar standalone de la declaración XML (SIFEN no lo espera)
+            .replace(/ standalone="[^"]*"/, '');
 
-        // Log XML para diagnóstico
-        logger.info('XML generado (limpiado)', { deId, xmlLen: xmlUnsigned.length, xml: xmlUnsigned.slice(0, 3000) });
+        // Log XML completo para diagnóstico
+        logger.info('XML generado (limpiado)', { deId, xmlLen: xmlUnsigned.length, xml: xmlUnsigned });
 
         // Extraer CDC del XML generado (atributo Id del elemento DE: <DE Id="44chars...">)
         let cdc: string = '';
