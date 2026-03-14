@@ -159,8 +159,12 @@ export const sifenLoteService = {
 
         logger.debug('consultaLote codigo', { loteId, codigo });
 
-        // 0300=procesado, 0301=rechazado total, 0303=procesado con errores
-        const done = ['0300', '0301', '0303'].includes(codigo);
+        // Códigos consulta-lote (Manual Técnico SIFEN):
+        //   0360 = Número de lote inexistente
+        //   0361 = Lote en procesamiento (reintentar)
+        //   0362 = Procesamiento concluido (éxito — tiene detalles por DE)
+        //   0364 = Consulta extemporánea (>48h, consultar por CDC individual)
+        const done = ['0362'].includes(codigo);
 
         if (done) {
             await query(
@@ -172,8 +176,9 @@ export const sifenLoteService = {
             const detallesRaw = resConsulta?.gResProcLote || [];
             const detalles: any[] = Array.isArray(detallesRaw) ? detallesRaw : [detallesRaw].filter(Boolean);
 
-            // Batch lookup: resolve all CDCs in one query
-            const cdcs = detalles.map((d: any) => d?.dCDCDE || d?.cdc).filter(Boolean);
+            // Estructura por DE: gResProcLote.id = CDC, gResProcLote.dEstRes = "Aprobado"/"Rechazado"
+            //   gResProcLote.gResProc.dCodRes = código, gResProcLote.gResProc.dMsgRes = mensaje
+            const cdcs = detalles.map((d: any) => d?.id || d?.dCDCDE || d?.cdc).filter(Boolean);
 
             const deMap = new Map<string, string>();
             if (cdcs.length) {
@@ -187,10 +192,12 @@ export const sifenLoteService = {
             }
 
             for (const detalle of detalles) {
-                const cdc = detalle?.dCDCDE || detalle?.cdc;
-                const codigoItem = String(detalle?.dEstRes || detalle?.codigo || '');
-                const mensajeItem = detalle?.dMsgRes || detalle?.descripcion || null;
-                const aprobado = codigoItem === '0300' || codigoItem === 'Aprobado';
+                const cdc = detalle?.id || detalle?.dCDCDE || detalle?.cdc;
+                const estadoRes = detalle?.dEstRes || '';
+                const resProc = detalle?.gResProc || {};
+                const codigoItem = String(resProc?.dCodRes || detalle?.dCodRes || '');
+                const mensajeItem = resProc?.dMsgRes || detalle?.dMsgRes || null;
+                const aprobado = estadoRes === 'Aprobado' || estadoRes === 'Aprobado con observación';
                 const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
 
                 const deId = cdc ? deMap.get(cdc) : undefined;

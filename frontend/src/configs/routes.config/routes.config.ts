@@ -100,6 +100,12 @@ export const protectedRoutes: Routes = [
         component: lazy(() => import('@/views/sedia/sifen/SifenConfig')),
         authority: [],
     },
+    {
+        key: 'sifen.referencia',
+        path: '/sifen/referencia',
+        component: lazy(() => import('@/views/sedia/sifen/SifenReferencia')),
+        authority: [],
+    },
     // Admin
     {
         key: 'admin.empresas',

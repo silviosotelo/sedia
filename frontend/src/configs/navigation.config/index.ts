@@ -171,6 +171,18 @@ const navigationConfig: NavigationTree[] = [
                 spiFeature: 'facturacion_electronica',
                 subMenu: [],
             },
+            {
+                key: 'sifen.referencia',
+                path: '/sifen/referencia',
+                title: 'Referencia',
+                translateKey: '',
+                icon: '',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: [],
+                spiPermiso: 'sifen:ver',
+                spiFeature: 'facturacion_electronica',
+                subMenu: [],
+            },
         ],
     },
 

@@ -76,7 +76,8 @@ export const sifenConsultaService = {
 
         // Normalize: strip ns2: prefixes and unwrap SOAP body
         const normalized = stripNs2(rawResponse);
-        const response = normalized?.rRetEnviConsDeResponse || normalized?.rRetEnviConsDe || normalized;
+        // Consulta DE response: rEnviConsDeResponse con dCodRes (0420=no existe, 0422=existe)
+        const response = normalized?.rEnviConsDeResponse || normalized?.rRetEnviConsDe || normalized;
 
         logger.debug('Respuesta setapi.consulta', { tenantId, cdc, keys: Object.keys(response || {}) });
 
@@ -88,8 +89,8 @@ export const sifenConsultaService = {
             );
 
             if (de) {
-                const codigo = response?.dCodResLot || response?.dEstRes || response?.codigo || '';
-                const mensaje = response?.dMsgRes || response?.descripcion || response?.mensaje || null;
+                const codigo = response?.dCodRes || response?.dEstRes || '';
+                const mensaje = response?.dMsgRes || null;
                 await query(
                     `UPDATE sifen_de
                         SET sifen_respuesta = $1,
