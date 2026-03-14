@@ -40,6 +40,8 @@ export const sifenXmlService = {
         //   establecimientos: array of {codigo, denominacion, direccion, numeroCasa, departamento, distrito, ciudad, ...}
         //   actividadesEconomicas: array of {codigo, descripcion}
         const establecimientoCodigo = String(config.establecimiento).padStart(3, '0');
+        const codigoSeguridadAleatorio = String(Math.floor(Math.random() * 900000000) + 100000000);
+
         const deParams = {
             ruc: `${config.ruc}-${config.dv}`,
             razonSocial: config.razon_social,
@@ -68,7 +70,6 @@ export const sifenXmlService = {
                 : new Date().toISOString().slice(0, 10),
             tipoContribuyente: adicionales.tipo_contribuyente || 1,
             tipoRegimen: adicionales.tipo_regimen || 8,
-            cSeg: String(Math.floor(Math.random() * 900000000) + 100000000),
         };
 
         // xmlgen expects `fecha` (not `fechaEmision`) in format yyyy-MM-ddTHH:mm:ss
@@ -83,6 +84,7 @@ export const sifenXmlService = {
             numero: Number(de.numero_documento) || 1,
             fecha: fechaDE,
             tipoEmision: de.tipo_emision || 1,
+            codigoSeguridadAleatorio: codigoSeguridadAleatorio,
             tipoImpuesto: adicionales.tipo_impuesto || 1,
             tipoTransaccion: adicionales.tipo_transaccion || 1,
             moneda: de.moneda || 'PYG',
@@ -165,9 +167,23 @@ export const sifenXmlService = {
         }
 
         const xmlUnsigned: string = typeof result === 'string' ? result : (result.xmlDE || result.xml || '');
-        const cdc: string = typeof result === 'object' ? (result.cdc || result.CDC || de.cdc || '') : de.cdc || '';
 
         if (!xmlUnsigned) throw new Error('xmlgen no retornó XML válido');
+
+        // Extraer CDC del XML generado (atributo Id del elemento DE: <DE Id="44chars...">)
+        let cdc: string = '';
+        if (typeof result === 'object' && (result.cdc || result.CDC)) {
+            cdc = result.cdc || result.CDC;
+        } else {
+            const cdcMatch = xmlUnsigned.match(/<DE\s+Id="([A-Za-z0-9]{44})"/);
+            if (cdcMatch) {
+                cdc = cdcMatch[1];
+            }
+        }
+
+        if (!cdc || cdc.startsWith('TEMP-')) {
+            throw new Error('No se pudo generar un CDC válido para el DE. Verifique los datos del documento.');
+        }
 
         await query(
             `UPDATE sifen_de SET xml_unsigned = $1, cdc = $2, estado = 'GENERATED', updated_at = NOW()

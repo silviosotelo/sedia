@@ -216,7 +216,7 @@ export const sifenEventoService = {
             throw new Error('El DE no tiene un CDC válido asignado por SIFEN');
         }
 
-        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'CANCELACION', 'EMISOR', {
             de_id: deId,
@@ -314,7 +314,7 @@ export const sifenEventoService = {
             throw new Error('El motivo debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, idCsc } = await resolveEnvAndUrl(tenantId);
 
         if (!config.timbrado) {
             throw new Error('Configure el timbrado antes de reportar inutilizaciones');
@@ -422,7 +422,7 @@ export const sifenEventoService = {
             throw new Error('El CDC debe tener exactamente 44 caracteres');
         }
 
-        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const descripcion = motivo?.trim() || 'Conformidad con el documento recibido';
 
@@ -501,7 +501,7 @@ export const sifenEventoService = {
             throw new Error('El motivo de disconformidad debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'DISCONFORMIDAD', 'RECEPTOR', {
             cdc,
@@ -578,7 +578,7 @@ export const sifenEventoService = {
             throw new Error('El motivo de desconocimiento debe tener al menos 5 caracteres');
         }
 
-        const { config, envStr, wsUrl, idCsc } = await resolveEnvAndUrl(tenantId);
+        const { config, envStr, idCsc } = await resolveEnvAndUrl(tenantId);
 
         const eventoId = await crearRegistroEvento(tenantId, 'DESCONOCIMIENTO', 'RECEPTOR', {
             cdc,
