@@ -168,19 +168,14 @@ export const sifenXmlService = {
 
         if (!xmlUnsigned) throw new Error('xmlgen no retornó XML válido');
 
-        // Limpiar tags vacíos/undefined que xmlgen genera para campos opcionales
-        // Ej: <dTelEmi/>, <dTelEmi>undefined</dTelEmi>, <dEmailE/>
+        // Regla DNIT Guía Mejores Prácticas punto 5:
+        // "NO incluir etiquetas de campos que no contengan valor"
+        // xmlgen genera tags con undefined/null/vacío para campos opcionales
+        // que no tienen valor (ej: <dTelEmi>undefined</dTelEmi>, <dTelEmi/>)
         xmlUnsigned = xmlUnsigned
-            .replace(/<(\w+)>undefined<\/\1>/g, '') // <tag>undefined</tag>
-            .replace(/<(\w+)>null<\/\1>/g, '')      // <tag>null</tag>
-            .replace(/<(\w+)\s*\/>/g, (match, tag) => {
-                // Preservar tags self-closing legítimos (ej: <br/>, <Signature/>)
-                // Remover solo los que son campos de datos SIFEN vacíos
-                const sifenEmptyTags = ['dTelEmi', 'dEmailE', 'dTelRec', 'dEmailRec', 'dCodInt',
-                    'dNomFanRec', 'dDirRec', 'dNumCasRec', 'dCompDir1', 'dCompDir2',
-                    'dNomFanEmi', 'dCompDir1Emi', 'dCompDir2Emi'];
-                return sifenEmptyTags.includes(tag) ? '' : match;
-            });
+            .replace(/<(\w+)>undefined<\/\1>/g, '')
+            .replace(/<(\w+)>null<\/\1>/g, '')
+            .replace(/<(\w+)\s*\/>/g, '');
 
         // Extraer CDC del XML generado (atributo Id del elemento DE: <DE Id="44chars...">)
         let cdc: string = '';
