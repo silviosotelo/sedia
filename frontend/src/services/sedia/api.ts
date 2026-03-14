@@ -830,6 +830,21 @@ export const api = {
     downloadKude: (tenantId: string, deId: string): Promise<void> => {
       return downloadWithAuth(api.sifen.downloadKudeUrl(tenantId, deId), `kude-${deId}.pdf`);
     },
+    /** Abre el KUDE PDF en una ventana para impresión directa */
+    printKude: async (tenantId: string, deId: string): Promise<void> => {
+      const token = localStorage.getItem('saas_token')
+      const url = api.sifen.downloadKudeUrl(tenantId, deId)
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      if (!res.ok) throw new Error('No se pudo obtener el KUDE')
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const printWindow = window.open(blobUrl, '_blank')
+      if (printWindow) {
+        printWindow.addEventListener('load', () => {
+          printWindow.print()
+        })
+      }
+    },
 
     // Envío sincrónico
     enviarSincrono: (tenantId: string, deId: string) =>

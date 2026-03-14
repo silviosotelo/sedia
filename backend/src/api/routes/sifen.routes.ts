@@ -347,9 +347,27 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
             const updated = await queryOne<any>(
                 `SELECT estado, sifen_codigo, sifen_mensaje FROM sifen_de WHERE id = $1`, [deId]
             );
+
+            // 3. Si fue aprobado, generar KUDE inmediatamente para impresión
+            let kude_disponible = false;
+            if (updated?.estado === 'APPROVED') {
+                try {
+                    await sifenKudeService.generarKude(tenantId, deId);
+                    kude_disponible = true;
+                } catch (kudeErr: any) {
+                    logger.warn('KUDE generation failed post-approval', { deId, error: (kudeErr as Error).message });
+                }
+            }
+
             return reply.send({
                 success: true,
-                data: { cdc, estado: updated?.estado || result.estado, sifen_codigo: updated?.sifen_codigo, sifen_mensaje: updated?.sifen_mensaje },
+                data: {
+                    cdc,
+                    estado: updated?.estado || result.estado,
+                    sifen_codigo: updated?.sifen_codigo,
+                    sifen_mensaje: updated?.sifen_mensaje,
+                    kude_disponible,
+                },
             });
         } catch (sendErr: any) {
             // Envío falló — dejar en ENQUEUED para lote automático

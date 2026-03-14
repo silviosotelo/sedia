@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Download, FileX, FileText, AlertTriangle, Link2, RefreshCw } from 'lucide-react'
+import { Search, Download, FileX, FileText, AlertTriangle, Link2, RefreshCw, Printer } from 'lucide-react'
 import { api } from '@/services/sedia/api'
 import { useTenantStore } from '@/store/tenantStore'
 import Button from '@/components/ui/Button'
@@ -123,6 +123,8 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
     const [anularMotivo, setAnularMotivo] = useState('')
     const [emailOpen, setEmailOpen] = useState(false)
     const [emailDestino, setEmailDestino] = useState('')
+    const [printDialogOpen, setPrintDialogOpen] = useState(false)
+    const [printing, setPrinting] = useState(false)
 
     const load = async () => {
         setLoading(true); setError(null)
@@ -141,14 +143,28 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
         try {
             const res = await api.sifen.signDe(tenantId, deId)
             const d = (res as any)?.data
-            if (d?.estado === 'APPROVED') toastSuccess(`Aprobado por SIFEN`)
-            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}`)
-            else if (d?.estado === 'ENQUEUED') toastSuccess(d.mensaje || 'Firmado. Encolado para envío automático.')
-            else toastSuccess(`Firmado — Estado: ${d?.estado || 'OK'}`)
+            if (d?.estado === 'APPROVED') {
+                toastSuccess(`Aprobado por SIFEN`)
+                if (d.kude_disponible) setPrintDialogOpen(true)
+            } else if (d?.estado === 'REJECTED') {
+                toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}`)
+            } else if (d?.estado === 'ENQUEUED') {
+                toastSuccess(d.mensaje || 'Firmado. Encolado para envío automático.')
+            } else {
+                toastSuccess(`Firmado — Estado: ${d?.estado || 'OK'}`)
+            }
             load()
         }
         catch (err: any) { toastError(err?.message || 'Error en emisión.') }
         finally { setSigning(false) }
+    }
+
+    const handlePrint = async () => {
+        setPrinting(true)
+        try {
+            await api.sifen.printKude(tenantId, deId)
+        } catch (err: any) { toastError(err?.message || 'Error abriendo impresión.') }
+        finally { setPrinting(false); setPrintDialogOpen(false) }
     }
 
     const handleAnularConfirm = async () => {
@@ -246,6 +262,7 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     )}
                     {de.estado === 'APPROVED' && (
                         <>
+                            <Button size="xs" variant="solid" icon={<Printer className="w-3.5 h-3.5" />} loading={printing} onClick={handlePrint}>Imprimir</Button>
                             <Button size="xs" onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
                             <Button size="xs" onClick={() => api.sifen.downloadKude(tenantId, de.id)}>KUDE PDF</Button>
                             <Button size="xs" loading={actionLoading === 'email'} onClick={() => setEmailOpen(true)}>Email</Button>
@@ -446,6 +463,31 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     </div>
                 </Card>
             )}
+
+            {/* Print Dialog — post emisión exitosa */}
+            <Dialog isOpen={printDialogOpen} onClose={() => setPrintDialogOpen(false)} width={400}>
+                <div className="p-6 text-center space-y-4">
+                    <div className="w-14 h-14 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto">
+                        <svg className="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                    <div>
+                        <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">Documento Aprobado</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">El documento fue aprobado por SIFEN exitosamente.</p>
+                        {de?.cdc && <p className="text-[10px] text-gray-400 font-mono mt-2 break-all">{de.cdc}</p>}
+                    </div>
+                    <div className="flex items-center justify-center gap-2 pt-2">
+                        <Button size="sm" variant="solid" icon={<Printer className="w-4 h-4" />} loading={printing} onClick={handlePrint}>
+                            Imprimir KUDE
+                        </Button>
+                        <Button size="sm" onClick={() => { api.sifen.downloadKude(tenantId, deId); setPrintDialogOpen(false) }}>
+                            Descargar PDF
+                        </Button>
+                        <Button size="sm" variant="plain" onClick={() => setPrintDialogOpen(false)}>
+                            Cerrar
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
 
             {/* Anular Dialog */}
             <Dialog isOpen={anularOpen} onClose={() => { if (!anulando) { setAnularOpen(false); setAnularMotivo('') } }} width={480}>
