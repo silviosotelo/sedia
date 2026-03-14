@@ -1,6 +1,9 @@
 import { query, queryOne } from '../db/connection';
 import { logger } from '../config/logger';
 import { sifenConfigService } from './sifenConfig.service';
+import { sifenXmlService } from './sifenXml.service';
+import { sifenSignService } from './sifenSign.service';
+import { sifenQrService } from './sifenQr.service';
 
 const _setapi = require('facturacionelectronicapy-setapi');
 const setapi = _setapi.default || _setapi;
@@ -22,15 +25,26 @@ async function loadCertFile(tenantId: string): Promise<{ filePath: string; passw
     return sifenConfigService.getCertFilePath(tenantId);
 }
 
+/**
+ * Recursively strips "ns2:" prefixes from object keys returned by xml2js.
+ * setapi returns env:Body with ns2: namespaced keys — this normalizes them.
+ */
+export function stripNs2(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(stripNs2);
+
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+        const cleanKey = key.replace(/^ns2:/, '');
+        result[cleanKey] = stripNs2(obj[key]);
+    }
+    return result;
+}
+
 export const sifenConsultaService = {
     /**
      * Consulta el estado de un Documento Electrónico en la SET por su CDC.
-     *
-     * Calls setapi.consulta(id, cdc, env, cert, key, config). If a matching sifen_de record
-     * exists locally it is updated with the SET response fields:
-     * sifen_respuesta, sifen_codigo, sifen_mensaje.
-     *
-     * Returns the raw SET response object.
      */
     async consultarDE(tenantId: string, cdc: string): Promise<any> {
         if (!cdc || cdc.trim().length === 0) {
@@ -48,24 +62,25 @@ export const sifenConsultaService = {
 
         logger.info('Consultando DE en SET', { tenantId, cdc, ambiente: config.ambiente });
 
-        let response: any;
+        let rawResponse: any;
         try {
-            response = await setapi.consulta(idCsc, cdc, envStr, filePath, password, {});
+            rawResponse = await setapi.consulta(idCsc, cdc, envStr, filePath, password, {});
         } catch (err: any) {
             logger.error('Error llamando setapi.consulta', {
-                tenantId,
-                cdc,
-                error: err.message,
-                stack: err.stack,
+                tenantId, cdc, error: err.message,
             });
             throw new Error(`Error consultando DE en SIFEN: ${err.message}`);
         } finally {
             cleanup();
         }
 
-        logger.debug('Respuesta setapi.consulta', { tenantId, cdc, codigo: response?.codigo });
+        // Normalize: strip ns2: prefixes and unwrap SOAP body
+        const normalized = stripNs2(rawResponse);
+        const response = normalized?.rRetEnviConsDeResponse || normalized?.rRetEnviConsDe || normalized;
 
-        // Update local record if it exists — best-effort, do not throw on DB error
+        logger.debug('Respuesta setapi.consulta', { tenantId, cdc, keys: Object.keys(response || {}) });
+
+        // Update local record if it exists — best-effort
         try {
             const de = await queryOne<{ id: string }>(
                 `SELECT id FROM sifen_de WHERE cdc = $1 AND tenant_id = $2 LIMIT 1`,
@@ -73,6 +88,8 @@ export const sifenConsultaService = {
             );
 
             if (de) {
+                const codigo = response?.dCodResLot || response?.dEstRes || response?.codigo || '';
+                const mensaje = response?.dMsgRes || response?.descripcion || response?.mensaje || null;
                 await query(
                     `UPDATE sifen_de
                         SET sifen_respuesta = $1,
@@ -80,24 +97,11 @@ export const sifenConsultaService = {
                             sifen_mensaje   = $3,
                             updated_at      = NOW()
                       WHERE id = $4`,
-                    [
-                        JSON.stringify(response),
-                        String(response?.codigo || ''),
-                        response?.descripcion || response?.mensaje || null,
-                        de.id,
-                    ]
+                    [JSON.stringify(response), String(codigo), mensaje, de.id]
                 );
-                logger.debug('sifen_de actualizado con respuesta consulta', { tenantId, cdc, deId: de.id });
-            } else {
-                logger.debug('No existe sifen_de local para el CDC consultado', { tenantId, cdc });
             }
         } catch (dbErr: any) {
-            // Non-fatal: log and continue returning the SET response
-            logger.warn('No se pudo actualizar sifen_de tras consulta', {
-                tenantId,
-                cdc,
-                error: dbErr.message,
-            });
+            logger.warn('No se pudo actualizar sifen_de tras consulta', { tenantId, cdc, error: dbErr.message });
         }
 
         return response;
@@ -105,10 +109,7 @@ export const sifenConsultaService = {
 
     /**
      * Consulta información de un contribuyente ante la SET por su RUC.
-     *
-     * Calls setapi.consultaRUC(id, ruc, env, cert, key, config). Returns contributor data
-     * including razon_social, tipo_contribuyente, estado, etc., as returned
-     * by the SET web service.
+     * Returns normalized contributor data (razón social, estado, etc.)
      */
     async consultarRuc(tenantId: string, ruc: string): Promise<any> {
         if (!ruc || ruc.trim().length === 0) {
@@ -126,47 +127,59 @@ export const sifenConsultaService = {
 
         logger.info('Consultando RUC en SET', { tenantId, ruc, ambiente: config.ambiente });
 
-        let response: any;
+        let rawResponse: any;
         try {
-            response = await setapi.consultaRUC(idCsc, ruc, envStr, filePath, password, {});
+            rawResponse = await setapi.consultaRUC(idCsc, ruc, envStr, filePath, password, {});
         } catch (err: any) {
-            logger.error('Error llamando setapi.consultaRUC', {
-                tenantId,
-                ruc,
-                error: err.message,
-                stack: err.stack,
-            });
+            logger.error('Error llamando setapi.consultaRUC', { tenantId, ruc, error: err.message });
             throw new Error(`Error consultando RUC en SIFEN: ${err.message}`);
         } finally {
             cleanup();
         }
 
-        logger.debug('Respuesta setapi.consultaRUC', { tenantId, ruc, codigo: response?.codigo });
+        logger.debug('Respuesta cruda consultaRUC', { tenantId, ruc, keys: Object.keys(rawResponse || {}) });
 
-        return response;
+        // setapi returns env:Body with ns2: prefixed keys like:
+        // { "ns2:rResEnviConsRUC": { "ns2:dCodRes": "0500", "ns2:xContRUC": { "ns2:dRUC": "...", ... } } }
+        const normalized = stripNs2(rawResponse);
+        const resRuc = normalized?.rResEnviConsRUC || normalized;
+
+        // Extract the contributor info from xContRUC
+        const codRes = resRuc?.dCodRes || '';
+        const msgRes = resRuc?.dMsgRes || '';
+
+        if (codRes !== '0502') {
+            // 0502 = RUC encontrado. Otros códigos son errores
+            return {
+                encontrado: false,
+                codigo: codRes,
+                mensaje: msgRes,
+            };
+        }
+
+        // Flatten the contributor data
+        const contrib = resRuc?.xContRUC || {};
+        return {
+            encontrado: true,
+            codigo: codRes,
+            mensaje: msgRes,
+            ruc: contrib.dRUC || ruc,
+            razon_social: contrib.dRazSoc || contrib.dRazonSocial || null,
+            nombre_fantasia: contrib.dNomFant || null,
+            tipo_contribuyente: contrib.dTipoContribuyente || null,
+            estado: contrib.dEstado || contrib.dEstadoRUC || null,
+            fecha_inicio: contrib.dFecIni || null,
+        };
     },
 
     /**
      * Envía un DE directamente a la SET de forma sincrónica (sin lote).
-     *
-     * Intended for urgent documents or testing. Calls setapi.recibe(id, xml, env, cert, key, config).
-     * The SET processes it immediately and returns approval or rejection — no batch
-     * polling is required.
-     *
-     * State transitions:
-     *   SIGNED → APPROVED  (codigo 0300)
-     *   SIGNED → REJECTED  (any other codigo)
-     *
-     * On APPROVED, enqueues a SIFEN_GENERAR_KUDE job so the PDF is generated
-     * automatically.
-     *
-     * Returns the full SET response plus the resolved estado.
+     * El DE debe estar ya firmado (SIGNED/ENQUEUED/ERROR).
      */
     async enviarSincrono(
         tenantId: string,
         deId: string
     ): Promise<{ estado: string; response: any }> {
-        // 1. Load the DE — we need xml_signed and current estado
         const de = await queryOne<any>(
             `SELECT id, estado, cdc, xml_signed
                FROM sifen_de
@@ -174,13 +187,10 @@ export const sifenConsultaService = {
             [deId, tenantId]
         );
 
-        if (!de) {
-            throw new Error('DE no encontrado');
-        }
+        if (!de) throw new Error('DE no encontrado');
         if (!de.xml_signed) {
             throw new Error(`El DE ${deId} no tiene XML firmado — debe pasar por el proceso de generación y firma antes de enviarse`);
         }
-        // Guard against invalid state transitions
         const estadosPermitidos = ['SIGNED', 'ENQUEUED', 'ERROR'];
         if (!estadosPermitidos.includes(de.estado)) {
             throw new Error(
@@ -189,107 +199,132 @@ export const sifenConsultaService = {
             );
         }
 
-        // 2. Fetch SIFEN config + cert/key
         const config = await sifenConfigService.getConfig(tenantId);
-        if (!config) {
-            throw new Error('Configuración SIFEN no encontrada para este tenant');
-        }
+        if (!config) throw new Error('Configuración SIFEN no encontrada para este tenant');
 
         const envStr = toEnvStr(config.ambiente);
         const idCsc = (config as any).id_csc || '1';
         const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
-        logger.info('Enviando DE sincrónico a SIFEN', {
-            tenantId,
-            deId,
-            cdc: de.cdc,
-            ambiente: config.ambiente,
-        });
+        logger.info('Enviando DE sincrónico a SIFEN', { tenantId, deId, cdc: de.cdc, ambiente: config.ambiente });
 
-        // 3. Call setapi.recibe (synchronous endpoint)
-        let response: any;
+        let rawResponse: any;
         try {
-            response = await setapi.recibe(idCsc, de.xml_signed, envStr, filePath, password, {});
+            rawResponse = await setapi.recibe(idCsc, de.xml_signed, envStr, filePath, password, {});
         } catch (err: any) {
-            // Mark the DE as ERROR and store the error details
             const errorPayload = JSON.stringify({ error: err.message });
             await query(
                 `UPDATE sifen_de
-                    SET estado          = 'ERROR',
-                        sifen_respuesta = $1,
-                        sifen_codigo    = NULL,
-                        sifen_mensaje   = $2,
-                        error_categoria = 'CONEXION',
-                        updated_at      = NOW()
+                    SET estado = 'ERROR', sifen_respuesta = $1, sifen_codigo = NULL,
+                        sifen_mensaje = $2, error_categoria = 'CONEXION', updated_at = NOW()
                   WHERE id = $3`,
                 [errorPayload, err.message, deId]
             );
-            logger.error('Error llamando setapi.recibe', {
-                tenantId,
-                deId,
-                cdc: de.cdc,
-                error: err.message,
-                stack: err.stack,
-            });
+            logger.error('Error llamando setapi.recibe', { tenantId, deId, error: err.message });
             throw new Error(`Error enviando DE a SIFEN (sincrónico): ${err.message}`);
         } finally {
             cleanup();
         }
 
-        logger.debug('Respuesta setapi.recibe', {
-            tenantId,
-            deId,
-            cdc: de.cdc,
-            codigo: response?.codigo,
-        });
+        logger.debug('Respuesta cruda setapi.recibe', { tenantId, deId, keys: Object.keys(rawResponse || {}) });
 
-        // 4. Determine the new estado.
-        //    codigo '0300' means approved; anything else is a rejection.
-        const codigoStr = String(response?.codigo || '');
-        const aprobado  = codigoStr === '0300';
-        const nuevoEstado: string = aprobado ? 'APPROVED' : 'REJECTED';
-        const mensaje: string | null =
-            response?.descripcion || response?.mensaje || null;
+        // Normalize ns2: prefixes — response is { "ns2:rRetEnviDe": { "ns2:rProtDe": { ... } } }
+        const normalized = stripNs2(rawResponse);
+        const retEnvi = normalized?.rRetEnviDe || normalized;
+        const protDe = retEnvi?.rProtDe || retEnvi;
 
-        // 5. Persist the result
+        const codigoStr = String(protDe?.gResProc?.dCodRes || protDe?.dCodRes || protDe?.dEstRes || rawResponse?.codigo || '');
+        const aprobado = codigoStr === '0300';
+        const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
+        const mensaje = protDe?.gResProc?.dMsgRes || protDe?.dMsgRes || protDe?.dEstRes || null;
+
         await query(
             `UPDATE sifen_de
-                SET estado          = $1,
-                    sifen_respuesta = $2,
-                    sifen_codigo    = $3,
-                    sifen_mensaje   = $4,
-                    updated_at      = NOW()
+                SET estado = $1, sifen_respuesta = $2, sifen_codigo = $3,
+                    sifen_mensaje = $4, updated_at = NOW()
               WHERE id = $5`,
-            [nuevoEstado, JSON.stringify(response), codigoStr, mensaje, deId]
+            [nuevoEstado, JSON.stringify(normalized), codigoStr, mensaje, deId]
         );
 
-        logger.info('DE enviado sincrónico — resultado', {
-            tenantId,
-            deId,
-            cdc: de.cdc,
-            nuevoEstado,
-            codigo: codigoStr,
-        });
+        logger.info('DE enviado sincrónico — resultado', { tenantId, deId, cdc: de.cdc, nuevoEstado, codigo: codigoStr });
 
-        // 6. If approved, enqueue KUDE generation so the PDF is produced asynchronously
         if (aprobado) {
             try {
                 await query(
-                    `INSERT INTO jobs (tenant_id, tipo_job, payload)
-                     VALUES ($1, 'SIFEN_GENERAR_KUDE', $2)`,
+                    `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_GENERAR_KUDE', $2)`,
                     [tenantId, JSON.stringify({ de_id: deId })]
                 );
-                logger.debug('Job SIFEN_GENERAR_KUDE encolado', { tenantId, deId });
             } catch (jobErr: any) {
-                // Non-fatal: KUDE generation failure should not roll back the approval
-                logger.warn('No se pudo encolar SIFEN_GENERAR_KUDE', {
-                    tenantId,
-                    deId,
-                    error: jobErr.message,
-                });
+                logger.warn('No se pudo encolar SIFEN_GENERAR_KUDE', { tenantId, deId, error: (jobErr as Error).message });
             }
         }
 
-        return { estado: nuevoEstado, response };
+        return { estado: nuevoEstado, response: normalized };
+    },
+
+    /**
+     * Emisión completa sincrónica: Crear DE → Generar XML → Firmar → Enviar a SET.
+     * Todo en una sola llamada HTTP. Si el envío a SET tarda más de `timeoutMs`,
+     * deja el DE en estado SIGNED (listo para envío asíncrono por lote).
+     */
+    async emitirCompletoSincrono(
+        tenantId: string,
+        userId: string,
+        data: any,
+        timeoutMs: number = 30000
+    ): Promise<{ id: string; numero_documento: string; cdc: string; estado: string; response?: any }> {
+        // 1. Crear el DE (asigna número correlativo + CDC temporal)
+        const { sifenService } = await import('./sifen.service');
+        const { id: deId, numero_documento } = await sifenService.createDE(tenantId, userId, data);
+
+        logger.info('Emisión sincrónica: DE creado', { tenantId, deId, numero_documento });
+
+        // 2. Generar XML (reemplaza CDC temporal con el real)
+        const { cdc } = await sifenXmlService.generarXmlDE(tenantId, deId);
+        logger.info('Emisión sincrónica: XML generado', { tenantId, deId, cdc });
+
+        // 3. Firmar XML
+        await sifenSignService.firmarXmlDE(tenantId, deId);
+        logger.info('Emisión sincrónica: XML firmado', { tenantId, deId });
+
+        // 4. Generar QR
+        await sifenQrService.generarQrDE(tenantId, deId);
+
+        // 5. Intentar enviar a SET con timeout
+        try {
+            const sendPromise = this.enviarSincrono(tenantId, deId);
+
+            const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('TIMEOUT_SYNC')), timeoutMs)
+            );
+
+            const result = await Promise.race([sendPromise, timeoutPromise]);
+
+            return {
+                id: deId,
+                numero_documento,
+                cdc,
+                estado: result.estado,
+                response: result.response,
+            };
+        } catch (err: any) {
+            if (err.message === 'TIMEOUT_SYNC') {
+                // Timeout — marcar como ENQUEUED para envío asíncrono por lote
+                await query(
+                    `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1`,
+                    [deId]
+                );
+                logger.warn('Emisión sincrónica timeout — DE encolado para envío asíncrono', { tenantId, deId, cdc });
+
+                return {
+                    id: deId,
+                    numero_documento,
+                    cdc,
+                    estado: 'ENQUEUED',
+                };
+            }
+            // Si el error es de SET (no timeout), ya se marcó ERROR en enviarSincrono
+            throw err;
+        }
     },
 };

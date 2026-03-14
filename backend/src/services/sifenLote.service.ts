@@ -1,6 +1,7 @@
 import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
+import { stripNs2 } from './sifenConsulta.service';
 
 const _setapi = require('facturacionelectronicapy-setapi');
 const setapi = _setapi.default || _setapi;
@@ -81,12 +82,23 @@ export const sifenLoteService = {
             await sifenConfigService.getCertFilePath(tenantId);
 
         try {
-            const result = await setapi.recibeLote(idCsc, xmls, envStr, certPath, certPassword, {});
+            const rawResult = await setapi.recibeLote(idCsc, xmls, envStr, certPath, certPassword, {});
+            const result = stripNs2(rawResult);
+
+            logger.debug('Respuesta recibeLote', { loteId, result: JSON.stringify(result).slice(0, 1000) });
+
+            // Normalizado: rResEnviLoteDe.dProtLote contiene el número de lote
+            const resEnvio = result?.rResEnviLoteDe || result;
+            const numeroLote = resEnvio?.dProtLote || result?.idLote || result?.nroLote;
+
+            if (!numeroLote) {
+                logger.warn('recibeLote: no se encontró número de lote en respuesta', { loteId, result: JSON.stringify(result) });
+            }
 
             await query(
                 `UPDATE sifen_lote SET estado = 'SENT', numero_lote = $1, respuesta_recibe_lote = $2, updated_at = NOW()
                  WHERE id = $3`,
-                [result.idLote || result.nroLote, JSON.stringify(result), loteId]
+                [numeroLote, JSON.stringify(result), loteId]
             );
 
             const deIds = items.map((i: any) => i.de_id);
@@ -96,8 +108,8 @@ export const sifenLoteService = {
                 [deIds, tenantId]
             );
 
-            logger.info('Lote enviado a SIFEN', { tenantId, loteId, idLote: result.idLote });
-            return result.idLote || result.nroLote || loteId;
+            logger.info('Lote enviado a SIFEN', { tenantId, loteId, numeroLote });
+            return numeroLote || loteId;
         } catch (e: any) {
             await query(
                 `UPDATE sifen_lote SET estado = 'ERROR', respuesta_recibe_lote = $1, updated_at = NOW()
@@ -131,16 +143,24 @@ export const sifenLoteService = {
         const { filePath: certPath, password: certPassword, cleanup: certCleanup } =
             await sifenConfigService.getCertFilePath(tenantId);
 
-        let result: any;
+        let rawResult: any;
         try {
-            result = await setapi.consultaLote(idCsc, lote.numero_lote, envStr, certPath, certPassword, {});
+            rawResult = await setapi.consultaLote(idCsc, lote.numero_lote, envStr, certPath, certPassword, {});
         } finally {
             certCleanup();
         }
-        logger.debug('Respuesta consultaLote', { loteId, codigo: result?.codigo });
+
+        const result = stripNs2(rawResult);
+        logger.debug('Respuesta consultaLote', { loteId, result: JSON.stringify(result).slice(0, 2000) });
+
+        // Normalizado: rResEnviConsLoteDe contiene el resultado
+        const resConsulta = result?.rResEnviConsLoteDe || result;
+        const codigo = resConsulta?.dCodResLot || resConsulta?.codigo;
+
+        logger.debug('consultaLote codigo', { loteId, codigo });
 
         // 0300=procesado, 0301=rechazado total, 0303=procesado con errores
-        const done = ['0300', '0301', '0303'].includes(result?.codigo);
+        const done = ['0300', '0301', '0303'].includes(codigo);
 
         if (done) {
             await query(
@@ -148,12 +168,12 @@ export const sifenLoteService = {
                 [loteId]
             );
 
-            const detalles: any[] = result?.detalles || result?.detalleLote || [];
+            // gResProcLote contiene los detalles por DE
+            const detallesRaw = resConsulta?.gResProcLote || [];
+            const detalles: any[] = Array.isArray(detallesRaw) ? detallesRaw : [detallesRaw].filter(Boolean);
 
-            // Batch lookup: resolve all CDCs in one query instead of N+1
-            const cdcs = detalles
-                .map((d: any) => d.cdc || d.CDC)
-                .filter(Boolean);
+            // Batch lookup: resolve all CDCs in one query
+            const cdcs = detalles.map((d: any) => d?.dCDCDE || d?.cdc).filter(Boolean);
 
             const deMap = new Map<string, string>();
             if (cdcs.length) {
@@ -167,9 +187,10 @@ export const sifenLoteService = {
             }
 
             for (const detalle of detalles) {
-                const cdc = detalle.cdc || detalle.CDC;
-                const codigoItem = String(detalle.codigo || detalle.codigoEstado || '');
-                const aprobado = codigoItem === '0300' || detalle.estado === 'APROBADO';
+                const cdc = detalle?.dCDCDE || detalle?.cdc;
+                const codigoItem = String(detalle?.dEstRes || detalle?.codigo || '');
+                const mensajeItem = detalle?.dMsgRes || detalle?.descripcion || null;
+                const aprobado = codigoItem === '0300' || codigoItem === 'Aprobado';
                 const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
 
                 const deId = cdc ? deMap.get(cdc) : undefined;
@@ -178,13 +199,7 @@ export const sifenLoteService = {
                         `UPDATE sifen_de SET estado = $1, sifen_respuesta = $2,
                             sifen_codigo = $3, sifen_mensaje = $4, updated_at = NOW()
                          WHERE id = $5`,
-                        [
-                            nuevoEstado,
-                            JSON.stringify(detalle),
-                            codigoItem,
-                            detalle.descripcion || detalle.mensaje || null,
-                            deId
-                        ]
+                        [nuevoEstado, JSON.stringify(detalle), codigoItem, mensajeItem, deId]
                     );
 
                     await query(

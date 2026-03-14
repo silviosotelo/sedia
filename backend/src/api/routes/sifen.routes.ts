@@ -333,13 +333,34 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, message: 'Emisión encolada' });
     });
 
-    // Envío sincrónico individual (sin lote)
+    // Envío sincrónico individual (sin lote) — DE ya debe estar SIGNED
     app.post<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/enviar-sincrono', {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
         await sifenService.enqueueEnvioSincrono(req.params.id, req.params.deId);
         return reply.send({ success: true, message: 'Envío sincrónico encolado' });
+    });
+
+    // Emisión completa sincrónica: Crear DE → XML → Firma → Enviar a SET (todo en 1 request)
+    // Si SET tarda >30s, deja el DE en ENQUEUED para envío asíncrono por lote.
+    app.post<{ Params: { id: string } }>('/tenants/:id/sifen/emitir', {
+        preHandler: [requirePermiso('sifen:emitir')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const body = req.body as any;
+
+        if (!body.tipo_documento) throw new ApiError(400, 'VALIDATION_ERROR', 'tipo_documento es requerido');
+        if (!body.datos_receptor) throw new ApiError(400, 'VALIDATION_ERROR', 'datos_receptor es requerido');
+        if (!body.datos_items?.length) throw new ApiError(400, 'VALIDATION_ERROR', 'datos_items no puede estar vacío');
+
+        const userId = (req as any).currentUser?.id;
+        const timeoutMs = parseInt(body.timeout_ms) || 30000;
+
+        const result = await sifenConsultaService.emitirCompletoSincrono(
+            req.params.id, userId, body, timeoutMs
+        );
+        return reply.status(201).send({ success: true, data: result });
     });
 
     // Consultar estado de un DE en SET por CDC
