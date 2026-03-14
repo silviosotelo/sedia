@@ -45,7 +45,7 @@ export const sifenXmlService = {
         const deParams = {
             ruc: `${config.ruc}-${config.dv}`,
             razonSocial: config.razon_social,
-            nombreFantasia: adicionales.nombre_fantasia || null,
+            nombreFantasia: adicionales.nombre_fantasia || undefined,
             actividadesEconomicas: adicionales.actividades_economicas || [
                 { codigo: adicionales.actividad_economica || '00000', descripcion: adicionales.actividad_economica_desc || 'Actividades no especificadas' }
             ],
@@ -55,13 +55,13 @@ export const sifenXmlService = {
                     denominacion: adicionales.establecimiento_denominacion || config.razon_social,
                     direccion: adicionales.direccion_emisor || 'Sin dirección',
                     numeroCasa: adicionales.numero_casa_emisor || '0',
-                    complementoDireccion1: adicionales.complemento_dir1 || null,
-                    complementoDireccion2: adicionales.complemento_dir2 || null,
+                    complementoDireccion1: adicionales.complemento_dir1 || undefined,
+                    complementoDireccion2: adicionales.complemento_dir2 || undefined,
                     departamento: adicionales.departamento_emisor || 11,
                     distrito: adicionales.distrito_emisor || 143,
                     ciudad: adicionales.ciudad_emisor || 3344,
-                    telefono: adicionales.telefono_emisor || null,
-                    email: adicionales.email_emisor || null,
+                    telefono: adicionales.telefono_emisor || undefined,
+                    email: adicionales.email_emisor || undefined,
                 }
             ],
             timbradoNumero: config.timbrado,
@@ -91,7 +91,7 @@ export const sifenXmlService = {
             condicionTipoCambio: de.moneda && de.moneda !== 'PYG' ? 1 : undefined,
             cambio: de.moneda && de.moneda !== 'PYG' ? (adicionales.tipo_cambio || 1) : undefined,
             descripcion: adicionales.descripcion || 'Operación comercial',
-            observacion: adicionales.observacion || null,
+            observacion: adicionales.observacion || undefined,
             cliente: tipoDoc === 4
                 ? buildClienteAutofactura(receptor)
                 : buildCliente(receptor),
@@ -151,7 +151,7 @@ export const sifenXmlService = {
                 throw new Error('NC/ND requieren el CDC del documento referenciado (de_referenciado_cdc)');
             }
             deData.documentoAsociado = {
-                tipo: 1, // CDC
+                formato: 1, // 1=CDC (campo requerido por xmlgen como 'formato', no 'tipo')
                 cdc: de.de_referenciado_cdc,
             };
         }
@@ -250,7 +250,7 @@ function buildItem(item: any, tipoDoc?: number): any {
     const ivaMonto = tasa > 0 ? Math.round((subtotal * tasa) / (100 + tasa)) : 0;
 
     const result: any = {
-        codigo: item.codigo || null,
+        codigo: item.codigo || undefined,
         descripcion: item.descripcion,
         cantidad,
         precioUnitario,
@@ -259,9 +259,9 @@ function buildItem(item: any, tipoDoc?: number): any {
         ivaBase: item.iva_base || 100,
         iva: tasa,
         tasaIvaMonto: ivaMonto,
-        lote: item.lote || null,
-        vencimiento: item.vencimiento || null,
-        numeroSerie: item.numero_serie || null,
+        lote: item.lote || undefined,
+        vencimiento: item.vencimiento || undefined,
+        numeroSerie: item.numero_serie || undefined,
     };
 
     // ISC (Impuesto Selectivo al Consumo)
@@ -294,11 +294,14 @@ function buildTotales(de: any): any {
 }
 
 function buildCondicion(adicionales: any): any {
-    return {
+    const condicion: any = {
         tipo: adicionales.condicion_pago || 1,
         entregas: adicionales.entregas || [
-            { tipo: 1, monto: null, moneda: 'PYG', cambio: null }
+            { tipo: 1, monto: 0, moneda: 'PYG' }
         ],
-        credito: adicionales.credito || null,
     };
+    if (adicionales.credito) {
+        condicion.credito = adicionales.credito;
+    }
+    return condicion;
 }

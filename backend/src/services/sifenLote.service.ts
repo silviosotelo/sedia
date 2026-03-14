@@ -67,7 +67,16 @@ export const sifenLoteService = {
             [loteId]
         );
 
-        const xmls = items.map((i: any) => i.xml_signed).filter(Boolean);
+        // setapi.recibeLote() hace xml.split("\n").slice(1) por cada XML para quitar declaración.
+        // Si el XML está todo en 1 línea (normalizado), eso destruye el contenido.
+        // Asegurar que la declaración XML tenga su propio newline.
+        const xmls = items.map((i: any) => {
+            let xml = i.xml_signed;
+            if (xml && xml.startsWith('<?xml') && !xml.includes('\n')) {
+                xml = xml.replace(/(<\?xml[^?]*\?>)/, '$1\n');
+            }
+            return xml;
+        }).filter(Boolean);
         if (!xmls.length) throw new Error('El lote no tiene XMLs firmados');
 
         const config = await queryOne<any>(

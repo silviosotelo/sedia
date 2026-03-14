@@ -209,9 +209,18 @@ export const sifenConsultaService = {
 
         logger.info('Enviando DE sincrónico a SIFEN', { tenantId, deId, cdc: de.cdc, ambiente: config.ambiente });
 
+        // setapi.recibe() hace xml.split("\n").slice(1) para quitar la declaración XML.
+        // Pero si normalizeXML ya compactó todo en 1 línea, eso destruye el XML completo.
+        // Asegurar que la declaración XML esté en su propia línea para que el slice(1) funcione.
+        let xmlForRecibe = de.xml_signed;
+        if (xmlForRecibe.startsWith('<?xml') && !xmlForRecibe.includes('\n')) {
+            // Insertar newline después de la declaración para que recibe() pueda strip correctamente
+            xmlForRecibe = xmlForRecibe.replace(/(<\?xml[^?]*\?>)/, '$1\n');
+        }
+
         let rawResponse: any;
         try {
-            rawResponse = await setapi.recibe(idCsc, de.xml_signed, envStr, filePath, password, {});
+            rawResponse = await setapi.recibe(idCsc, xmlForRecibe, envStr, filePath, password, {});
         } catch (err: any) {
             const errorPayload = JSON.stringify({ error: err.message });
             await query(
