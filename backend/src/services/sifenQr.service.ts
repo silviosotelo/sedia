@@ -1,22 +1,21 @@
 import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
-const _qrgen = require('facturacionelectronicapy-qrgen');
-const qrgen = _qrgen.default || _qrgen;
+import crypto from 'crypto';
+const xml2js = require('xml2js');
 
+/**
+ * Generates QR URL and inserts gCamFuFD into the signed XML.
+ *
+ * IMPORTANT: We cannot use qrgen.generateQR() because it rebuilds
+ * the entire XML with xml2js.Builder (pretty print), which:
+ *   1. Adds newlines/indentation → violates DNIT rule #3
+ *   2. Modifies signed content → invalidates digital signature
+ *
+ * Instead, we build the QR URL manually and insert <gCamFuFD> via
+ * string manipulation before </rDE> without parsing/rebuilding.
+ */
 export const sifenQrService = {
-    /**
-     * Generates QR and inserts gCamFuFD into the signed XML.
-     *
-     * qrgen.generateQR(xml, idCSC, CSC, env) does:
-     *   1. Parses the signed XML
-     *   2. Builds the QR URL string with hash
-     *   3. Inserts <gCamFuFD><dCarQR>url</dCarQR></gCamFuFD> into rDE
-     *   4. Returns the full XML with gCamFuFD included
-     *
-     * We MUST save this updated XML back to xml_signed so that
-     * the XML sent to SET includes gCamFuFD (required by schema v150).
-     */
     async generarQrDE(tenantId: string, deId: string): Promise<void> {
         const de = await queryOne<any>(
             `SELECT xml_signed FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
@@ -27,24 +26,94 @@ export const sifenQrService = {
         const config = await sifenConfigService.getConfig(tenantId);
         if (!config) throw new Error('Configuración SIFEN no encontrada');
 
-        // CSC genérico para test, real para producción
         const idCsc = (config as any).id_csc || '0001';
         const csc = (config as any).csc || 'ABCD0000000000000000000000000000';
         const envStr = config.ambiente === 'PRODUCCION' ? 'prod' : 'test';
 
-        // generateQR returns the full XML string with gCamFuFD.dCarQR inserted
-        const xmlWithQr: string = await qrgen.generateQR(de.xml_signed, idCsc, csc, envStr);
+        // Parse XML to extract fields for QR (read-only, don't rebuild)
+        const parsed = await xml2js.parseStringPromise(de.xml_signed);
+        const rDE = parsed['rDE'];
+        const DE = rDE['DE'][0];
+        const gDatGralOpe = DE['gDatGralOpe'][0];
 
-        // Extract the QR URL from the XML for display/storage
-        const qrMatch = xmlWithQr.match(/<dCarQR>(https?:\/\/[^<]+)<\/dCarQR>/);
-        const qrText = qrMatch ? qrMatch[1] : null;
+        // Build QR URL following SIFEN spec
+        let qrLink = 'https://ekuatia.set.gov.py/consultas';
+        if (envStr === 'test') qrLink += '-test';
+        qrLink += '/qr?';
 
-        // Update xml_signed with the version that includes gCamFuFD
+        let qr = '';
+
+        // nVersion
+        const nVersion = rDE['dVerFor'][0];
+        qr += 'nVersion=' + nVersion + '&';
+
+        // Id (CDC)
+        const id = DE['$']['Id'];
+        qr += 'Id=' + id + '&';
+
+        // dFeEmiDE (fecha emisión hex-encoded)
+        const dFeEmiDE = gDatGralOpe['dFeEmiDE'][0];
+        qr += 'dFeEmiDE=' + Buffer.from(dFeEmiDE, 'utf8').toString('hex') + '&';
+
+        // Receptor: RUC o documento número
+        const gDatRec = gDatGralOpe['gDatRec'][0];
+        if (gDatRec['iNatRec'][0] === '1' || gDatRec['iNatRec'][0] === 1) {
+            // Contribuyente
+            qr += 'dRucRec=' + gDatRec['dRucRec'][0] + '&';
+        } else {
+            // No contribuyente
+            qr += 'dNumIDRec=' + gDatRec['dNumIDRec'][0] + '&';
+        }
+
+        // dTotGralOpe (total general)
+        let dTotGralOpe = '0';
+        if (DE['gTotSub']?.[0]?.['dTotGralOpe']?.[0]) {
+            dTotGralOpe = DE['gTotSub'][0]['dTotGralOpe'][0];
+        }
+        qr += 'dTotGralOpe=' + dTotGralOpe + '&';
+
+        // dTotIVA
+        let dTotIVA = '0';
+        if (DE['gTotSub']?.[0]?.['dTotIVA']?.[0]) {
+            dTotIVA = DE['gTotSub'][0]['dTotIVA'][0];
+        }
+        qr += 'dTotIVA=' + dTotIVA + '&';
+
+        // cItems (cantidad de items)
+        let cItems = 0;
+        if (DE['gDtipDE']?.[0]?.['gCamItem']) {
+            cItems = DE['gDtipDE'][0]['gCamItem'].length;
+        }
+        qr += 'cItems=' + cItems + '&';
+
+        // DigestValue (de la firma)
+        const digestValue = rDE['Signature'][0]['SignedInfo'][0]['Reference'][0]['DigestValue'][0];
+        qr += 'DigestValue=' + Buffer.from(digestValue, 'utf8').toString('hex') + '&';
+
+        // IdCSC
+        qr += 'IdCSC=' + idCsc;
+
+        // Hash SHA-256
+        const hashInput = qr + csc;
+        const cHashQR = crypto.createHash('sha256').update(hashInput).digest('hex');
+        qr += '&cHashQR=' + cHashQR;
+
+        const qrUrl = qrLink + qr;
+
+        // Insert gCamFuFD into XML via string manipulation (preserve signature intact)
+        let xmlWithQr = de.xml_signed;
+        const closeRdeIdx = xmlWithQr.lastIndexOf('</rDE>');
+        if (closeRdeIdx !== -1) {
+            xmlWithQr = xmlWithQr.slice(0, closeRdeIdx) +
+                '<gCamFuFD><dCarQR>' + qrUrl + '</dCarQR></gCamFuFD>' +
+                xmlWithQr.slice(closeRdeIdx);
+        }
+
         await query(
             `UPDATE sifen_de SET xml_signed = $1, qr_text = $2 WHERE id = $3`,
-            [xmlWithQr, qrText, deId]
+            [xmlWithQr, qrUrl, deId]
         );
 
-        logger.debug('QR generado e insertado en XML', { deId, qrText: qrText?.slice(0, 80) });
+        logger.info('QR generado', { deId, qrUrl: qrUrl.slice(0, 100) + '...' });
     }
 };
