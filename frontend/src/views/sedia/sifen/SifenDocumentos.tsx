@@ -549,8 +549,15 @@ const SifenDocumentos = () => {
 
     const handleSign = async (deId: string, e: React.MouseEvent) => {
         e.stopPropagation()
-        try { await api.sifen.signDe(tenantId, deId); toastSuccess('Emisión encolada.'); load() }
-        catch (err: any) { toastError(err?.message || 'Error encolando emisión.') }
+        try {
+            const res = await api.sifen.signDe(tenantId, deId)
+            const d = (res as any)?.data
+            if (d?.estado === 'APPROVED') toastSuccess('Aprobado por SIFEN')
+            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}`)
+            else toastSuccess(d?.mensaje || `Emitido — ${d?.estado || 'OK'}`)
+            load()
+        }
+        catch (err: any) { toastError(err?.message || 'Error en emisión.') }
     }
 
     const handleAnularConfirm = async () => {
@@ -606,8 +613,8 @@ const SifenDocumentos = () => {
             catch { fail++ }
         }
         setBulkEmitting(false); setSelectedIds(new Set())
-        if (ok > 0) toastSuccess(`${ok} documento(s) encolado(s) para emisión.${fail > 0 ? ` ${fail} con error.` : ''}`)
-        else toastError(`No se pudo encolar ningún documento. ${fail} error(es).`)
+        if (ok > 0) toastSuccess(`${ok} documento(s) emitido(s).${fail > 0 ? ` ${fail} con error.` : ''}`)
+        else toastError(`No se pudo emitir ningún documento. ${fail} error(es).`)
         load()
     }
 

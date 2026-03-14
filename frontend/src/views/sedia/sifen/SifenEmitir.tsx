@@ -257,8 +257,11 @@ const SifenEmitir = () => {
         setSubmitting(true)
         try {
             const result = await api.sifen.createDe(tenantId, payload)
-            await api.sifen.signDe(tenantId, result.id)
-            toastSuccess(`DE creado y emisión encolada. Número: ${result.numero_documento}`)
+            const signRes = await api.sifen.signDe(tenantId, result.id)
+            const d = (signRes as any)?.data
+            if (d?.estado === 'APPROVED') toastSuccess(`Aprobado por SIFEN. Número: ${result.numero_documento}`)
+            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}. Número: ${result.numero_documento}`)
+            else toastSuccess(`DE emitido. Número: ${result.numero_documento}. Estado: ${d?.estado || 'procesando'}`)
             // Reset
             setTipoDoc('1'); setMoneda('PYG'); setDeReferenciado(''); setCondicionPago(1); setFormaPago(1)
             setReceptor({ naturaleza: 1, tipo_operacion: 1, ruc: '', dv: '', razon_social: '', email: '', telefono: '', direccion: '' })

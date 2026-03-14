@@ -75,15 +75,21 @@ const SifenLotes = () => {
 
     const handleSend = async (loteId: string) => {
         setSubmitting(loteId)
-        try { await api.sifen.sendLote(tenantId, loteId); toastSuccess('Envío de lote encolado.'); load() }
-        catch (err: any) { toastError(err?.message || 'Error encolando envío.') }
+        try { const r = await api.sifen.sendLote(tenantId, loteId); toastSuccess(`Lote enviado a SIFEN.`); load() }
+        catch (err: any) { toastError(err?.message || 'Error enviando lote.') }
         finally { setSubmitting(null) }
     }
 
     const handlePoll = async (loteId: string) => {
         setSubmitting(loteId)
-        try { await api.sifen.pollLote(tenantId, loteId); toastSuccess('Consulta de lote encolada.'); load() }
-        catch (err: any) { toastError(err?.message || 'Error encolando consulta.') }
+        try {
+            const r = await api.sifen.pollLote(tenantId, loteId)
+            const d = (r as any)?.data
+            if (d?.done) toastSuccess('Lote procesado por SIFEN.')
+            else toastSuccess('Lote aún en procesamiento. Intentar más tarde.')
+            load()
+        }
+        catch (err: any) { toastError(err?.message || 'Error consultando lote.') }
         finally { setSubmitting(null) }
     }
 

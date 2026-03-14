@@ -43,6 +43,7 @@ export const sifenXmlService = {
         const codigoSeguridadAleatorio = String(Math.floor(Math.random() * 900000000) + 100000000);
 
         const deParams = {
+            version: 150,
             ruc: `${config.ruc}-${config.dv}`,
             razonSocial: config.razon_social,
             nombreFantasia: adicionales.nombre_fantasia || undefined,
