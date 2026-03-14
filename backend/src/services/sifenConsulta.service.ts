@@ -236,17 +236,17 @@ export const sifenConsultaService = {
             cleanup();
         }
 
-        logger.debug('Respuesta cruda setapi.recibe', { tenantId, deId, keys: Object.keys(rawResponse || {}) });
-
-        // Normalize ns2: prefixes — response is { "ns2:rRetEnviDe": { "ns2:rProtDe": { ... } } }
+        // Normalize ns2: prefixes
         const normalized = stripNs2(rawResponse);
-        const retEnvi = normalized?.rRetEnviDe || normalized;
-        const protDe = retEnvi?.rProtDe || retEnvi;
 
-        const codigoStr = String(protDe?.gResProc?.dCodRes || protDe?.dCodRes || protDe?.dEstRes || rawResponse?.codigo || '');
+        logger.info('Respuesta recibe normalizada', { tenantId, deId, response: JSON.stringify(normalized).slice(0, 2000) });
+
+        // Buscar dCodRes y dMsgRes recursivamente en la respuesta
+        // La estructura puede ser: rRetEnviDe.rProtDe.gResProc.{dCodRes, dMsgRes}
+        // o variantes según si viene del .then o .catch de axios
+        const { codigo: codigoStr, mensaje } = extractSifenResult(normalized);
         const aprobado = codigoStr === '0300';
         const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
-        const mensaje = protDe?.gResProc?.dMsgRes || protDe?.dMsgRes || protDe?.dEstRes || null;
 
         await query(
             `UPDATE sifen_de
@@ -338,3 +338,63 @@ export const sifenConsultaService = {
         }
     },
 };
+
+/**
+ * Recursively searches a normalized SIFEN response for dCodRes, dMsgRes, dEstRes.
+ * Handles varying response structures from setapi (success vs error paths).
+ */
+function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null } {
+    if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null };
+
+    // Direct path: rRetEnviDe.rProtDe.gResProc.{dCodRes, dMsgRes}
+    const retEnvi = obj?.rRetEnviDe || obj;
+    const protDe = retEnvi?.rProtDe || retEnvi;
+    const resProc = protDe?.gResProc;
+
+    if (resProc?.dCodRes) {
+        return {
+            codigo: String(resProc.dCodRes),
+            mensaje: resProc.dMsgRes || protDe?.dEstRes || null,
+            estadoRes: protDe?.dEstRes || null,
+        };
+    }
+
+    // Fallback: try top-level fields
+    if (protDe?.dCodRes) {
+        return {
+            codigo: String(protDe.dCodRes),
+            mensaje: protDe.dMsgRes || null,
+            estadoRes: protDe.dEstRes || null,
+        };
+    }
+
+    // Deep search: find dCodRes anywhere in the object
+    const found = deepFind(obj, 'dCodRes');
+    if (found.value) {
+        const parent = found.parent || {};
+        return {
+            codigo: String(found.value),
+            mensaje: parent.dMsgRes || deepFind(obj, 'dMsgRes').value || null,
+            estadoRes: deepFind(obj, 'dEstRes').value || null,
+        };
+    }
+
+    // Last resort: dEstRes without dCodRes
+    const estRes = deepFind(obj, 'dEstRes');
+    return {
+        codigo: estRes.value ? String(estRes.value) : '',
+        mensaje: deepFind(obj, 'dMsgRes').value || estRes.value || null,
+        estadoRes: estRes.value || null,
+    };
+}
+
+function deepFind(obj: any, key: string): { value: any; parent: any } {
+    if (!obj || typeof obj !== 'object') return { value: null, parent: null };
+    if (obj[key] !== undefined) return { value: obj[key], parent: obj };
+    for (const k of Object.keys(obj)) {
+        if (k === '$' || k === 'id') continue;
+        const result = deepFind(obj[k], key);
+        if (result.value !== null) return result;
+    }
+    return { value: null, parent: null };
+}
