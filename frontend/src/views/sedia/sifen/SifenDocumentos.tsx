@@ -260,10 +260,12 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     {['SENT', 'APPROVED', 'REJECTED'].includes(de.estado) && (
                         <Button size="xs" loading={actionLoading === 'consultar'} onClick={handleConsultarDE}>Consultar SET</Button>
                     )}
+                    {(de.xml_signed || de.xml_unsigned) && (
+                        <Button size="xs" onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
+                    )}
                     {de.estado === 'APPROVED' && (
                         <>
                             <Button size="xs" variant="solid" icon={<Printer className="w-3.5 h-3.5" />} loading={printing} onClick={handlePrint}>Imprimir</Button>
-                            <Button size="xs" onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
                             <Button size="xs" onClick={() => api.sifen.downloadKude(tenantId, de.id)}>KUDE PDF</Button>
                             <Button size="xs" loading={actionLoading === 'email'} onClick={() => setEmailOpen(true)}>Email</Button>
                             <Button size="xs" customColorClass={() => 'bg-red-500 text-white hover:bg-red-600'} loading={anulando} onClick={() => setAnularOpen(true)}>Anular</Button>

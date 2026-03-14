@@ -190,6 +190,9 @@ export const sifenXmlService = {
             .replace(/<(\w+)>null<\/\1>/g, '')
             .replace(/<(\w+)\s*\/>/g, '');
 
+        // Log XML para diagnóstico
+        logger.info('XML generado (limpiado)', { deId, xmlLen: xmlUnsigned.length, xml: xmlUnsigned.slice(0, 3000) });
+
         // Extraer CDC del XML generado (atributo Id del elemento DE: <DE Id="44chars...">)
         let cdc: string = '';
         if (typeof result === 'object' && (result.cdc || result.CDC)) {

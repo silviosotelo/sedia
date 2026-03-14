@@ -214,9 +214,11 @@ export const sifenConsultaService = {
         // Asegurar que la declaración XML esté en su propia línea para que el slice(1) funcione.
         let xmlForRecibe = de.xml_signed;
         if (xmlForRecibe.startsWith('<?xml') && !xmlForRecibe.includes('\n')) {
-            // Insertar newline después de la declaración para que recibe() pueda strip correctamente
             xmlForRecibe = xmlForRecibe.replace(/(<\?xml[^?]*\?>)/, '$1\n');
         }
+
+        // Log XML que se envía a SET
+        logger.info('XML enviado a SET', { deId, xmlLen: xmlForRecibe.length, startsWithDecl: xmlForRecibe.startsWith('<?xml'), hasNewline: xmlForRecibe.includes('\n'), firstChars: xmlForRecibe.slice(0, 500) });
 
         let rawResponse: any;
         try {
