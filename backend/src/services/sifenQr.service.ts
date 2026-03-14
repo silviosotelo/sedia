@@ -101,11 +101,13 @@ export const sifenQrService = {
         const qrUrl = qrLink + qr;
 
         // Insert gCamFuFD into XML via string manipulation (preserve signature intact)
+        // Escapar & como &amp; para que sea XML válido
+        const qrUrlXml = qrUrl.replace(/&/g, '&amp;');
         let xmlWithQr = de.xml_signed;
         const closeRdeIdx = xmlWithQr.lastIndexOf('</rDE>');
         if (closeRdeIdx !== -1) {
             xmlWithQr = xmlWithQr.slice(0, closeRdeIdx) +
-                '<gCamFuFD><dCarQR>' + qrUrl + '</dCarQR></gCamFuFD>' +
+                '<gCamFuFD><dCarQR>' + qrUrlXml + '</dCarQR></gCamFuFD>' +
                 xmlWithQr.slice(closeRdeIdx);
         }
 
