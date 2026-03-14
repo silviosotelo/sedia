@@ -129,6 +129,9 @@ export const sifenConfigService = {
         establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before,
         cert_not_after, cert_pem, ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta,
         ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc,
+        denominacion_sucursal, direccion_emisor, numero_casa, complemento_dir1, complemento_dir2,
+        departamento, distrito, ciudad, telefono_emisor, email_emisor,
+        actividad_economica, actividad_economica_desc, tipo_contribuyente, tipo_regimen,
         (private_key_enc IS NOT NULL) as has_private_key,
         (passphrase_enc IS NOT NULL) as has_passphrase,
         (cert_r2_key IS NOT NULL)    as has_cert_r2,
@@ -171,20 +174,30 @@ export const sifenConfigService = {
         }
 
         try {
+            const d: any = parsedData;
             const baseFields = [
-                tenantId, parsedData.ambiente, parsedData.ruc, parsedData.dv, parsedData.razon_social,
-                parsedData.timbrado, parsedData.inicio_vigencia, parsedData.fin_vigencia, parsedData.establecimiento,
-                parsedData.punto_expedicion, parsedData.cert_subject, parsedData.cert_serial,
-                parsedData.cert_not_before, parsedData.cert_not_after, parsedData.cert_pem,
-                parsedData.ws_url_recibe_lote, parsedData.ws_url_consulta_lote, parsedData.ws_url_consulta,
-                parsedData.ws_url_recibe, parsedData.ws_url_evento, parsedData.ws_url_consulta_ruc,
-                parsedData.id_csc, parsedData.csc,
+                tenantId, d.ambiente, d.ruc, d.dv, d.razon_social,
+                d.timbrado, d.inicio_vigencia, d.fin_vigencia, d.establecimiento,
+                d.punto_expedicion, d.cert_subject, d.cert_serial,
+                d.cert_not_before, d.cert_not_after, d.cert_pem,
+                d.ws_url_recibe_lote, d.ws_url_consulta_lote, d.ws_url_consulta,
+                d.ws_url_recibe, d.ws_url_evento, d.ws_url_consulta_ruc, d.id_csc, d.csc,
+                // Establecimiento fields (migration 050)
+                d.denominacion_sucursal || null, d.direccion_emisor || null,
+                d.numero_casa || '0', d.complemento_dir1 || null, d.complemento_dir2 || null,
+                d.departamento || 11, d.distrito || 143, d.ciudad || 3344,
+                d.telefono_emisor || null, d.email_emisor || null,
+                d.actividad_economica || '00000', d.actividad_economica_desc || 'Actividades no especificadas',
+                d.tipo_contribuyente || 1, d.tipo_regimen || 8,
             ];
 
             const baseColumns = `tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia,
             establecimiento, punto_expedicion, cert_subject, cert_serial, cert_not_before, cert_not_after, cert_pem,
             ws_url_recibe_lote, ws_url_consulta_lote, ws_url_consulta,
-            ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc`;
+            ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc,
+            denominacion_sucursal, direccion_emisor, numero_casa, complemento_dir1, complemento_dir2,
+            departamento, distrito, ciudad, telefono_emisor, email_emisor,
+            actividad_economica, actividad_economica_desc, tipo_contribuyente, tipo_regimen`;
 
             const baseSet = `ambiente = EXCLUDED.ambiente, ruc = EXCLUDED.ruc, dv = EXCLUDED.dv,
             razon_social = EXCLUDED.razon_social, timbrado = EXCLUDED.timbrado,
@@ -195,7 +208,14 @@ export const sifenConfigService = {
             cert_pem = EXCLUDED.cert_pem, ws_url_recibe_lote = EXCLUDED.ws_url_recibe_lote,
             ws_url_consulta_lote = EXCLUDED.ws_url_consulta_lote, ws_url_consulta = EXCLUDED.ws_url_consulta,
             ws_url_recibe = EXCLUDED.ws_url_recibe, ws_url_evento = EXCLUDED.ws_url_evento,
-            ws_url_consulta_ruc = EXCLUDED.ws_url_consulta_ruc, id_csc = EXCLUDED.id_csc, csc = EXCLUDED.csc`;
+            ws_url_consulta_ruc = EXCLUDED.ws_url_consulta_ruc, id_csc = EXCLUDED.id_csc, csc = EXCLUDED.csc,
+            denominacion_sucursal = EXCLUDED.denominacion_sucursal, direccion_emisor = EXCLUDED.direccion_emisor,
+            numero_casa = EXCLUDED.numero_casa, complemento_dir1 = EXCLUDED.complemento_dir1,
+            complemento_dir2 = EXCLUDED.complemento_dir2, departamento = EXCLUDED.departamento,
+            distrito = EXCLUDED.distrito, ciudad = EXCLUDED.ciudad,
+            telefono_emisor = EXCLUDED.telefono_emisor, email_emisor = EXCLUDED.email_emisor,
+            actividad_economica = EXCLUDED.actividad_economica, actividad_economica_desc = EXCLUDED.actividad_economica_desc,
+            tipo_contribuyente = EXCLUDED.tipo_contribuyente, tipo_regimen = EXCLUDED.tipo_regimen`;
 
             if (privateKeyEnc || passphraseEnc) {
                 const n = baseFields.length;

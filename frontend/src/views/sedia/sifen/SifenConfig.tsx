@@ -384,6 +384,71 @@ const SifenConfig = () => {
                                 </div>
                             </div>
                         </Card>
+
+                        {/* Datos del Establecimiento / Sucursal */}
+                        <Card className="mt-5">
+                            <div className="p-6 space-y-4">
+                                <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos del Establecimiento (Emisor)</h6>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">Estos datos se incluyen en el XML del DE como información del emisor.</p>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Denominación Sucursal</label>
+                                        <Input name="denominacion_sucursal" value={(config as any).denominacion_sucursal || ''} onChange={handleChange} placeholder="Casa Matriz" />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Dirección</label>
+                                        <Input name="direccion_emisor" value={(config as any).direccion_emisor || ''} onChange={handleChange} placeholder="Av. España 1234" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Número de Casa</label>
+                                        <Input name="numero_casa" value={(config as any).numero_casa || '0'} onChange={handleChange} placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Teléfono</label>
+                                        <Input name="telefono_emisor" value={(config as any).telefono_emisor || ''} onChange={handleChange} placeholder="021-123456" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Email</label>
+                                        <Input name="email_emisor" value={(config as any).email_emisor || ''} onChange={handleChange} placeholder="facturacion@empresa.com.py" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Departamento (código)</label>
+                                        <Input name="departamento" type="number" value={(config as any).departamento || 11} onChange={handleChange} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Distrito (código)</label>
+                                        <Input name="distrito" type="number" value={(config as any).distrito || 143} onChange={handleChange} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Ciudad (código)</label>
+                                        <Input name="ciudad" type="number" value={(config as any).ciudad || 3344} onChange={handleChange} />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Actividad Económica (código)</label>
+                                        <Input name="actividad_economica" value={(config as any).actividad_economica || '00000'} onChange={handleChange} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
+                                        <Input name="actividad_economica_desc" value={(config as any).actividad_economica_desc || ''} onChange={handleChange} placeholder="Venta al por menor" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
+                                        <select name="tipo_contribuyente" value={(config as any).tipo_contribuyente || 1} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
+                                            <option value={1}>1 — Persona Física</option>
+                                            <option value={2}>2 — Persona Jurídica</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
+                                        <Input name="tipo_regimen" type="number" value={(config as any).tipo_regimen || 8} onChange={handleChange} />
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
                     </TabContent>
 
                     {/* Tab: Certificado */}

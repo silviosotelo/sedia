@@ -42,23 +42,26 @@ export const sifenXmlService = {
         const establecimientoCodigo = String(config.establecimiento).padStart(3, '0');
         const codigoSeguridadAleatorio = String(Math.floor(Math.random() * 900000000) + 100000000);
 
+        // Leer datos del establecimiento desde sifen_config (migración 050)
+        const cfg = config as any;
+
         const deParams = {
             version: 150,
             ruc: `${config.ruc}-${config.dv}`,
             razonSocial: config.razon_social,
             nombreFantasia: adicionales.nombre_fantasia || undefined,
             actividadesEconomicas: adicionales.actividades_economicas || [
-                { codigo: adicionales.actividad_economica || '00000', descripcion: adicionales.actividad_economica_desc || 'Actividades no especificadas' }
+                { codigo: cfg.actividad_economica || '00000', descripcion: cfg.actividad_economica_desc || 'Actividades no especificadas' }
             ],
-            establecimientos: adicionales.establecimientos || [
-                buildEstablecimiento(establecimientoCodigo, config, adicionales)
+            establecimientos: [
+                buildEstablecimiento(establecimientoCodigo, cfg)
             ],
             timbradoNumero: config.timbrado,
             timbradoFecha: config.inicio_vigencia
                 ? new Date(config.inicio_vigencia).toISOString().slice(0, 10)
                 : new Date().toISOString().slice(0, 10),
-            tipoContribuyente: adicionales.tipo_contribuyente || 1,
-            tipoRegimen: adicionales.tipo_regimen || 8,
+            tipoContribuyente: cfg.tipo_contribuyente || 1,
+            tipoRegimen: cfg.tipo_regimen || 8,
         };
 
         // xmlgen expects `fecha` (not `fechaEmision`) in format yyyy-MM-ddTHH:mm:ss
@@ -188,25 +191,25 @@ export const sifenXmlService = {
 // ─── Helpers de mapeo ────────────────────────────────────────────────────────
 
 /**
- * Build establecimiento object omitting keys with falsy values.
+ * Build establecimiento object from sifen_config fields.
  * xmlgen assigns dTelEmi/dEmailE unconditionally from the object,
- * so undefined values generate invalid empty XML tags.
+ * so we must NOT include keys with falsy values — otherwise xmlgen
+ * generates <dTelEmi/> empty tags that SIFEN rejects as 0160.
  */
-function buildEstablecimiento(codigo: string, config: any, adicionales: any): any {
+function buildEstablecimiento(codigo: string, cfg: any): any {
     const est: any = {
         codigo,
-        denominacion: adicionales.establecimiento_denominacion || config.razon_social,
-        direccion: adicionales.direccion_emisor || 'Sin dirección',
-        numeroCasa: adicionales.numero_casa_emisor || '0',
-        departamento: adicionales.departamento_emisor || 11,
-        distrito: adicionales.distrito_emisor || 143,
-        ciudad: adicionales.ciudad_emisor || 3344,
+        denominacion: cfg.denominacion_sucursal || cfg.razon_social,
+        direccion: cfg.direccion_emisor || 'Sin dirección',
+        numeroCasa: cfg.numero_casa || '0',
+        departamento: cfg.departamento || 11,
+        distrito: cfg.distrito || 143,
+        ciudad: cfg.ciudad || 3344,
     };
-    // Only include optional fields if they have real values
-    if (adicionales.complemento_dir1) est.complementoDireccion1 = adicionales.complemento_dir1;
-    if (adicionales.complemento_dir2) est.complementoDireccion2 = adicionales.complemento_dir2;
-    if (adicionales.telefono_emisor) est.telefono = adicionales.telefono_emisor;
-    if (adicionales.email_emisor) est.email = adicionales.email_emisor;
+    if (cfg.complemento_dir1) est.complementoDireccion1 = cfg.complemento_dir1;
+    if (cfg.complemento_dir2) est.complementoDireccion2 = cfg.complemento_dir2;
+    if (cfg.telefono_emisor) est.telefono = cfg.telefono_emisor;
+    if (cfg.email_emisor) est.email = cfg.email_emisor;
     return est;
 }
 
