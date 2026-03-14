@@ -605,7 +605,8 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
     }
     useEffect(() => { load() }, [tenantId])
 
-    const handleSave = async () => {
+    const handleSaveEst = async (e?: React.MouseEvent) => {
+        e?.preventDefault(); e?.stopPropagation()
         if (!editEst?.denominacion?.trim()) return
         setSaving(true)
         try {
@@ -629,7 +630,9 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
     const F = ({ label, name, type, placeholder }: { label: string; name: string; type?: string; placeholder?: string }) => (
         <div>
             <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">{label}</label>
-            <Input type={type} name={name} value={editEst?.[name] ?? ''} onChange={(e: any) => setEditEst((p: any) => ({ ...p, [name]: e.target.value }))} placeholder={placeholder} />
+            <Input type={type} name={name} value={editEst?.[name] ?? ''} placeholder={placeholder}
+                onChange={(e: any) => setEditEst((p: any) => ({ ...p, [name]: e.target.value }))}
+                onKeyDown={(e: any) => { if (e.key === 'Enter') e.preventDefault() }} />
         </div>
     )
 
@@ -687,8 +690,8 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
                                 <F label="Ciudad (código)" name="ciudad" type="number" />
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
-                                <Button size="sm" variant="plain" onClick={() => setEditEst(null)}>Cancelar</Button>
-                                <Button size="sm" variant="solid" loading={saving} onClick={handleSave}>
+                                <Button type="button" size="sm" variant="plain" onClick={() => setEditEst(null)}>Cancelar</Button>
+                                <Button type="button" size="sm" variant="solid" loading={saving} onClick={handleSaveEst}>
                                     {editEst.id ? 'Guardar' : 'Crear'}
                                 </Button>
                             </div>
