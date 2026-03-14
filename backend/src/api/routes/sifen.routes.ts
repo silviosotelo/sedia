@@ -314,6 +314,43 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
     });
 
     // ═══════════════════════════════════════
+    // AUTOCOMPLETAR RECEPTOR
+    // ═══════════════════════════════════════
+
+    // Buscar receptor por CI o RUC en facturas previas del tenant
+    app.get<{ Params: { id: string } }>('/tenants/:id/sifen/receptor-lookup', {
+        preHandler: [requirePermiso('sifen:ver')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const q = req.query as any;
+        const ci = q.ci?.trim();
+        const ruc = q.ruc?.trim();
+        if (!ci && !ruc) throw new ApiError(400, 'VALIDATION_ERROR', 'ci o ruc es requerido');
+
+        let row: any = null;
+        if (ruc) {
+            row = await queryOne<any>(
+                `SELECT datos_receptor FROM sifen_de
+                 WHERE tenant_id = $1 AND datos_receptor->>'ruc' = $2
+                 AND estado NOT IN ('ERROR')
+                 ORDER BY created_at DESC LIMIT 1`,
+                [req.params.id, ruc]
+            );
+        }
+        if (!row && ci) {
+            row = await queryOne<any>(
+                `SELECT datos_receptor FROM sifen_de
+                 WHERE tenant_id = $1 AND datos_receptor->>'documento_numero' = $2
+                 AND estado NOT IN ('ERROR')
+                 ORDER BY created_at DESC LIMIT 1`,
+                [req.params.id, ci]
+            );
+        }
+
+        return reply.send({ success: true, data: row?.datos_receptor || null });
+    });
+
+    // ═══════════════════════════════════════
     // DOCUMENTOS ELECTRÓNICOS (DE)
     // ═══════════════════════════════════════
 

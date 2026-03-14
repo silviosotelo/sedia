@@ -32,7 +32,7 @@ function useSifenRef() {
         if (loaded.current) return
         loaded.current = true
         const toOpts = (rows: any[]) => rows.map((r: any) => ({ value: r.codigo, label: `${r.codigo} - ${r.descripcion}` }))
-        const toOptsSimple = (rows: any[]) => rows.map((r: any) => ({ value: r.codigo, label: r.descripcion }))
+        const toOptsSimple = (rows: any[]) => rows.map((r: any) => ({ value: r.codigo, label: `${r.codigo} - ${r.descripcion}` }))
 
         Promise.all([
             api.sifenRef.get('tipos-documento').then(r => setTiposDoc(r.filter((t: any) => t.situacion === 0).map((t: any) => ({ value: String(t.codigo), label: t.descripcion })))),
@@ -93,15 +93,15 @@ const MONEDA_FALLBACK = [
 ]
 
 const NATURALEZA_FALLBACK = [
-    { value: 1, label: 'Contribuyente' },
-    { value: 2, label: 'No Contribuyente' },
+    { value: 1, label: '1 - Contribuyente' },
+    { value: 2, label: '2 - No Contribuyente' },
 ]
 
 const TIPO_OP_FALLBACK = [
-    { value: 1, label: 'B2B (Contribuyente)' },
-    { value: 2, label: 'B2C (Consumidor Final)' },
-    { value: 3, label: 'B2G (Gobierno)' },
-    { value: 4, label: 'B2F (Exportación)' },
+    { value: 1, label: '1 - B2B (Contribuyente)' },
+    { value: 2, label: '2 - B2C (Consumidor Final)' },
+    { value: 3, label: '3 - B2G (Gobierno)' },
+    { value: 4, label: '4 - B2F (Exportación)' },
 ]
 
 const TASA_IVA_OPTS = [
@@ -149,10 +149,10 @@ const SifenEmitir = () => {
     const monedaOpts = ref.monedas.length > 0 ? ref.monedas : MONEDA_FALLBACK
     const naturalezaOpts = ref.tiposContribuyente.length > 0 ? ref.tiposContribuyente : NATURALEZA_FALLBACK
     const tipoOpOpts = ref.tiposOperacion.length > 0 ? ref.tiposOperacion : TIPO_OP_FALLBACK
-    const condicionOpts = ref.condicionesOp.length > 0 ? ref.condicionesOp : [{ value: 1, label: 'Contado' }, { value: 2, label: 'Crédito' }]
-    const formaPagoOpts = ref.formasPago.length > 0 ? ref.formasPago : [{ value: 1, label: 'Efectivo' }, { value: 2, label: 'Cheque' }, { value: 3, label: 'Tarjeta de crédito' }]
-    const docIdentidadOpts = ref.tiposDocIdentidad.length > 0 ? ref.tiposDocIdentidad : [{ value: 1, label: 'Cédula paraguaya' }, { value: 2, label: 'Pasaporte' }, { value: 3, label: 'Carnet de residencia' }]
-    const uMedOpts = ref.unidadesMedida.length > 0 ? ref.unidadesMedida : [{ value: 77, label: '77 - Unidad' }, { value: 83, label: '83 - Kilogramo' }]
+    const condicionOpts = ref.condicionesOp.length > 0 ? ref.condicionesOp : [{ value: 1, label: '1 - Contado' }, { value: 2, label: '2 - Crédito' }]
+    const formaPagoOpts = ref.formasPago.length > 0 ? ref.formasPago : [{ value: 1, label: '1 - Efectivo' }, { value: 2, label: '2 - Cheque' }, { value: 3, label: '3 - Tarjeta de crédito' }, { value: 4, label: '4 - Tarjeta de débito' }]
+    const docIdentidadOpts = ref.tiposDocIdentidad.length > 0 ? ref.tiposDocIdentidad : [{ value: 1, label: '1 - Cédula paraguaya' }, { value: 2, label: '2 - Pasaporte' }, { value: 3, label: '3 - Carnet de residencia' }, { value: 4, label: '4 - Cédula extranjera' }, { value: 5, label: '5 - Otro' }]
+    const uMedOpts = ref.unidadesMedida.length > 0 ? ref.unidadesMedida : [{ value: 77, label: '77 - Unidad' }, { value: 83, label: '83 - Kilogramo' }, { value: 79, label: '79 - Litro' }, { value: 66, label: '66 - Metro' }]
 
     // State
     const [submitting, setSubmitting] = useState(false)
@@ -161,9 +161,13 @@ const SifenEmitir = () => {
     const [deReferenciado, setDeReferenciado] = useState('')
     const [condicionPago, setCondicionPago] = useState(1)
     const [formaPago, setFormaPago] = useState(1)
+    const [establecimientos, setEstablecimientos] = useState<any[]>([])
+    const [establecimientoId, setEstablecimientoId] = useState('')
     const [receptor, setReceptor] = useState<Partial<SifenReceptor>>({
-        naturaleza: 1, tipo_operacion: 1, ruc: '', dv: '', razon_social: '', email: '', telefono: '', direccion: '',
+        naturaleza: 2, tipo_operacion: 2, documento_tipo: 1, documento_numero: '',
+        ruc: '', dv: '', razon_social: '', email: '', telefono: '', direccion: '',
     })
+    const [ciLookupLoading, setCiLookupLoading] = useState(false)
     const [depSelected, setDepSelected] = useState<number | null>(null)
     const [distSelected, setDistSelected] = useState<number | null>(null)
     const [ciudadSelected, setCiudadSelected] = useState<number | null>(null)
@@ -176,6 +180,15 @@ const SifenEmitir = () => {
     const [showConfirm, setShowConfirm] = useState(false)
 
     const esNcNd = tipoDoc === '5' || tipoDoc === '6'
+
+    // Cargar establecimientos
+    useEffect(() => {
+        if (!tenantId) return
+        api.sifen.listEstablecimientos(tenantId).then(data => {
+            setEstablecimientos(data)
+            if (data.length > 0 && !establecimientoId) setEstablecimientoId(data[0].codigo)
+        }).catch(() => {})
+    }, [tenantId])
 
     // Totals
     const totales = useMemo(() => {
@@ -200,17 +213,52 @@ const SifenEmitir = () => {
         if (!ruc) { toastError('Ingrese un RUC para consultar.'); return }
         setRucLookupLoading(true); setRucLookupMsg(null)
         try {
+            // 1. Primero buscar en facturas previas del tenant
+            const prev = await api.sifen.receptorLookup(tenantId, { ruc }).catch(() => null)
+            if (prev) {
+                setReceptor(r => ({
+                    ...r, razon_social: prev.razon_social || r.razon_social, dv: prev.dv || r.dv,
+                    direccion: prev.direccion || r.direccion, email: prev.email || r.email,
+                    telefono: prev.telefono || r.telefono, documento_numero: prev.documento_numero || r.documento_numero,
+                    departamento: prev.departamento || r.departamento, distrito: prev.distrito || r.distrito,
+                    ciudad: prev.ciudad || r.ciudad,
+                }))
+                setRucLookupMsg({ type: 'ok', text: `Datos obtenidos de factura previa: ${prev.razon_social}` })
+                return
+            }
+            // 2. Si no hay previas, consultar en SIFEN
             const result = await api.sifen.consultarRuc(tenantId, ruc)
-            if (!result) { setRucLookupMsg({ type: 'err', text: 'RUC no encontrado en SIFEN' }); return }
-            const razon = result.razon_social || result.razonSocial || result.dRazSoc || ''
-            const dv = result.dv || result.dDV || ''
-            const dir = result.direccion || result.dDir || ''
-            setReceptor(prev => ({ ...prev, razon_social: razon || prev.razon_social, dv: dv || prev.dv, direccion: dir || prev.direccion }))
-            setRucLookupMsg({ type: 'ok', text: `Datos obtenidos: ${razon}` })
+            if (!result) { setRucLookupMsg({ type: 'err', text: 'RUC no encontrado' }); return }
+            const razon = result.razon_social || result.razonSocial || ''
+            const dv = result.dv || ''
+            setReceptor(r => ({ ...r, razon_social: razon || r.razon_social, dv: dv || r.dv }))
+            setRucLookupMsg({ type: 'ok', text: `SIFEN: ${razon}` })
         } catch (err: any) {
-            setRucLookupMsg({ type: 'err', text: err?.message || 'Error consultando RUC en SIFEN' })
+            setRucLookupMsg({ type: 'err', text: err?.message || 'Error consultando RUC' })
         } finally { setRucLookupLoading(false) }
     }, [receptor.ruc, tenantId])
+
+    // Autocompletar por CI (documento_numero)
+    const handleCiLookup = useCallback(async () => {
+        const ci = receptor.documento_numero?.trim()
+        if (!ci || ci.length < 3) return
+        setCiLookupLoading(true)
+        try {
+            const prev = await api.sifen.receptorLookup(tenantId, { ci })
+            if (prev) {
+                setReceptor(r => ({
+                    ...r, razon_social: prev.razon_social || r.razon_social,
+                    ruc: prev.ruc || r.ruc, dv: prev.dv || r.dv,
+                    direccion: prev.direccion || r.direccion, email: prev.email || r.email,
+                    telefono: prev.telefono || r.telefono,
+                    departamento: prev.departamento || r.departamento, distrito: prev.distrito || r.distrito,
+                    ciudad: prev.ciudad || r.ciudad,
+                }))
+                toastSuccess(`Datos autocompletados: ${prev.razon_social}`)
+            }
+        } catch { /* ignore */ }
+        finally { setCiLookupLoading(false) }
+    }, [receptor.documento_numero, tenantId])
 
     const addItem = () => setItems(prev => [...prev, { descripcion: '', cantidad: 1, precio_unitario: 0, tasa_iva: 10, unidad_medida: 77 }])
     const removeItem = (idx: number) => setItems(prev => prev.filter((_, i) => i !== idx))
@@ -262,9 +310,9 @@ const SifenEmitir = () => {
             if (d?.estado === 'APPROVED') toastSuccess(`Aprobado por SIFEN. Número: ${result.numero_documento}`)
             else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}. Número: ${result.numero_documento}`)
             else toastSuccess(`DE emitido. Número: ${result.numero_documento}. Estado: ${d?.estado || 'procesando'}`)
-            // Reset
+            // Reset (B2C defaults)
             setTipoDoc('1'); setMoneda('PYG'); setDeReferenciado(''); setCondicionPago(1); setFormaPago(1)
-            setReceptor({ naturaleza: 1, tipo_operacion: 1, ruc: '', dv: '', razon_social: '', email: '', telefono: '', direccion: '' })
+            setReceptor({ naturaleza: 2, tipo_operacion: 2, documento_tipo: 1, documento_numero: '', ruc: '', dv: '', razon_social: '', email: '', telefono: '', direccion: '' })
             setItems([{ descripcion: '', cantidad: 1, precio_unitario: 0, tasa_iva: 10, unidad_medida: 77 }])
             setDepSelected(null); setDistSelected(null); setCiudadSelected(null)
             setShowConfirm(false); setDuplicates([])
@@ -349,6 +397,18 @@ const SifenEmitir = () => {
                                 </div>
                             </div>
 
+                            {/* Establecimiento */}
+                            {establecimientos.length > 1 && (
+                                <div>
+                                    <Label>Establecimiento / Sucursal</Label>
+                                    <Select size="sm"
+                                        options={establecimientos.map((e: any) => ({ value: e.codigo, label: `${e.codigo} — ${e.denominacion}` }))}
+                                        value={establecimientos.filter((e: any) => e.codigo === establecimientoId).map((e: any) => ({ value: e.codigo, label: `${e.codigo} — ${e.denominacion}` }))[0]}
+                                        onChange={opt => setEstablecimientoId(String(opt?.value ?? '001'))}
+                                    />
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <div>
                                     <Label>Moneda</Label>
@@ -397,8 +457,13 @@ const SifenEmitir = () => {
                                         onChange={opt => setReceptor(prev => ({ ...prev, documento_tipo: opt?.value as number }))} />
                                 </div>
                                 <div>
-                                    <Label>Nro. Documento</Label>
-                                    <Input size="sm" name="documento_numero" value={receptor.documento_numero || ''} onChange={handleReceptorChange} placeholder="CI / Pasaporte" />
+                                    <Label>Nro. Documento (CI)</Label>
+                                    <div className="flex gap-2">
+                                        <Input size="sm" name="documento_numero" value={receptor.documento_numero || ''} onChange={handleReceptorChange} placeholder="Ej: 1234567"
+                                            onBlur={handleCiLookup}
+                                            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); handleCiLookup() } }} />
+                                        {ciLookupLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400 self-center" />}
+                                    </div>
                                 </div>
                             </div>
 

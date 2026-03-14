@@ -882,6 +882,14 @@ export const api = {
     eliminarEstablecimiento: (tenantId: string, estId: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/establecimientos/${estId}`, { method: 'DELETE' }),
 
+    // Autocompletar receptor por CI o RUC de facturas previas
+    receptorLookup: (tenantId: string, params: { ci?: string; ruc?: string }) => {
+      const q = new URLSearchParams();
+      if (params.ci) q.set('ci', params.ci);
+      if (params.ruc) q.set('ruc', params.ruc);
+      return request<{ data: any }>(`/tenants/${tenantId}/sifen/receptor-lookup?${q.toString()}`).then((r) => r.data);
+    },
+
     // Emitir en contingencia
     emitirContingencia: (tenantId: string, deId: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/emitir-contingencia`, { method: 'POST' }),
