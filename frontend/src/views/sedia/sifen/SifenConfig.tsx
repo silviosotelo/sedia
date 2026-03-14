@@ -14,6 +14,7 @@ import TabContent from '@/components/ui/Tabs/TabContent'
 import { FormItem } from '@/components/ui/Form'
 import toast from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
+import Dialog from '@/components/ui/Dialog'
 import Loading from '@/components/shared/Loading'
 import type { SifenConfig as SifenConfigType, SifenAmbiente } from '@/@types/sedia'
 
