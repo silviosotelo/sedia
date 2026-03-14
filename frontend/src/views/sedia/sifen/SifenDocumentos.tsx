@@ -260,7 +260,7 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     {['SENT', 'APPROVED', 'REJECTED'].includes(de.estado) && (
                         <Button size="xs" loading={actionLoading === 'consultar'} onClick={handleConsultarDE}>Consultar SET</Button>
                     )}
-                    {(de.xml_signed || de.xml_unsigned) && (
+                    {(de.has_xml_signed || de.has_xml_unsigned || de.xml_signed || de.xml_unsigned) && (
                         <Button size="xs" onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
                     )}
                     {de.estado === 'APPROVED' && (

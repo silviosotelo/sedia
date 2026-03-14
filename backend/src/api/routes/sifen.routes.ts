@@ -393,10 +393,13 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         const de = await queryOne(
             `SELECT id, tenant_id, cdc, tipo_documento, numero_documento, estado, moneda,
                     total_pago, total_iva10, total_iva5, total_exento, fecha_emision,
-                    created_at, updated_at, sifen_codigo, sifen_mensaje,
+                    created_at, updated_at, sifen_codigo, sifen_mensaje, sifen_respuesta,
                     datos_receptor, datos_items, datos_impuestos, datos_adicionales,
                     kude_pdf_key, de_referenciado_cdc, tipo_emision, contingencia_id,
-                    error_categoria, envio_email_estado, comprobante_id
+                    error_categoria, envio_email_estado, comprobante_id,
+                    (xml_signed IS NOT NULL) as has_xml_signed,
+                    (xml_unsigned IS NOT NULL) as has_xml_unsigned,
+                    qr_text
              FROM sifen_de WHERE tenant_id = $1 AND id = $2`,
             [req.params.id, req.params.deId]
         );
