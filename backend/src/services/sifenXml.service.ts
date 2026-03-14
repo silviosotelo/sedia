@@ -45,11 +45,26 @@ export const sifenXmlService = {
 
         const cfg = config as any;
 
-        // Buscar establecimiento de la tabla sifen_establecimientos (puede no existir aún)
+        // Buscar establecimiento de la tabla sifen_establecimientos
         let est: any = null;
         try {
             est = await sifenEstablecimientoService.getByCodigo(tenantId, establecimientoCodigo);
-        } catch { /* tabla no existe aún — usar fallback */ }
+        } catch (e) {
+            logger.warn('sifen_establecimientos lookup failed', { error: (e as Error).message });
+        }
+
+        const estObj = est ? buildEstablecimientoFromDb(est) : buildEstablecimiento(establecimientoCodigo, cfg);
+        logger.info('Datos establecimiento para XML', {
+            source: est ? 'sifen_establecimientos' : 'sifen_config_fallback',
+            codigo: estObj.codigo,
+            denominacion: estObj.denominacion,
+            direccion: estObj.direccion,
+            telefono: estObj.telefono || 'NO TIENE',
+            email: estObj.email || 'NO TIENE',
+            departamento: estObj.departamento,
+            distrito: estObj.distrito,
+            ciudad: estObj.ciudad,
+        });
 
         const deParams = {
             version: 150,
@@ -59,9 +74,7 @@ export const sifenXmlService = {
             actividadesEconomicas: adicionales.actividades_economicas || [
                 { codigo: cfg.actividad_economica || '00000', descripcion: cfg.actividad_economica_desc || 'Actividades no especificadas' }
             ],
-            establecimientos: [
-                est ? buildEstablecimientoFromDb(est) : buildEstablecimiento(establecimientoCodigo, cfg)
-            ],
+            establecimientos: [estObj],
             timbradoNumero: config.timbrado,
             timbradoFecha: config.inicio_vigencia
                 ? new Date(config.inicio_vigencia).toISOString().slice(0, 10)
