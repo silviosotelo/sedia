@@ -151,7 +151,7 @@ const SifenEmitir = () => {
     const tipoOpOpts = ref.tiposOperacion.length > 0 ? ref.tiposOperacion : TIPO_OP_FALLBACK
     const condicionOpts = ref.condicionesOp.length > 0 ? ref.condicionesOp : [{ value: 1, label: '1 - Contado' }, { value: 2, label: '2 - Crédito' }]
     const formaPagoOpts = ref.formasPago.length > 0 ? ref.formasPago : [{ value: 1, label: '1 - Efectivo' }, { value: 2, label: '2 - Cheque' }, { value: 3, label: '3 - Tarjeta de crédito' }, { value: 4, label: '4 - Tarjeta de débito' }]
-    const docIdentidadOpts = ref.tiposDocIdentidad.length > 0 ? ref.tiposDocIdentidad : [{ value: 1, label: '1 - Cédula paraguaya' }, { value: 2, label: '2 - Pasaporte' }, { value: 3, label: '3 - Carnet de residencia' }, { value: 4, label: '4 - Cédula extranjera' }, { value: 5, label: '5 - Otro' }]
+    const docIdentidadOpts = ref.tiposDocIdentidad.length > 0 ? ref.tiposDocIdentidad : [{ value: 1, label: '1 - Cédula paraguaya' }, { value: 2, label: '2 - Pasaporte' }, { value: 3, label: '3 - Carnet de residencia' }, { value: 4, label: '4 - Cédula extranjera' }, { value: 5, label: '5 - Innominado' }]
     const uMedOpts = ref.unidadesMedida.length > 0 ? ref.unidadesMedida : [{ value: 77, label: '77 - Unidad' }, { value: 83, label: '83 - Kilogramo' }, { value: 79, label: '79 - Litro' }, { value: 66, label: '66 - Metro' }]
 
     // State
@@ -439,6 +439,26 @@ const SifenEmitir = () => {
                     {/* Receptor */}
                     <SectionHeader title="Receptor" subtitle="Datos del cliente o contribuyente">
                         <div className="space-y-3">
+                            {/* Quick presets */}
+                            <div className="flex gap-2 flex-wrap">
+                                <button type="button" onClick={() => setReceptor({
+                                    naturaleza: 2, tipo_operacion: 2, documento_tipo: 5, documento_numero: '0',
+                                    ruc: '', dv: '', razon_social: 'Sin Nombre', email: '', telefono: '', direccion: '',
+                                })} className="text-[10px] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:border-primary hover:text-primary transition-colors font-semibold">
+                                    Innominado (Sin Nombre)
+                                </button>
+                                <button type="button" onClick={() => setReceptor(prev => ({
+                                    ...prev, naturaleza: 2, tipo_operacion: 2, documento_tipo: 1,
+                                }))} className="text-[10px] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:border-primary hover:text-primary transition-colors font-semibold">
+                                    B2C (con CI)
+                                </button>
+                                <button type="button" onClick={() => setReceptor(prev => ({
+                                    ...prev, naturaleza: 1, tipo_operacion: 1, documento_tipo: undefined,
+                                }))} className="text-[10px] px-2.5 py-1 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:border-primary hover:text-primary transition-colors font-semibold">
+                                    B2B (con RUC)
+                                </button>
+                            </div>
+
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <div>
                                     <Label>Naturaleza</Label>
