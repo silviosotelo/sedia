@@ -324,13 +324,45 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, data: de });
     });
 
-    // Firmar/emitir un DE (genera XML → firma → QR → ENQUEUED)
+    // Firmar/emitir un DE (genera XML → firma → QR → intenta enviar sincrónico a SET)
     app.post<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/sign', {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        await sifenService.enqueueEmitir(req.params.id, req.params.deId);
-        return reply.send({ success: true, message: 'Emisión encolada' });
+        const tenantId = req.params.id;
+        const deId = req.params.deId;
+
+        const { sifenXmlService } = await import('../../services/sifenXml.service');
+        const { sifenSignService } = await import('../../services/sifenSign.service');
+        const { sifenQrService } = await import('../../services/sifenQr.service');
+
+        // 1. Generar XML + Firmar + QR
+        const { cdc } = await sifenXmlService.generarXmlDE(tenantId, deId);
+        await sifenSignService.firmarXmlDE(tenantId, deId);
+        await sifenQrService.generarQrDE(tenantId, deId);
+
+        // 2. Intentar envío sincrónico directo a SET
+        try {
+            const result = await sifenConsultaService.enviarSincrono(tenantId, deId);
+            const updated = await queryOne<any>(
+                `SELECT estado, sifen_codigo, sifen_mensaje FROM sifen_de WHERE id = $1`, [deId]
+            );
+            return reply.send({
+                success: true,
+                data: { cdc, estado: updated?.estado || result.estado, sifen_codigo: updated?.sifen_codigo, sifen_mensaje: updated?.sifen_mensaje },
+            });
+        } catch (sendErr: any) {
+            // Envío falló — dejar en ENQUEUED para lote automático
+            await query(
+                `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+                [deId, tenantId]
+            );
+            logger.warn('Envío sincrónico falló, DE encolado para lote', { deId, error: sendErr.message });
+            return reply.send({
+                success: true,
+                data: { cdc, estado: 'ENQUEUED', mensaje: `Firmado OK. Envío a SET falló (${sendErr.message}), encolado para envío automático.` },
+            });
+        }
     });
 
     // Envío sincrónico individual (sin lote) — DE ya debe estar SIGNED
@@ -338,8 +370,14 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        await sifenService.enqueueEnvioSincrono(req.params.id, req.params.deId);
-        return reply.send({ success: true, message: 'Envío sincrónico encolado' });
+        const result = await sifenConsultaService.enviarSincrono(req.params.id, req.params.deId);
+        const updated = await queryOne<any>(
+            `SELECT estado, sifen_codigo, sifen_mensaje FROM sifen_de WHERE id = $1`, [req.params.deId]
+        );
+        return reply.send({
+            success: true,
+            data: { estado: updated?.estado || result.estado, sifen_codigo: updated?.sifen_codigo, sifen_mensaje: updated?.sifen_mensaje },
+        });
     });
 
     // Emisión completa sincrónica: Crear DE → XML → Firma → Enviar a SET (todo en 1 request)
@@ -731,22 +769,16 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        await query(
-            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_ENVIAR_LOTE', $2)`,
-            [req.params.id, JSON.stringify({ lote_id: req.params.loteId })]
-        );
-        return reply.send({ success: true, message: 'Envío de lote encolado' });
+        const result = await sifenLoteService.enviarLote(req.params.id, req.params.loteId);
+        return reply.send({ success: true, data: { numero_lote: result } });
     });
 
     app.post<{ Params: { id: string; loteId: string } }>('/tenants/:id/sifen/lotes/:loteId/poll', {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        await query(
-            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_CONSULTAR_LOTE', $2)`,
-            [req.params.id, JSON.stringify({ lote_id: req.params.loteId })]
-        );
-        return reply.send({ success: true, message: 'Consulta de lote encolada' });
+        const { done, result } = await sifenLoteService.consultarLote(req.params.id, req.params.loteId);
+        return reply.send({ success: true, data: { done, result } });
     });
 
     // ═══════════════════════════════════════

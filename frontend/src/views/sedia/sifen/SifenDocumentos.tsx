@@ -138,8 +138,16 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
 
     const handleSign = async () => {
         setSigning(true)
-        try { await api.sifen.signDe(tenantId, deId); toastSuccess('Emisión encolada.'); load() }
-        catch (err: any) { toastError(err?.message || 'Error encolando emisión.') }
+        try {
+            const res = await api.sifen.signDe(tenantId, deId)
+            const d = (res as any)?.data
+            if (d?.estado === 'APPROVED') toastSuccess(`Aprobado por SIFEN`)
+            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}`)
+            else if (d?.estado === 'ENQUEUED') toastSuccess(d.mensaje || 'Firmado. Encolado para envío automático.')
+            else toastSuccess(`Firmado — Estado: ${d?.estado || 'OK'}`)
+            load()
+        }
+        catch (err: any) { toastError(err?.message || 'Error en emisión.') }
         finally { setSigning(false) }
     }
 
@@ -147,13 +155,20 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
         if (!anularMotivo.trim() || anularMotivo.trim().length < 10) return
         setAnulando(true)
         try { await api.sifen.anularDe(tenantId, deId, anularMotivo.trim()); toastSuccess('Anulación encolada.'); setAnularOpen(false); load() }
-        catch (err: any) { toastError(err?.message || 'Error encolando anulación.') }
+        catch (err: any) { toastError(err?.message || 'Error en anulación.') }
         finally { setAnulando(false) }
     }
 
     const handleEnviarSincrono = async () => {
         setActionLoading('sincrono')
-        try { await api.sifen.enviarSincrono(tenantId, deId); toastSuccess('Envío sincrónico encolado.'); load() }
+        try {
+            const res = await api.sifen.enviarSincrono(tenantId, deId)
+            const d = (res as any)?.data
+            if (d?.estado === 'APPROVED') toastSuccess(`Aprobado por SIFEN`)
+            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Ver detalles'}`)
+            else toastSuccess(`Enviado — Estado: ${d?.estado || 'OK'}`)
+            load()
+        }
         catch (err: any) { toastError(err?.message || 'Error en envío sincrónico.') }
         finally { setActionLoading('') }
     }
