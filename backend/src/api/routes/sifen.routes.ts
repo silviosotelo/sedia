@@ -363,13 +363,36 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(201).send({ success: true, data: result });
     });
 
-    // Consultar estado de un DE en SET por CDC
+    // Consultar estado de un DE en SET por CDC (sincrónico — retorna resultado directo)
     app.post<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/consultar', {
         preHandler: [requirePermiso('sifen:ver')]
     }, async (req, reply) => {
         if (!assertTenantAccess(req, reply, req.params.id)) return;
-        await sifenService.enqueueConsultaDE(req.params.id, req.params.deId);
-        return reply.send({ success: true, message: 'Consulta encolada' });
+        const de = await queryOne<{ cdc: string; estado: string }>(
+            `SELECT cdc, estado FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [req.params.deId, req.params.id]
+        );
+        if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
+        if (!de.cdc || de.cdc.startsWith('TEMP-')) {
+            throw new ApiError(400, 'INVALID_CDC', 'El DE no tiene un CDC válido asignado');
+        }
+        const result = await sifenConsultaService.consultarDE(req.params.id, de.cdc);
+
+        // Re-fetch updated DE to return fresh state
+        const updated = await queryOne<any>(
+            `SELECT estado, sifen_codigo, sifen_mensaje, sifen_respuesta FROM sifen_de WHERE id = $1`,
+            [req.params.deId]
+        );
+        return reply.send({
+            success: true,
+            data: {
+                estado: updated?.estado || de.estado,
+                sifen_codigo: updated?.sifen_codigo,
+                sifen_mensaje: updated?.sifen_mensaje,
+                sifen_respuesta: updated?.sifen_respuesta,
+                set_response: result,
+            }
+        });
     });
 
     // Anular un DE aprobado

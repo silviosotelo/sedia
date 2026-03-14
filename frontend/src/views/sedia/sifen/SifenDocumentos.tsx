@@ -160,7 +160,14 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
 
     const handleConsultarDE = async () => {
         setActionLoading('consultar')
-        try { await api.sifen.consultarDe(tenantId, deId); toastSuccess('Consulta encolada.'); load() }
+        try {
+            const res = await api.sifen.consultarDe(tenantId, deId)
+            const d = (res as any)?.data
+            if (d?.estado === 'APPROVED') toastSuccess(`Aprobado — ${d.sifen_mensaje || 'Documento aprobado por SIFEN'}`)
+            else if (d?.estado === 'REJECTED') toastError(`Rechazado — ${d.sifen_mensaje || 'Documento rechazado por SIFEN'}`)
+            else toastSuccess(`Consulta completada — Estado: ${d?.estado || 'sin cambios'}`)
+            load()
+        }
         catch (err: any) { toastError(err?.message || 'Error consultando DE.') }
         finally { setActionLoading('') }
     }
@@ -233,6 +240,33 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     <Button size="xs" onClick={loadHistorial}>Historial</Button>
                 </div>
             </div>
+
+            {/* Alerta de rechazo/error */}
+            {de.estado === 'REJECTED' && (
+                <div className="rounded-xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30 p-4">
+                    <div className="flex items-start gap-3">
+                        <span className="text-amber-500 text-lg mt-0.5">&#9888;</span>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-amber-700 dark:text-amber-400">Documento Rechazado por SIFEN</h4>
+                            {de.sifen_codigo && <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Código: {de.sifen_codigo}</p>}
+                            {de.sifen_mensaje && <p className="text-sm text-amber-800 dark:text-amber-300 mt-1 font-medium">{de.sifen_mensaje}</p>}
+                            {!de.sifen_mensaje && <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Sin detalles del motivo de rechazo. Presione "Consultar SET" para obtener más información.</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {de.estado === 'ERROR' && (
+                <div className="rounded-xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-950/30 p-4">
+                    <div className="flex items-start gap-3">
+                        <span className="text-red-500 text-lg mt-0.5">&#10060;</span>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-bold text-red-700 dark:text-red-400">Error en el Documento</h4>
+                            {de.error_categoria && <p className="text-xs text-red-500 dark:text-red-500 mt-1">Categoría: {de.error_categoria}</p>}
+                            {de.sifen_mensaje && <p className="text-sm text-red-800 dark:text-red-300 mt-1 font-medium">{de.sifen_mensaje}</p>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Card>

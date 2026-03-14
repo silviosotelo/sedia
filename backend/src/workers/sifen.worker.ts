@@ -42,7 +42,14 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
             const result = await sifenConsultaService.enviarSincrono(tenantId, deId);
             enviado = true;
 
-            await registrarHistorial(tenantId, deId, 'SIGNED', result.estado);
+            // Obtener motivo de rechazo de la DB (enviarSincrono ya lo guardó)
+            const deAfterSend = await queryOne<{ sifen_mensaje: string | null }>(
+                `SELECT sifen_mensaje FROM sifen_de WHERE id = $1`, [deId]
+            );
+            const motivoRechazo = deAfterSend?.sifen_mensaje || result.response?.mensaje || null;
+
+            await registrarHistorial(tenantId, deId, 'SIGNED', result.estado, undefined,
+                result.estado === 'REJECTED' ? motivoRechazo : undefined);
 
             if (result.estado === 'APPROVED') {
                 await incrementarUsageSifen(tenantId, 'aprobados').catch(() => {});
@@ -63,7 +70,7 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
             } else {
                 await incrementarUsageSifen(tenantId, 'rechazados').catch(() => {});
                 await enviarNotificacionSifen(tenantId, 'SIFEN_DE_RECHAZADO', {
-                    de_id: deId, motivo: result.response?.mensaje || 'Rechazado',
+                    de_id: deId, motivo: motivoRechazo || 'Rechazado',
                 }).catch(() => {});
                 await dispatchWebhookEvent(tenantId, 'sifen_de_rechazado', { de_id: deId }).catch(() => {});
             }
@@ -94,7 +101,7 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
              WHERE id = $3 AND tenant_id = $4`,
             [errorMsg, errorCat, deId, tenantId]
         );
-        await registrarHistorial(tenantId, deId, null, 'ERROR');
+        await registrarHistorial(tenantId, deId, null, 'ERROR', undefined, errorMsg);
         await markJobFailed(jobId, errorMsg);
         await crearAlertaFallo(tenantId, deId, errorMsg);
     }
@@ -297,7 +304,10 @@ export async function handleEnviarSincrono(jobId: string, tenantId: string, payl
         await markJobDone(jobId);
 
         const aprobado = result.estado === 'APPROVED';
-        await registrarHistorial(tenantId, deId, 'SIGNED', result.estado);
+        const deAfter = await queryOne<{ sifen_mensaje: string | null }>(`SELECT sifen_mensaje FROM sifen_de WHERE id = $1`, [deId]);
+        const motivoSinc = deAfter?.sifen_mensaje || result.response?.mensaje || null;
+        await registrarHistorial(tenantId, deId, 'SIGNED', result.estado, undefined,
+            !aprobado ? motivoSinc : undefined);
 
         if (aprobado) {
             await incrementarUsageSifen(tenantId, 'aprobados').catch(() => {});
@@ -490,13 +500,13 @@ function categorizarError(errorMsg: string): string {
 async function registrarHistorial(
     tenantId: string, deId: string,
     estadoAnterior: string | null, estadoNuevo: string,
-    usuarioId?: string
+    usuarioId?: string, motivo?: string
 ): Promise<void> {
     try {
         await query(
-            `INSERT INTO sifen_de_history (tenant_id, de_id, estado_anterior, estado_nuevo, usuario_id)
-             VALUES ($1, $2, $3, $4, $5)`,
-            [tenantId, deId, estadoAnterior, estadoNuevo, usuarioId || null]
+            `INSERT INTO sifen_de_history (tenant_id, de_id, estado_anterior, estado_nuevo, usuario_id, motivo)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [tenantId, deId, estadoAnterior, estadoNuevo, usuarioId || null, motivo || null]
         );
     } catch (err) {
         logger.warn('Error registrando historial', { deId, error: (err as Error).message });

@@ -835,9 +835,9 @@ export const api = {
     enviarSincrono: (tenantId: string, deId: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/enviar-sincrono`, { method: 'POST' }),
 
-    // Consultar DE en SET
+    // Consultar DE en SET (sincrónico — retorna resultado)
     consultarDe: (tenantId: string, deId: string) =>
-      request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/consultar`, { method: 'POST' }),
+      request<{ success: boolean; data: any }>(`/tenants/${tenantId}/sifen/de/${deId}/consultar`, { method: 'POST' }),
 
     // Enviar email con KUDE
     enviarEmail: (tenantId: string, deId: string, email?: string) =>
