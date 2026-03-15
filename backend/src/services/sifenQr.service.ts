@@ -26,7 +26,7 @@ export const sifenQrService = {
         const config = await sifenConfigService.getConfig(tenantId);
         if (!config) throw new Error('Configuración SIFEN no encontrada');
 
-        const idCsc = (config as any).id_csc || '0001';
+        const idCsc = String((config as any).id_csc || '0001').padStart(4, '0');
         const csc = (config as any).csc || 'ABCD0000000000000000000000000000';
         const envStr = config.ambiente === 'PRODUCCION' ? 'prod' : 'test';
 
@@ -116,6 +116,6 @@ export const sifenQrService = {
             [xmlWithQr, qrUrl, deId]
         );
 
-        logger.info('QR generado', { deId, qrUrl: qrUrl.slice(0, 100) + '...' });
+        logger.info('QR generado', { deId, qrUrl });
     }
 };
