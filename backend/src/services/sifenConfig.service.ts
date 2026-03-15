@@ -36,6 +36,21 @@ export const sifenConfigSchema = z.object({
     ws_url_consulta_ruc: z.string().url().default('https://sifen-test.set.gov.py/de/ws/consultas/consulta-ruc.wsdl'),
     id_csc: emptyToNull,
     csc: emptyToNull,
+    // Datos fiscales del emisor (migration 050)
+    denominacion_sucursal: emptyToNull,
+    direccion_emisor: emptyToNull,
+    numero_casa: z.string().max(10).optional().default('0'),
+    complemento_dir1: emptyToNull,
+    complemento_dir2: emptyToNull,
+    departamento: z.coerce.number().optional().default(11),
+    distrito: z.coerce.number().optional().default(143),
+    ciudad: z.coerce.number().optional().default(3344),
+    telefono_emisor: emptyToNull,
+    email_emisor: emptyToNull,
+    actividad_economica: emptyToNull,
+    actividad_economica_desc: emptyToNull,
+    tipo_contribuyente: z.coerce.number().optional().default(1),
+    tipo_regimen: z.coerce.number().optional().default(8),
 });
 
 export type SifenConfigInput = z.infer<typeof sifenConfigSchema>;
