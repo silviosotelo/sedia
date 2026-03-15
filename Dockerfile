@@ -7,6 +7,7 @@ RUN npm install
 
 COPY frontend/ .
 
+ARG CACHE_BUST
 ARG VITE_MOCK_MODE=false
 ENV VITE_MOCK_MODE=$VITE_MOCK_MODE
 
