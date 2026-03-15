@@ -387,39 +387,7 @@ const SifenConfig = () => {
                         </Card>
 
                         {/* Datos Fiscales del Emisor */}
-                        <Card className="mt-5">
-                            <div className="p-6 space-y-4">
-                                <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos Fiscales del Emisor</h6>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Actividad Económica (código)</label>
-                                        <Input name="actividad_economica" value={(config as any).actividad_economica || ''} onChange={handleChange} placeholder="47111" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
-                                        <Input name="actividad_economica_desc" value={(config as any).actividad_economica_desc || ''} onChange={handleChange} placeholder="Venta al por menor en comercios" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
-                                        <select name="tipo_contribuyente" value={(config as any).tipo_contribuyente || 1} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
-                                            <option value={1}>1 - Persona Física</option>
-                                            <option value={2}>2 - Persona Jurídica</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
-                                        <select name="tipo_regimen" value={(config as any).tipo_regimen || 8} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
-                                            <option value={1}>1 - Régimen turístico</option>
-                                            <option value={2}>2 - Importador</option>
-                                            <option value={3}>3 - Exportador</option>
-                                            <option value={4}>4 - Maquilador</option>
-                                            <option value={5}>5 - Ley 60/90</option>
-                                            <option value={8}>8 - Régimen general</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
+                        <DatosFiscalesSection config={config} handleChange={handleChange} setConfig={setConfig} />
 
                         {/* Establecimientos / Sucursales */}
                         <EstablecimientosSection tenantId={tenantId} />
@@ -623,6 +591,59 @@ const SifenConfig = () => {
 }
 
 // ─── Establecimientos CRUD ───────────────────────────────────────────────────
+
+// ─── Datos Fiscales del Emisor (selectores desde DB) ────────────────────────
+
+function DatosFiscalesSection({ config, handleChange, setConfig }: { config: any; handleChange: any; setConfig: any }) {
+    const [tiposContrib, setTiposContrib] = useState<any[]>([])
+    const [tiposRegimen, setTiposRegimen] = useState<any[]>([])
+
+    useEffect(() => {
+        api.sifenRef.get('tipos-contribuyente').then(r => setTiposContrib(r.map((x: any) => ({ value: x.codigo, label: `${x.codigo} - ${x.descripcion}` })))).catch(() => {})
+        api.sifenRef.get('tipos-regimen').then(r => setTiposRegimen(r.map((x: any) => ({ value: x.codigo, label: `${x.codigo} - ${x.descripcion}` })))).catch(() => {})
+    }, [])
+
+    return (
+        <Card className="mt-5">
+            <div className="p-6 space-y-4">
+                <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos Fiscales del Emisor</h6>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Código Act. Económica</label>
+                        <Input name="actividad_economica" value={config.actividad_economica || ''} onChange={handleChange} placeholder="Ej: 47111" />
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
+                        <Input name="actividad_economica_desc" value={config.actividad_economica_desc || ''} onChange={handleChange} placeholder="Ej: Venta al por menor en comercios no especializados" />
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
+                        <Select
+                            size="sm"
+                            options={tiposContrib}
+                            value={tiposContrib.find(o => o.value === Number(config.tipo_contribuyente)) || null}
+                            onChange={(opt: any) => setConfig((p: any) => ({ ...p, tipo_contribuyente: opt?.value }))}
+                            placeholder="Seleccionar..."
+                        />
+                    </div>
+                    <div>
+                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
+                        <Select
+                            size="sm"
+                            options={tiposRegimen}
+                            value={tiposRegimen.find(o => o.value === Number(config.tipo_regimen)) || null}
+                            onChange={(opt: any) => setConfig((p: any) => ({ ...p, tipo_regimen: opt?.value }))}
+                            placeholder="Seleccionar..."
+                        />
+                    </div>
+                </div>
+                <p className="text-[10px] text-gray-400">El código y descripción de actividad económica deben coincidir con lo registrado en Marangatu/DNIT.</p>
+            </div>
+        </Card>
+    )
+}
+
+// ─── Establecimientos CRUD ──────────────────────────────────────────────────
 
 const EMPTY_EST = { codigo: '', denominacion: '', direccion: '', numero_casa: '0', departamento: 0, distrito: 0, ciudad: 0, telefono: '', email: '' }
 

@@ -76,34 +76,7 @@ function toastError(msg: string) {
     toast.push(<Notification title="Error" type="danger">{msg}</Notification>)
 }
 
-// ─── Fallback constants ──────────────────────────────────────────────────────
-
-const TIPO_OPTS_FALLBACK: { value: SifenTipoDocumento; label: string }[] = [
-    { value: '1', label: 'Factura Electrónica' },
-    { value: '4', label: 'Autofactura Electrónica' },
-    { value: '5', label: 'Nota de Crédito Electrónica' },
-    { value: '6', label: 'Nota de Débito Electrónica' },
-    { value: '7', label: 'Nota de Remisión Electrónica' },
-]
-
-const MONEDA_FALLBACK = [
-    { value: 'PYG', label: 'PYG — Guaraní' },
-    { value: 'USD', label: 'USD — Dólar' },
-    { value: 'BRL', label: 'BRL — Real' },
-]
-
-const NATURALEZA_FALLBACK = [
-    { value: 1, label: '1 - Contribuyente' },
-    { value: 2, label: '2 - No Contribuyente' },
-]
-
-const TIPO_OP_FALLBACK = [
-    { value: 1, label: '1 - B2B (Contribuyente)' },
-    { value: 2, label: '2 - B2C (Consumidor Final)' },
-    { value: 3, label: '3 - B2G (Gobierno)' },
-    { value: 4, label: '4 - B2F (Exportación)' },
-]
-
+// IVA rates are fixed by SIFEN spec, not in ref tables
 const TASA_IVA_OPTS = [
     { value: 10, label: '10%' },
     { value: 5, label: '5%' },
@@ -142,17 +115,15 @@ const SifenEmitir = () => {
     const tenantId = activeTenantId ?? ''
     const ref = useSifenRef()
 
-    // Derived options with fallbacks
-    const tipoOpts = ref.tiposDoc.length > 0
-        ? ref.tiposDoc.map(t => ({ value: String(t.value) as SifenTipoDocumento, label: t.label }))
-        : TIPO_OPTS_FALLBACK
-    const monedaOpts = ref.monedas.length > 0 ? ref.monedas : MONEDA_FALLBACK
-    const naturalezaOpts = ref.tiposContribuyente.length > 0 ? ref.tiposContribuyente : NATURALEZA_FALLBACK
-    const tipoOpOpts = ref.tiposOperacion.length > 0 ? ref.tiposOperacion : TIPO_OP_FALLBACK
-    const condicionOpts = ref.condicionesOp.length > 0 ? ref.condicionesOp : [{ value: 1, label: '1 - Contado' }, { value: 2, label: '2 - Crédito' }]
-    const formaPagoOpts = ref.formasPago.length > 0 ? ref.formasPago : [{ value: 1, label: '1 - Efectivo' }, { value: 2, label: '2 - Cheque' }, { value: 3, label: '3 - Tarjeta de crédito' }, { value: 4, label: '4 - Tarjeta de débito' }]
-    const docIdentidadOpts = ref.tiposDocIdentidad.length > 0 ? ref.tiposDocIdentidad : [{ value: 1, label: '1 - Cédula paraguaya' }, { value: 2, label: '2 - Pasaporte' }, { value: 3, label: '3 - Carnet de residencia' }, { value: 4, label: '4 - Cédula extranjera' }, { value: 5, label: '5 - Innominado' }]
-    const uMedOpts = ref.unidadesMedida.length > 0 ? ref.unidadesMedida : [{ value: 77, label: '77 - Unidad' }, { value: 83, label: '83 - Kilogramo' }, { value: 79, label: '79 - Litro' }, { value: 66, label: '66 - Metro' }]
+    // All options from DB — no hardcoded fallbacks
+    const tipoOpts = ref.tiposDoc.map(t => ({ value: String(t.value) as SifenTipoDocumento, label: t.label }))
+    const monedaOpts = ref.monedas
+    const naturalezaOpts = ref.tiposContribuyente
+    const tipoOpOpts = ref.tiposOperacion
+    const condicionOpts = ref.condicionesOp
+    const formaPagoOpts = ref.formasPago
+    const docIdentidadOpts = ref.tiposDocIdentidad
+    const uMedOpts = ref.unidadesMedida
 
     // State
     const [submitting, setSubmitting] = useState(false)
