@@ -49,6 +49,20 @@ export async function sifenRefRoutes(app: FastifyInstance): Promise<void> {
   app.get('/sifen-ref/tipos-constancia', refEndpoint('sifen_ref_tipos_constancia'));
   app.get('/sifen-ref/procesamiento-tarjeta', refEndpoint('sifen_ref_procesamiento_tarjeta'));
 
+  // Actividades económicas (CIIU Rev. 4) con búsqueda
+  app.get('/sifen-ref/actividades-economicas', async (req, reply) => {
+    const { search } = req.query as { search?: string };
+    if (search && search.length >= 2) {
+      const rows = await query(
+        `SELECT * FROM sifen_ref_actividades_economicas WHERE descripcion ILIKE $1 OR codigo LIKE $2 ORDER BY codigo LIMIT 50`,
+        [`%${search}%`, `${search}%`]
+      );
+      return reply.send({ success: true, data: rows });
+    }
+    const rows = await query(`SELECT * FROM sifen_ref_actividades_economicas ORDER BY codigo`);
+    return reply.send({ success: true, data: rows });
+  });
+
   // Geographic data with search support
   app.get('/sifen-ref/departamentos', refEndpoint('sifen_ref_departamentos'));
 

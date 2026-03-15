@@ -597,27 +597,39 @@ const SifenConfig = () => {
 function DatosFiscalesSection({ config, handleChange, setConfig }: { config: any; handleChange: any; setConfig: any }) {
     const [tiposContrib, setTiposContrib] = useState<any[]>([])
     const [tiposRegimen, setTiposRegimen] = useState<any[]>([])
+    const [actEcoOpts, setActEcoOpts] = useState<any[]>([])
 
     useEffect(() => {
         api.sifenRef.get('tipos-contribuyente').then(r => setTiposContrib(r.map((x: any) => ({ value: x.codigo, label: `${x.codigo} - ${x.descripcion}` })))).catch(() => {})
         api.sifenRef.get('tipos-regimen').then(r => setTiposRegimen(r.map((x: any) => ({ value: x.codigo, label: `${x.codigo} - ${x.descripcion}` })))).catch(() => {})
+        api.sifenRef.get('actividades-economicas').then(r => setActEcoOpts(r.map((x: any) => ({ value: x.codigo, label: `${x.codigo} - ${x.descripcion}` })))).catch(() => {})
     }, [])
+
+    const Lbl = ({ children }: { children: string }) => (
+        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">{children}</label>
+    )
 
     return (
         <Card className="mt-5">
             <div className="p-6 space-y-4">
                 <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos Fiscales del Emisor</h6>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Código Act. Económica</label>
-                        <Input name="actividad_economica" value={config.actividad_economica || ''} onChange={handleChange} placeholder="Ej: 47111" />
+                    <div className="md:col-span-2">
+                        <Lbl>Actividad Económica (CIIU)</Lbl>
+                        <Select
+                            size="sm"
+                            options={actEcoOpts}
+                            value={actEcoOpts.find(o => o.value === config.actividad_economica) || null}
+                            onChange={(opt: any) => {
+                                const desc = opt?.label?.split(' - ').slice(1).join(' - ') || ''
+                                setConfig((p: any) => ({ ...p, actividad_economica: opt?.value || '', actividad_economica_desc: desc }))
+                            }}
+                            placeholder="Buscar actividad económica..."
+                            isSearchable
+                        />
                     </div>
                     <div>
-                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
-                        <Input name="actividad_economica_desc" value={config.actividad_economica_desc || ''} onChange={handleChange} placeholder="Ej: Venta al por menor en comercios no especializados" />
-                    </div>
-                    <div>
-                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
+                        <Lbl>Tipo Contribuyente</Lbl>
                         <Select
                             size="sm"
                             options={tiposContrib}
@@ -627,7 +639,7 @@ function DatosFiscalesSection({ config, handleChange, setConfig }: { config: any
                         />
                     </div>
                     <div>
-                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
+                        <Lbl>Tipo Régimen</Lbl>
                         <Select
                             size="sm"
                             options={tiposRegimen}
@@ -637,7 +649,6 @@ function DatosFiscalesSection({ config, handleChange, setConfig }: { config: any
                         />
                     </div>
                 </div>
-                <p className="text-[10px] text-gray-400">El código y descripción de actividad económica deben coincidir con lo registrado en Marangatu/DNIT.</p>
             </div>
         </Card>
     )
