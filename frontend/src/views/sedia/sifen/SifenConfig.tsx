@@ -386,6 +386,41 @@ const SifenConfig = () => {
                             </div>
                         </Card>
 
+                        {/* Datos Fiscales del Emisor */}
+                        <Card className="mt-5">
+                            <div className="p-6 space-y-4">
+                                <h6 className="font-semibold text-gray-900 dark:text-gray-100">Datos Fiscales del Emisor</h6>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Actividad Económica (código)</label>
+                                        <Input name="actividad_economica" value={(config as any).actividad_economica || ''} onChange={handleChange} placeholder="47111" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Descripción Act. Económica</label>
+                                        <Input name="actividad_economica_desc" value={(config as any).actividad_economica_desc || ''} onChange={handleChange} placeholder="Venta al por menor en comercios" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Contribuyente</label>
+                                        <select name="tipo_contribuyente" value={(config as any).tipo_contribuyente || 1} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
+                                            <option value={1}>1 - Persona Física</option>
+                                            <option value={2}>2 - Persona Jurídica</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">Tipo Régimen</label>
+                                        <select name="tipo_regimen" value={(config as any).tipo_regimen || 8} onChange={handleChange as any} className="w-full bg-gray-100 dark:bg-gray-700 rounded-xl px-3 py-2 text-sm font-semibold border-0">
+                                            <option value={1}>1 - Régimen turístico</option>
+                                            <option value={2}>2 - Importador</option>
+                                            <option value={3}>3 - Exportador</option>
+                                            <option value={4}>4 - Maquilador</option>
+                                            <option value={5}>5 - Ley 60/90</option>
+                                            <option value={8}>8 - Régimen general</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+
                         {/* Establecimientos / Sucursales */}
                         <EstablecimientosSection tenantId={tenantId} />
                     </TabContent>
@@ -589,13 +624,19 @@ const SifenConfig = () => {
 
 // ─── Establecimientos CRUD ───────────────────────────────────────────────────
 
-const EMPTY_EST = { codigo: '', denominacion: '', direccion: '', numero_casa: '0', departamento: 11, distrito: 143, ciudad: 3344, telefono: '', email: '' }
+const EMPTY_EST = { codigo: '', denominacion: '', direccion: '', numero_casa: '0', departamento: 0, distrito: 0, ciudad: 0, telefono: '', email: '' }
 
 function EstablecimientosSection({ tenantId }: { tenantId: string }) {
     const [list, setList] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [editEst, setEditEst] = useState<any | null>(null)
     const [saving, setSaving] = useState(false)
+
+    // Cascading selects data
+    const [depOpts, setDepOpts] = useState<any[]>([])
+    const [disOpts, setDisOpts] = useState<any[]>([])
+    const [ciuOpts, setCiuOpts] = useState<any[]>([])
+    const [actEcoOpts, setActEcoOpts] = useState<any[]>([])
 
     const load = async () => {
         setLoading(true)
@@ -605,9 +646,41 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
     }
     useEffect(() => { load() }, [tenantId])
 
-    const handleSaveEst = async (e?: React.MouseEvent) => {
-        e?.preventDefault(); e?.stopPropagation()
-        if (!editEst?.denominacion?.trim()) return
+    // Load departamentos + actividades económicas once
+    useEffect(() => {
+        api.sifenRef.departamentos().then(r => setDepOpts(r.map((d: any) => ({ value: d.codigo, label: `${d.codigo} - ${d.descripcion}` })))).catch(() => {})
+        api.sifenRef.get('actividades-economicas').then(r => setActEcoOpts(r.map((a: any) => ({ value: a.codigo, label: `${a.codigo} - ${a.descripcion}` })))).catch(() => {})
+    }, [])
+
+    // Load distritos when departamento changes
+    const loadDistritos = async (depCodigo: number) => {
+        if (!depCodigo) { setDisOpts([]); setCiuOpts([]); return }
+        const r = await api.sifenRef.distritos(depCodigo)
+        setDisOpts(r.map((d: any) => ({ value: d.codigo, label: `${d.codigo} - ${d.descripcion}` })))
+        setCiuOpts([])
+    }
+
+    // Load ciudades when distrito changes
+    const loadCiudades = async (disCodigo: number) => {
+        if (!disCodigo) { setCiuOpts([]); return }
+        const r = await api.sifenRef.ciudades({ distrito: disCodigo })
+        setCiuOpts(r.map((c: any) => ({ value: c.codigo, label: `${c.codigo} - ${c.descripcion}` })))
+    }
+
+    // When opening edit, load distritos/ciudades for current values
+    const openEdit = async (est: any) => {
+        setEditEst({ ...est })
+        if (est.departamento) {
+            await loadDistritos(est.departamento)
+            if (est.distrito) await loadCiudades(est.distrito)
+        }
+    }
+
+    const handleSaveEst = async () => {
+        if (!editEst?.denominacion?.trim()) {
+            toast.push(<Notification type="warning" title="Validación">Denominación es requerida</Notification>)
+            return
+        }
         setSaving(true)
         try {
             if (editEst.id) {
@@ -616,6 +689,7 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
                 await api.sifen.crearEstablecimiento(tenantId, editEst)
             }
             setEditEst(null); load()
+            toast.push(<Notification type="success" title="Guardado">Establecimiento guardado correctamente</Notification>)
         } catch (err: any) {
             toast.push(<Notification type="danger" title="Error">{err?.message || 'Error guardando'}</Notification>)
         } finally { setSaving(false) }
@@ -627,79 +701,139 @@ function EstablecimientosSection({ tenantId }: { tenantId: string }) {
         catch (err: any) { toast.push(<Notification type="danger" title="Error">{err?.message || 'Error eliminando'}</Notification>) }
     }
 
-    const F = ({ label, name, type, placeholder }: { label: string; name: string; type?: string; placeholder?: string }) => (
-        <div>
-            <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">{label}</label>
-            <Input type={type} name={name} value={editEst?.[name] ?? ''} placeholder={placeholder}
-                onChange={(e: any) => setEditEst((p: any) => ({ ...p, [name]: e.target.value }))}
-                onKeyDown={(e: any) => { if (e.key === 'Enter') e.preventDefault() }} />
-        </div>
+    const Lbl = ({ children }: { children: string }) => (
+        <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider block">{children}</label>
     )
 
+    const setField = (name: string, value: any) => setEditEst((p: any) => ({ ...p, [name]: value }))
+
     return (
-        <Card className="mt-5">
-            <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h6 className="font-semibold text-gray-900 dark:text-gray-100">Establecimientos / Sucursales</h6>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Datos del emisor incluidos en cada DE. Un establecimiento por código.</p>
+        <>
+            <Card className="mt-5">
+                <div className="p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h6 className="font-semibold text-gray-900 dark:text-gray-100">Establecimientos / Sucursales</h6>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Datos del emisor incluidos en cada DE.</p>
+                        </div>
+                        <Button type="button" size="xs" variant="solid" onClick={() => { setEditEst({ ...EMPTY_EST }); setDisOpts([]); setCiuOpts([]) }}>+ Agregar</Button>
                     </div>
-                    <Button size="xs" variant="solid" onClick={() => setEditEst({ ...EMPTY_EST })}>+ Agregar</Button>
-                </div>
 
-                {loading ? <Loading loading /> : list.length === 0 ? (
-                    <p className="text-xs text-gray-400 py-4 text-center">No hay establecimientos. Agregue al menos uno.</p>
-                ) : (
-                    <div className="space-y-2">
-                        {list.map(est => (
-                            <div key={est.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-mono font-bold text-gray-500">{est.codigo}</span>
-                                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{est.denominacion}</span>
-                                        {!est.activo && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Inactivo</span>}
+                    {loading ? <Loading loading /> : list.length === 0 ? (
+                        <p className="text-xs text-gray-400 py-4 text-center">No hay establecimientos. Agregue al menos uno.</p>
+                    ) : (
+                        <div className="space-y-2">
+                            {list.map(est => (
+                                <div key={est.id} className="flex items-center justify-between p-3 border border-gray-100 dark:border-gray-700 rounded-lg">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-mono font-bold text-gray-500">{est.codigo}</span>
+                                            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{est.denominacion}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-0.5">{est.direccion}{est.telefono ? ` · ${est.telefono}` : ''}{est.email ? ` · ${est.email}` : ''}</p>
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-0.5">{est.direccion}{est.telefono ? ` · ${est.telefono}` : ''}{est.email ? ` · ${est.email}` : ''}</p>
-                                    <p className="text-[10px] text-gray-400">Depto: {est.departamento} · Distrito: {est.distrito} · Ciudad: {est.ciudad}</p>
+                                    <div className="flex items-center gap-1 ml-3">
+                                        <Button type="button" size="xs" onClick={() => openEdit(est)}>Editar</Button>
+                                        <Button type="button" size="xs" customColorClass={() => 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'} onClick={() => handleDelete(est.id)}>Eliminar</Button>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1 ml-3">
-                                    <Button size="xs" onClick={() => setEditEst({ ...est })}>Editar</Button>
-                                    <Button size="xs" customColorClass={() => 'text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20'} onClick={() => handleDelete(est.id)}>Eliminar</Button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Edit/Create Dialog */}
-                <Dialog isOpen={!!editEst} onClose={() => { if (!saving) setEditEst(null) }} width={560}>
-                    {editEst && (
-                        <div className="p-6 space-y-4">
-                            <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                                {editEst.id ? 'Editar Establecimiento' : 'Nuevo Establecimiento'}
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                <F label="Código (3 dígitos)" name="codigo" placeholder="001" />
-                                <F label="Denominación" name="denominacion" placeholder="Casa Matriz" />
-                                <div className="col-span-2"><F label="Dirección" name="direccion" placeholder="Av. España 1234" /></div>
-                                <F label="Número de Casa" name="numero_casa" placeholder="0" />
-                                <F label="Teléfono" name="telefono" placeholder="021-123456" />
-                                <F label="Email" name="email" placeholder="sucursal@empresa.com.py" />
-                                <F label="Departamento (código)" name="departamento" type="number" />
-                                <F label="Distrito (código)" name="distrito" type="number" />
-                                <F label="Ciudad (código)" name="ciudad" type="number" />
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                                <Button type="button" size="sm" variant="plain" onClick={() => setEditEst(null)}>Cancelar</Button>
-                                <Button type="button" size="sm" variant="solid" loading={saving} onClick={handleSaveEst}>
-                                    {editEst.id ? 'Guardar' : 'Crear'}
-                                </Button>
-                            </div>
+                            ))}
                         </div>
                     )}
-                </Dialog>
-            </div>
-        </Card>
+                </div>
+            </Card>
+
+            {/* Dialog FUERA del form padre */}
+            <Dialog isOpen={!!editEst} onClose={() => { if (!saving) setEditEst(null) }} width={620}>
+                {editEst && (
+                    <div className="p-6 space-y-4" onClick={e => e.stopPropagation()} onSubmit={e => e.preventDefault()}>
+                        <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                            {editEst.id ? 'Editar Establecimiento' : 'Nuevo Establecimiento'}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <Lbl>Código (3 dígitos)</Lbl>
+                                <Input value={editEst.codigo || ''} onChange={(e: any) => setField('codigo', e.target.value)} placeholder="001" />
+                            </div>
+                            <div>
+                                <Lbl>Denominación</Lbl>
+                                <Input value={editEst.denominacion || ''} onChange={(e: any) => setField('denominacion', e.target.value)} placeholder="Casa Matriz" />
+                            </div>
+                            <div className="col-span-2">
+                                <Lbl>Dirección</Lbl>
+                                <Input value={editEst.direccion || ''} onChange={(e: any) => setField('direccion', e.target.value)} placeholder="Av. España 1234" />
+                            </div>
+                            <div>
+                                <Lbl>Número de Casa</Lbl>
+                                <Input value={editEst.numero_casa || '0'} onChange={(e: any) => setField('numero_casa', e.target.value)} placeholder="0" />
+                            </div>
+                            <div>
+                                <Lbl>Teléfono</Lbl>
+                                <Input value={editEst.telefono || ''} onChange={(e: any) => setField('telefono', e.target.value)} placeholder="021123456" />
+                            </div>
+                            <div className="col-span-2">
+                                <Lbl>Email</Lbl>
+                                <Input value={editEst.email || ''} onChange={(e: any) => setField('email', e.target.value)} placeholder="sucursal@empresa.com.py" />
+                            </div>
+
+                            {/* Cascading selects */}
+                            <div>
+                                <Lbl>Departamento</Lbl>
+                                <Select
+                                    size="sm"
+                                    placeholder="Seleccionar..."
+                                    options={depOpts}
+                                    value={depOpts.find(o => o.value === editEst.departamento) || null}
+                                    onChange={(opt: any) => {
+                                        setField('departamento', opt?.value || 0)
+                                        setField('distrito', 0)
+                                        setField('ciudad', 0)
+                                        if (opt?.value) loadDistritos(opt.value)
+                                        else { setDisOpts([]); setCiuOpts([]) }
+                                    }}
+                                    menuPlacement="top"
+                                />
+                            </div>
+                            <div>
+                                <Lbl>Distrito</Lbl>
+                                <Select
+                                    size="sm"
+                                    placeholder={disOpts.length ? 'Seleccionar...' : 'Elija departamento'}
+                                    options={disOpts}
+                                    value={disOpts.find(o => o.value === editEst.distrito) || null}
+                                    onChange={(opt: any) => {
+                                        setField('distrito', opt?.value || 0)
+                                        setField('ciudad', 0)
+                                        if (opt?.value) loadCiudades(opt.value)
+                                        else setCiuOpts([])
+                                    }}
+                                    isDisabled={!disOpts.length}
+                                    menuPlacement="top"
+                                />
+                            </div>
+                            <div className="col-span-2">
+                                <Lbl>Ciudad</Lbl>
+                                <Select
+                                    size="sm"
+                                    placeholder={ciuOpts.length ? 'Seleccionar...' : 'Elija distrito'}
+                                    options={ciuOpts}
+                                    value={ciuOpts.find(o => o.value === editEst.ciudad) || null}
+                                    onChange={(opt: any) => setField('ciudad', opt?.value || 0)}
+                                    isDisabled={!ciuOpts.length}
+                                    menuPlacement="top"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button type="button" size="sm" variant="plain" onClick={() => setEditEst(null)}>Cancelar</Button>
+                            <Button type="button" size="sm" variant="solid" loading={saving} onClick={handleSaveEst}>
+                                {editEst.id ? 'Guardar' : 'Crear'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </Dialog>
+        </>
     )
 }
 
