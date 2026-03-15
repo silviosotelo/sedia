@@ -49,7 +49,7 @@ function useSifenRef() {
 
     const loadDistritos = useCallback(async (depCodigo: number) => {
         const r = await api.sifenRef.distritos(depCodigo)
-        const opts = r.map((d: any) => ({ value: d.codigo, label: d.descripcion }))
+        const opts = r.map((d: any) => ({ value: d.codigo, label: `${d.codigo} - ${d.descripcion}` }))
         setDistritos(opts)
         setCiudades([])
         return opts
@@ -57,7 +57,7 @@ function useSifenRef() {
 
     const loadCiudades = useCallback(async (distCodigo: number) => {
         const r = await api.sifenRef.ciudades({ distrito: distCodigo })
-        const opts = r.map((c: any) => ({ value: c.codigo, label: c.descripcion }))
+        const opts = r.map((c: any) => ({ value: c.codigo, label: `${c.codigo} - ${c.descripcion}` }))
         setCiudades(opts)
         return opts
     }, [])
