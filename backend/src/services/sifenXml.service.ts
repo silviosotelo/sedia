@@ -83,10 +83,12 @@ export const sifenXmlService = {
             tipoRegimen: cfg.tipo_regimen || 8,
         };
 
-        // xmlgen expects `fecha` (not `fechaEmision`) in format yyyy-MM-ddTHH:mm:ss
-        const fechaDE = de.fecha_emision
-            ? new Date(de.fecha_emision).toISOString().replace('Z', '').split('.')[0]
-            : new Date().toISOString().replace('Z', '').split('.')[0];
+        // xmlgen expects `fecha` in format yyyy-MM-ddTHH:mm:ss (hora Paraguay UTC-3)
+        function toParaguayISO(d: Date): string {
+            const py = new Date(d.getTime() - 3 * 60 * 60 * 1000); // UTC-3
+            return py.toISOString().replace('Z', '').split('.')[0];
+        }
+        const fechaDE = toParaguayISO(de.fecha_emision ? new Date(de.fecha_emision) : new Date());
 
         const deData: any = {
             tipoDocumento: tipoDoc,
@@ -94,6 +96,7 @@ export const sifenXmlService = {
             punto: Number(config.punto_expedicion) || 1,
             numero: Number(de.numero_documento) || 1,
             fecha: fechaDE,
+            fechaFirmaDigital: toParaguayISO(new Date()),
             tipoEmision: de.tipo_emision || 1,
             codigoSeguridadAleatorio: codigoSeguridadAleatorio,
             tipoImpuesto: adicionales.tipo_impuesto || 1,
