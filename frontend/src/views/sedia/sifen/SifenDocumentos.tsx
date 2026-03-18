@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Download, FileX, FileText, AlertTriangle, Link2, RefreshCw, Printer } from 'lucide-react'
+import { Search, Download, FileX, FileText, AlertTriangle, Link2, RefreshCw, Printer, RotateCcw, Pencil } from 'lucide-react'
 import { api } from '@/services/sedia/api'
 import { useTenantStore } from '@/store/tenantStore'
 import Button from '@/components/ui/Button'
@@ -125,6 +125,17 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
     const [emailDestino, setEmailDestino] = useState('')
     const [printDialogOpen, setPrintDialogOpen] = useState(false)
     const [printing, setPrinting] = useState(false)
+    const [reenviando, setReenviando] = useState(false)
+
+    const handleReenviar = async () => {
+        setReenviando(true)
+        try {
+            await api.sifen.reenviarDe(tenantId, deId)
+            toastSuccess('DE encolado para re-emisión')
+            load()
+        } catch (err: any) { toastError(err?.message || 'Error al reenviar') }
+        finally { setReenviando(false) }
+    }
 
     const load = async () => {
         setLoading(true); setError(null)
@@ -260,6 +271,11 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     {['SENT', 'APPROVED', 'REJECTED'].includes(de.estado) && (
                         <Button size="xs" loading={actionLoading === 'consultar'} onClick={handleConsultarDE}>Consultar SET</Button>
                     )}
+                    {['REJECTED', 'ERROR'].includes(de.estado) && (
+                        <>
+                            <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar</Button>
+                        </>
+                    )}
                     {(de.has_xml_signed || de.has_xml_unsigned || de.xml_signed || de.xml_unsigned) && (
                         <Button size="xs" onClick={() => api.sifen.downloadXml(tenantId, de.id)}>XML</Button>
                     )}
@@ -282,9 +298,32 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                         <span className="text-amber-500 text-lg mt-0.5">&#9888;</span>
                         <div className="flex-1 min-w-0">
                             <h4 className="text-sm font-bold text-amber-700 dark:text-amber-400">Documento Rechazado por SIFEN</h4>
-                            {de.sifen_codigo && <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Código: {de.sifen_codigo}</p>}
-                            {de.sifen_mensaje && <p className="text-sm text-amber-800 dark:text-amber-300 mt-1 font-medium">{de.sifen_mensaje}</p>}
-                            {!de.sifen_mensaje && <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Sin detalles del motivo de rechazo. Presione "Consultar SET" para obtener más información.</p>}
+                            {de.sifen_mensaje ? (
+                                <div className="mt-2 space-y-1.5">
+                                    {de.sifen_mensaje.includes(' | ') ? (
+                                        de.sifen_mensaje.split(' | ').map((err: string, i: number) => {
+                                            const [code, ...msgParts] = err.split(': ')
+                                            const msg = msgParts.join(': ')
+                                            return (
+                                                <div key={i} className="flex items-start gap-2 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                                                    <span className="text-[10px] font-mono bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded px-1.5 py-0.5 shrink-0">{code}</span>
+                                                    <span className="text-xs text-amber-800 dark:text-amber-300">{msg}</span>
+                                                </div>
+                                            )
+                                        })
+                                    ) : (
+                                        <div className="flex items-start gap-2 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+                                            {de.sifen_codigo && <span className="text-[10px] font-mono bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded px-1.5 py-0.5 shrink-0">{de.sifen_codigo}</span>}
+                                            <span className="text-xs text-amber-800 dark:text-amber-300">{de.sifen_mensaje}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Sin detalles del motivo de rechazo. Presione "Consultar SET" para obtener más información.</p>
+                            )}
+                            <div className="mt-3 flex gap-2">
+                                <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar a SET</Button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -297,6 +336,9 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                             <h4 className="text-sm font-bold text-red-700 dark:text-red-400">Error en el Documento</h4>
                             {de.error_categoria && <p className="text-xs text-red-500 dark:text-red-500 mt-1">Categoría: {de.error_categoria}</p>}
                             {de.sifen_mensaje && <p className="text-sm text-red-800 dark:text-red-300 mt-1 font-medium">{de.sifen_mensaje}</p>}
+                            <div className="mt-3 flex gap-2">
+                                <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reintentar</Button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -822,6 +864,15 @@ const SifenDocumentos = () => {
                                                 {(doc.estado === 'DRAFT' || doc.estado === 'ERROR') && (
                                                     <button onClick={e => handleSign(doc.id, e)} className="text-blue-500 hover:text-blue-700 px-2 py-0.5 rounded text-[10px] font-medium border border-blue-200 hover:border-blue-400">
                                                         Emitir
+                                                    </button>
+                                                )}
+                                                {['REJECTED', 'ERROR'].includes(doc.estado) && (
+                                                    <button onClick={async e => {
+                                                        e.stopPropagation()
+                                                        try { await api.sifen.reenviarDe(tenantId, doc.id); toastSuccess('Reenviando...'); load() }
+                                                        catch (err: any) { toastError(err?.message || 'Error') }
+                                                    }} className="text-amber-500 hover:text-amber-700 px-2 py-0.5 rounded text-[10px] font-medium border border-amber-200 hover:border-amber-400" title="Reenviar">
+                                                        Reenviar
                                                     </button>
                                                 )}
                                                 {doc.estado === 'APPROVED' && (
