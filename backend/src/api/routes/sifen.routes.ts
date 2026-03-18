@@ -424,7 +424,24 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         await sifenSignService.firmarXmlDE(tenantId, deId);
         await sifenQrService.generarQrDE(tenantId, deId);
 
-        // 2. Intentar envío sincrónico directo a SET
+        // 2. Check modo_envio — ASINCRONO skips the synchronous send entirely
+        const { sifenConfigService: _cfgSvc } = await import('../../services/sifenConfig.service');
+        const _sifenCfg = await _cfgSvc.getConfig(tenantId);
+        const _modoEnvio = (_sifenCfg as any)?.modo_envio || 'SINCRONO';
+
+        if (_modoEnvio === 'ASINCRONO') {
+            await query(
+                `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+                [deId, tenantId]
+            );
+            logger.info('DE encolado para lote (modo ASINCRONO desde /sign)', { deId });
+            return reply.send({
+                success: true,
+                data: { cdc, estado: 'ENQUEUED', mensaje: 'Firmado OK. Encolado para envío asíncrono por lote (modo ASINCRONO).' },
+            });
+        }
+
+        // 3. Intentar envío sincrónico directo a SET
         try {
             const result = await sifenConsultaService.enviarSincrono(tenantId, deId);
             const updated = await queryOne<any>(

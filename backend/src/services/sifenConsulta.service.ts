@@ -305,7 +305,19 @@ export const sifenConsultaService = {
         // 4. Generar QR
         await sifenQrService.generarQrDE(tenantId, deId);
 
-        // 5. Intentar enviar a SET con timeout
+        // 5. Check modo_envio — ASINCRONO encola sin intentar envío sincrónico
+        const _cfgForMode = await sifenConfigService.getConfig(tenantId);
+        const modoEnvio = (_cfgForMode as any)?.modo_envio || 'SINCRONO';
+        if (modoEnvio === 'ASINCRONO') {
+            await query(
+                `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1`,
+                [deId]
+            );
+            logger.info('emitirCompletoSincrono: DE encolado para lote (modo ASINCRONO)', { tenantId, deId, cdc });
+            return { id: deId, numero_documento, cdc, estado: 'ENQUEUED' };
+        }
+
+        // 6. Intentar enviar a SET con timeout
         try {
             const sendPromise = this.enviarSincrono(tenantId, deId);
 
@@ -349,7 +361,7 @@ export const sifenConsultaService = {
  * gResProc can be a single object or an array of 1-100 entries (MT v150 PP05).
  * Returns the primary code + a concatenated message with all errors.
  */
-function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null; errores: Array<{ codigo: string; mensaje: string }> } {
+export function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null; errores: Array<{ codigo: string; mensaje: string }> } {
     if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null, errores: [] };
 
     // Navigate to rProtDe

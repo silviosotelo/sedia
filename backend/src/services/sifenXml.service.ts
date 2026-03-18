@@ -192,6 +192,8 @@ export const sifenXmlService = {
             .replace(/<(\w+)>undefined<\/\1>/g, '')
             .replace(/<(\w+)>null<\/\1>/g, '')
             .replace(/<(\w+)\s*\/>/g, '')
+            // Also strip open+close empty pairs that xmlgen emits for optional fields with no value
+            .replace(/<(\w+)><\/\1>/g, '')
             // Quitar standalone de la declaración XML (SIFEN no lo espera)
             .replace(/ standalone="[^"]*"/, '');
 
@@ -294,21 +296,21 @@ function buildCliente(receptor: any): any {
     return {
         contribuyente: hasRuc,
         tipoOperacion: tipoOp,
-        ruc: hasRuc ? `${receptor.ruc}-${receptor.dv}` : undefined,
-        tipoContribuyente: receptor.tipo_contribuyente || (hasRuc ? 1 : undefined),
+        ...(hasRuc ? { ruc: `${receptor.ruc}-${receptor.dv}` } : {}),
+        ...(hasRuc ? { tipoContribuyente: receptor.tipo_contribuyente || 1 } : {}),
         razonSocial: receptor.razon_social,
-        nombreFantasia: receptor.nombre_fantasia || undefined,
+        ...(receptor.nombre_fantasia ? { nombreFantasia: receptor.nombre_fantasia } : {}),
         pais: receptor.pais || 'PRY',
-        documentoTipo: !hasRuc ? (receptor.documento_tipo || 1) : undefined,
-        documentoNumero: !hasRuc ? (receptor.documento_numero || '') : undefined,
-        telefono: receptor.telefono || undefined,
-        celular: receptor.celular || undefined,
-        email: receptor.email || undefined,
-        direccion: receptor.direccion || undefined,
-        numeroCasa: receptor.numero_casa || '0',
-        departamento: receptor.departamento || undefined,
-        distrito: receptor.distrito || undefined,
-        ciudad: receptor.ciudad || undefined,
+        ...(!hasRuc ? { documentoTipo: receptor.documento_tipo || 1 } : {}),
+        ...(!hasRuc ? { documentoNumero: receptor.documento_numero || '' } : {}),
+        ...(receptor.telefono ? { telefono: receptor.telefono } : {}),
+        ...(receptor.celular ? { celular: receptor.celular } : {}),
+        ...(receptor.email ? { email: receptor.email } : {}),
+        ...(receptor.direccion ? { direccion: receptor.direccion } : {}),
+        ...(receptor.direccion ? { numeroCasa: receptor.numero_casa || '0' } : {}),
+        ...(receptor.departamento ? { departamento: receptor.departamento } : {}),
+        ...(receptor.distrito ? { distrito: receptor.distrito } : {}),
+        ...(receptor.ciudad ? { ciudad: receptor.ciudad } : {}),
     };
 }
 

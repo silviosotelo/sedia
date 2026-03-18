@@ -1,7 +1,7 @@
 import { queryOne, query } from '../db/connection';
 import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
-import { stripNs2 } from './sifenConsulta.service';
+import { stripNs2, extractSifenResult } from './sifenConsulta.service';
 
 const _setapi = require('facturacionelectronicapy-setapi');
 const setapi = _setapi.default || _setapi;
@@ -203,9 +203,9 @@ export const sifenLoteService = {
             for (const detalle of detalles) {
                 const cdc = detalle?.id || detalle?.dCDCDE || detalle?.cdc;
                 const estadoRes = detalle?.dEstRes || '';
-                const resProc = detalle?.gResProc || {};
-                const codigoItem = String(resProc?.dCodRes || detalle?.dCodRes || '');
-                const mensajeItem = resProc?.dMsgRes || detalle?.dMsgRes || null;
+                // Use extractSifenResult to handle gResProc as single object OR array
+                // and concatenate all error codes+messages (same logic as enviarSincrono)
+                const { codigo: codigoItem, mensaje: mensajeItem } = extractSifenResult(detalle);
                 const aprobado = estadoRes === 'Aprobado' || estadoRes === 'Aprobado con observación'
                     || codigoItem === '0260';
                 const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
