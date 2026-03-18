@@ -36,7 +36,9 @@ export const sifenQrService = {
         const DE = rDE['DE'][0];
         const gDatGralOpe = DE['gDatGralOpe'][0];
 
-        // Build QR URL following SIFEN spec
+        // Build QR URL following SIFEN MT v150 §13.8.2
+        // Producción: https://ekuatia.set.gov.py/consultas/qr?
+        // Test: https://ekuatia.set.gov.py/consultas-test/qr?
         let qrLink = 'https://ekuatia.set.gov.py/consultas';
         if (envStr === 'test') qrLink += '-test';
         qrLink += '/qr?';
