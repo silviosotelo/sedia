@@ -246,8 +246,11 @@ export const sifenConsultaService = {
         // Buscar dCodRes y dMsgRes recursivamente en la respuesta
         // La estructura puede ser: rRetEnviDe.rProtDe.gResProc.{dCodRes, dMsgRes}
         // o variantes según si viene del .then o .catch de axios
-        const { codigo: codigoStr, mensaje } = extractSifenResult(normalized);
-        const aprobado = codigoStr === '0300';
+        const { codigo: codigoStr, mensaje, estadoRes } = extractSifenResult(normalized);
+        // SIFEN approval codes: 0260=Autorización satisfactoria, 0300=legacy
+        // Also check dEstRes field which setapi returns as "Aprobado"
+        const aprobado = ['0260', '0300'].includes(codigoStr)
+            || (estadoRes || '').toLowerCase().includes('aprobado');
         const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
 
         await query(
