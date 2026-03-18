@@ -345,31 +345,46 @@ export const sifenConsultaService = {
 };
 
 /**
- * Recursively searches a normalized SIFEN response for dCodRes, dMsgRes, dEstRes.
- * Handles varying response structures from setapi (success vs error paths).
+ * Extracts ALL gResProc entries from the SIFEN response.
+ * gResProc can be a single object or an array of 1-100 entries (MT v150 PP05).
+ * Returns the primary code + a concatenated message with all errors.
  */
-function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null } {
-    if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null };
+function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null; errores: Array<{ codigo: string; mensaje: string }> } {
+    if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null, errores: [] };
 
-    // Direct path: rRetEnviDe.rProtDe.gResProc.{dCodRes, dMsgRes}
+    // Navigate to rProtDe
     const retEnvi = obj?.rRetEnviDe || obj;
     const protDe = retEnvi?.rProtDe || retEnvi;
+    const estadoRes = protDe?.dEstRes || null;
     const resProc = protDe?.gResProc;
 
-    if (resProc?.dCodRes) {
-        return {
-            codigo: String(resProc.dCodRes),
-            mensaje: resProc.dMsgRes || protDe?.dEstRes || null,
-            estadoRes: protDe?.dEstRes || null,
-        };
+    // Normalize gResProc to array (can be single object or array)
+    let resProcArr: any[] = [];
+    if (Array.isArray(resProc)) {
+        resProcArr = resProc;
+    } else if (resProc && typeof resProc === 'object' && resProc.dCodRes) {
+        resProcArr = [resProc];
+    }
+
+    if (resProcArr.length > 0) {
+        const errores = resProcArr.map((rp: any) => ({
+            codigo: String(rp.dCodRes || ''),
+            mensaje: String(rp.dMsgRes || ''),
+        }));
+        const primaryCode = errores[0].codigo;
+        // Concatenar todos los mensajes: "0160: XML Mal Formado. | 1306: RUC inexistente..."
+        const fullMsg = errores.map(e => `${e.codigo}: ${e.mensaje}`).join(' | ');
+        return { codigo: primaryCode, mensaje: fullMsg, estadoRes, errores };
     }
 
     // Fallback: try top-level fields
     if (protDe?.dCodRes) {
+        const msg = protDe.dMsgRes || null;
         return {
             codigo: String(protDe.dCodRes),
-            mensaje: protDe.dMsgRes || null,
-            estadoRes: protDe.dEstRes || null,
+            mensaje: msg,
+            estadoRes,
+            errores: msg ? [{ codigo: String(protDe.dCodRes), mensaje: msg }] : [],
         };
     }
 
@@ -377,10 +392,12 @@ function extractSifenResult(obj: any): { codigo: string; mensaje: string | null;
     const found = deepFind(obj, 'dCodRes');
     if (found.value) {
         const parent = found.parent || {};
+        const msg = parent.dMsgRes || deepFind(obj, 'dMsgRes').value || null;
         return {
             codigo: String(found.value),
-            mensaje: parent.dMsgRes || deepFind(obj, 'dMsgRes').value || null,
+            mensaje: msg,
             estadoRes: deepFind(obj, 'dEstRes').value || null,
+            errores: msg ? [{ codigo: String(found.value), mensaje: msg }] : [],
         };
     }
 
@@ -390,6 +407,7 @@ function extractSifenResult(obj: any): { codigo: string; mensaje: string | null;
         codigo: estRes.value ? String(estRes.value) : '',
         mensaje: deepFind(obj, 'dMsgRes').value || estRes.value || null,
         estadoRes: estRes.value || null,
+        errores: [],
     };
 }
 

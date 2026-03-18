@@ -862,6 +862,14 @@ export const api = {
     vincularComprobante: (tenantId: string, deId: string, comprobanteId: string) =>
       request<{ success: boolean }>(`/tenants/${tenantId}/sifen/de/${deId}/vincular`, { method: 'POST', body: JSON.stringify({ comprobante_id: comprobanteId }) }),
 
+    // Corregir datos de un DE rechazado (datos_receptor, datos_items, datos_adicionales)
+    corregirDe: (tenantId: string, deId: string, datos: { datos_receptor?: any; datos_items?: any[]; datos_adicionales?: any }) =>
+      request<{ success: boolean; data: any }>(`/tenants/${tenantId}/sifen/de/${deId}/corregir`, { method: 'PUT', body: JSON.stringify(datos) }),
+
+    // Reenviar DE rechazado (re-genera XML + firma + envía)
+    reenviarDe: (tenantId: string, deId: string) =>
+      request<{ success: boolean; data: any }>(`/tenants/${tenantId}/sifen/de/${deId}/reenviar`, { method: 'POST' }),
+
     // Historial de estados
     getHistorial: (tenantId: string, deId: string) =>
       request<{ data: any[] }>(`/tenants/${tenantId}/sifen/de/${deId}/historial`).then((r) => r.data ?? []),

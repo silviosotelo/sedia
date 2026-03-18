@@ -565,6 +565,95 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, message: 'Comprobante vinculado' });
     });
 
+    // Corregir datos de un DE rechazado/error y re-generar XML + firma + QR
+    app.put<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/corregir', {
+        preHandler: [requirePermiso('sifen:emitir')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const tenantId = req.params.id;
+        const deId = req.params.deId;
+
+        const de = await queryOne<any>(
+            `SELECT estado FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+        if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
+        if (!['REJECTED', 'ERROR'].includes(de.estado)) {
+            throw new ApiError(400, 'INVALID_STATE', `Solo se pueden corregir DEs en estado REJECTED o ERROR (actual: ${de.estado})`);
+        }
+
+        const body = req.body as any;
+        // Update editable fields
+        const updates: string[] = [];
+        const params: any[] = [deId, tenantId];
+        let paramIdx = 3;
+
+        if (body.datos_receptor !== undefined) {
+            updates.push(`datos_receptor = $${paramIdx++}`);
+            params.push(JSON.stringify(body.datos_receptor));
+        }
+        if (body.datos_items !== undefined) {
+            updates.push(`datos_items = $${paramIdx++}`);
+            params.push(JSON.stringify(body.datos_items));
+        }
+        if (body.datos_adicionales !== undefined) {
+            updates.push(`datos_adicionales = $${paramIdx++}`);
+            params.push(JSON.stringify(body.datos_adicionales));
+        }
+
+        if (updates.length > 0) {
+            await query(
+                `UPDATE sifen_de SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
+                params
+            );
+        }
+
+        // Reset state to DRAFT so it can be re-emitted
+        await query(
+            `UPDATE sifen_de SET estado = 'DRAFT', xml_unsigned = NULL, xml_signed = NULL,
+                    qr_text = NULL, sifen_codigo = NULL, sifen_mensaje = NULL,
+                    sifen_respuesta = NULL, error_categoria = NULL, updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+
+        return reply.send({ success: true, message: 'DE corregido y listo para re-emitir', data: { id: deId, estado: 'DRAFT' } });
+    });
+
+    // Reenviar un DE rechazado sin modificar datos (re-genera XML + firma + envía)
+    app.post<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/reenviar', {
+        preHandler: [requirePermiso('sifen:emitir')]
+    }, async (req, reply) => {
+        if (!assertTenantAccess(req, reply, req.params.id)) return;
+        const tenantId = req.params.id;
+        const deId = req.params.deId;
+
+        const de = await queryOne<any>(
+            `SELECT estado FROM sifen_de WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+        if (!de) throw new ApiError(404, 'NOT_FOUND', 'DE no encontrado');
+        if (!['REJECTED', 'ERROR', 'SIGNED'].includes(de.estado)) {
+            throw new ApiError(400, 'INVALID_STATE', `Solo se pueden reenviar DEs en estado REJECTED, ERROR o SIGNED (actual: ${de.estado})`);
+        }
+
+        // Reset to DRAFT and enqueue full re-emission
+        await query(
+            `UPDATE sifen_de SET estado = 'DRAFT', xml_unsigned = NULL, xml_signed = NULL,
+                    qr_text = NULL, sifen_codigo = NULL, sifen_mensaje = NULL,
+                    sifen_respuesta = NULL, error_categoria = NULL, updated_at = NOW()
+             WHERE id = $1 AND tenant_id = $2`,
+            [deId, tenantId]
+        );
+
+        await query(
+            `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_EMITIR_DE', $2)`,
+            [tenantId, JSON.stringify({ de_id: deId })]
+        );
+
+        return reply.send({ success: true, message: 'DE encolado para re-emisión', data: { id: deId, estado: 'DRAFT' } });
+    });
+
     // Historial de estados de un DE
     app.get<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/historial', {
         preHandler: [requirePermiso('sifen:ver')]
