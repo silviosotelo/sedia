@@ -57,7 +57,7 @@ export const sifenConsultaService = {
         }
 
         const envStr = toEnvStr(config.ambiente);
-        const idCsc = (config as any).id_csc || '1';
+        const idCsc = config?.id_csc || '0001';
         const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Consultando DE en SET', { tenantId, cdc, ambiente: config.ambiente });
@@ -123,7 +123,7 @@ export const sifenConsultaService = {
         }
 
         const envStr = toEnvStr(config.ambiente);
-        const idCsc = (config as any).id_csc || '1';
+        const idCsc = config?.id_csc || '0001';
         const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Consultando RUC en SET', { tenantId, ruc, ambiente: config.ambiente });
@@ -204,7 +204,7 @@ export const sifenConsultaService = {
         if (!config) throw new Error('Configuración SIFEN no encontrada para este tenant');
 
         const envStr = toEnvStr(config.ambiente);
-        const idCsc = (config as any).id_csc || '1';
+        const idCsc = config?.id_csc || '0001';
         const { filePath, password, cleanup } = await loadCertFile(tenantId);
 
         logger.info('Enviando DE sincrónico a SIFEN', { tenantId, deId, cdc: de.cdc, ambiente: config.ambiente });
@@ -361,8 +361,8 @@ export const sifenConsultaService = {
  * gResProc can be a single object or an array of 1-100 entries (MT v150 PP05).
  * Returns the primary code + a concatenated message with all errors.
  */
-export function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null; errores: Array<{ codigo: string; mensaje: string }> } {
-    if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null, errores: [] };
+export function extractSifenResult(obj: any): { codigo: string; mensaje: string | null; estadoRes: string | null } {
+    if (!obj || typeof obj !== 'object') return { codigo: '', mensaje: null, estadoRes: null };
 
     // Navigate to rProtDe
     const retEnvi = obj?.rRetEnviDe || obj;
@@ -386,7 +386,7 @@ export function extractSifenResult(obj: any): { codigo: string; mensaje: string 
         const primaryCode = errores[0].codigo;
         // Concatenar todos los mensajes: "0160: XML Mal Formado. | 1306: RUC inexistente..."
         const fullMsg = errores.map(e => `${e.codigo}: ${e.mensaje}`).join(' | ');
-        return { codigo: primaryCode, mensaje: fullMsg, estadoRes, errores };
+        return { codigo: primaryCode, mensaje: fullMsg, estadoRes };
     }
 
     // Fallback: try top-level fields
@@ -396,7 +396,6 @@ export function extractSifenResult(obj: any): { codigo: string; mensaje: string 
             codigo: String(protDe.dCodRes),
             mensaje: msg,
             estadoRes,
-            errores: msg ? [{ codigo: String(protDe.dCodRes), mensaje: msg }] : [],
         };
     }
 
@@ -404,12 +403,10 @@ export function extractSifenResult(obj: any): { codigo: string; mensaje: string 
     const found = deepFind(obj, 'dCodRes');
     if (found.value) {
         const parent = found.parent || {};
-        const msg = parent.dMsgRes || deepFind(obj, 'dMsgRes').value || null;
         return {
             codigo: String(found.value),
-            mensaje: msg,
+            mensaje: parent.dMsgRes || deepFind(obj, 'dMsgRes').value || null,
             estadoRes: deepFind(obj, 'dEstRes').value || null,
-            errores: msg ? [{ codigo: String(found.value), mensaje: msg }] : [],
         };
     }
 
@@ -419,7 +416,6 @@ export function extractSifenResult(obj: any): { codigo: string; mensaje: string 
         codigo: estRes.value ? String(estRes.value) : '',
         mensaje: deepFind(obj, 'dMsgRes').value || estRes.value || null,
         estadoRes: estRes.value || null,
-        errores: [],
     };
 }
 

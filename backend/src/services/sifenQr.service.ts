@@ -26,8 +26,8 @@ export const sifenQrService = {
         const config = await sifenConfigService.getConfig(tenantId);
         if (!config) throw new Error('Configuración SIFEN no encontrada');
 
-        const idCsc = String((config as any).id_csc || '0001').padStart(4, '0');
-        const csc = (config as any).csc || 'ABCD0000000000000000000000000000';
+        const idCsc = String(config.id_csc || '0001').padStart(4, '0');
+        const csc = config.csc || 'ABCD0000000000000000000000000000';
         const envStr = config.ambiente === 'PRODUCCION' ? 'prod' : 'test';
 
         // Parse XML to extract fields for QR (read-only, don't rebuild)
