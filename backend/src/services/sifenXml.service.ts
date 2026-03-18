@@ -287,9 +287,13 @@ function buildEstablecimiento(codigo: string, cfg: any): any {
  */
 function buildCliente(receptor: any): any {
     const hasRuc = !!(receptor.ruc && receptor.dv);
+    // Auto-correct tipoOperacion: contribuyente con RUC → B2B (1), sin RUC → B2C (2)
+    // B2C (2) con RUC causa 0160 XML Mal Formado en SIFEN
+    let tipoOp = receptor.tipo_operacion || (hasRuc ? 1 : 2);
+    if (hasRuc && tipoOp === 2) tipoOp = 1; // Force B2B when receptor has RUC
     return {
         contribuyente: hasRuc,
-        tipoOperacion: receptor.tipo_operacion || 1,
+        tipoOperacion: tipoOp,
         ruc: hasRuc ? `${receptor.ruc}-${receptor.dv}` : undefined,
         tipoContribuyente: receptor.tipo_contribuyente || (hasRuc ? 1 : undefined),
         razonSocial: receptor.razon_social,

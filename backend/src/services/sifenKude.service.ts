@@ -1,4 +1,5 @@
 import { queryOne, query } from '../db/connection';
+import { sifenConfigService } from './sifenConfig.service';
 import { logger } from '../config/logger';
 
 const _kude = require('facturacionelectronicapy-kude');
@@ -6,17 +7,15 @@ const kude = _kude.default || _kude;
 
 export const sifenKudeService = {
     /**
-     * Genera el PDF KUDE (Kuatia Uruguay DE) para un documento electrónico.
-     * Retorna el buffer del PDF.
+     * Genera el PDF KUDE para un documento electrónico.
+     * Usa facturacionelectronicapy-kude que internamente llama a JasperReports vía Java.
+     * Signature: generateKUDE(java8Path, xmlSigned, urlLogo, ambiente)
      */
     async generarKude(tenantId: string, deId: string): Promise<Buffer> {
         const de = await queryOne<any>(
             `SELECT sd.id, sd.tenant_id, sd.cdc, sd.tipo_documento, sd.numero_documento,
-                    sd.estado, sd.xml_signed, sd.xml_unsigned, sd.qr_text, sd.qr_png_base64,
-                    sc.razon_social as emisor_razon_social, sc.ruc as emisor_ruc, sc.dv as emisor_dv,
-                    sc.establecimiento, sc.punto_expedicion
+                    sd.estado, sd.xml_signed, sd.xml_unsigned, sd.qr_text
              FROM sifen_de sd
-             JOIN sifen_config sc ON sc.tenant_id = sd.tenant_id
              WHERE sd.id = $1 AND sd.tenant_id = $2`,
             [deId, tenantId]
         );
@@ -24,26 +23,21 @@ export const sifenKudeService = {
         if (!de) throw new Error('DE no encontrado');
         if (!de.xml_signed && !de.xml_unsigned) throw new Error('DE no tiene XML generado');
 
+        const config = await sifenConfigService.getConfig(tenantId);
+        const ambiente = config?.ambiente === 'PRODUCCION' ? 'prod' : 'test';
         const xmlToUse = de.xml_signed || de.xml_unsigned;
 
         let pdfBuffer: Buffer;
         try {
-            // La librería facturacionelectronicapy-kude espera el XML firmado y opciones del emisor
-            const result = await kude.generatePDF(xmlToUse, {
-                ruc: de.emisor_ruc,
-                dv: de.emisor_dv,
-                razonSocial: de.emisor_razon_social,
-                qrTexto: de.qr_text || '',
-                qrBase64: de.qr_png_base64 || '',
-            });
-
+            // generateKUDE(java8Path, xmlSigned, urlLogo, ambiente)
+            // java8Path: path to java executable (empty string = use system java)
+            const result = await kude.generateKUDE('', xmlToUse, '', ambiente);
             pdfBuffer = Buffer.isBuffer(result) ? result : Buffer.from(result);
         } catch (err: any) {
             logger.error('Error generando KUDE PDF', { deId, error: err.message });
             throw new Error(`Error generando KUDE: ${err.message}`);
         }
 
-        // Guardar referencia en DB (sin storage externo por ahora, se puede extender a R2)
         const kudeKey = `kude/${tenantId}/${deId}.pdf`;
         await query(
             `UPDATE sifen_de SET kude_pdf_key = $1, updated_at = NOW() WHERE id = $2`,
