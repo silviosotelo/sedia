@@ -51,6 +51,7 @@ export const sifenConfigSchema = z.object({
     actividad_economica_desc: emptyToNull,
     tipo_contribuyente: z.coerce.number().optional().default(1),
     tipo_regimen: z.coerce.number().optional().default(8),
+    modo_envio: z.enum(['SINCRONO', 'ASINCRONO', 'AUTO']).default('SINCRONO'),
 });
 
 export type SifenConfigInput = z.infer<typeof sifenConfigSchema>;
@@ -147,6 +148,7 @@ export const sifenConfigService = {
         denominacion_sucursal, direccion_emisor, numero_casa, complemento_dir1, complemento_dir2,
         departamento, distrito, ciudad, telefono_emisor, email_emisor,
         actividad_economica, actividad_economica_desc, tipo_contribuyente, tipo_regimen,
+        modo_envio,
         (private_key_enc IS NOT NULL) as has_private_key,
         (passphrase_enc IS NOT NULL) as has_passphrase,
         (cert_r2_key IS NOT NULL)    as has_cert_r2,
@@ -204,6 +206,7 @@ export const sifenConfigService = {
                 d.telefono_emisor || null, d.email_emisor || null,
                 d.actividad_economica || '00000', d.actividad_economica_desc || 'Actividades no especificadas',
                 d.tipo_contribuyente || 1, d.tipo_regimen || 8,
+                d.modo_envio || 'SINCRONO',
             ];
 
             const baseColumns = `tenant_id, ambiente, ruc, dv, razon_social, timbrado, inicio_vigencia, fin_vigencia,
@@ -212,7 +215,8 @@ export const sifenConfigService = {
             ws_url_recibe, ws_url_evento, ws_url_consulta_ruc, id_csc, csc,
             denominacion_sucursal, direccion_emisor, numero_casa, complemento_dir1, complemento_dir2,
             departamento, distrito, ciudad, telefono_emisor, email_emisor,
-            actividad_economica, actividad_economica_desc, tipo_contribuyente, tipo_regimen`;
+            actividad_economica, actividad_economica_desc, tipo_contribuyente, tipo_regimen,
+            modo_envio`;
 
             const baseSet = `ambiente = EXCLUDED.ambiente, ruc = EXCLUDED.ruc, dv = EXCLUDED.dv,
             razon_social = EXCLUDED.razon_social, timbrado = EXCLUDED.timbrado,
@@ -230,7 +234,8 @@ export const sifenConfigService = {
             distrito = EXCLUDED.distrito, ciudad = EXCLUDED.ciudad,
             telefono_emisor = EXCLUDED.telefono_emisor, email_emisor = EXCLUDED.email_emisor,
             actividad_economica = EXCLUDED.actividad_economica, actividad_economica_desc = EXCLUDED.actividad_economica_desc,
-            tipo_contribuyente = EXCLUDED.tipo_contribuyente, tipo_regimen = EXCLUDED.tipo_regimen`;
+            tipo_contribuyente = EXCLUDED.tipo_contribuyente, tipo_regimen = EXCLUDED.tipo_regimen,
+            modo_envio = EXCLUDED.modo_envio`;
 
             if (privateKeyEnc || passphraseEnc) {
                 const n = baseFields.length;

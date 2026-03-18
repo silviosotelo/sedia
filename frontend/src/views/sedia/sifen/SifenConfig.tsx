@@ -37,6 +37,12 @@ const AMBIENTE_OPTS = [
     { value: 'PRODUCCION', label: 'Producción (Real)' },
 ]
 
+const MODO_ENVIO_OPTS = [
+    { value: 'SINCRONO', label: 'Sincrónico (directo a SET)' },
+    { value: 'ASINCRONO', label: 'Asincrónico (siempre por lote)' },
+    { value: 'AUTO', label: 'Automático (sync individual, lote para bulk)' },
+]
+
 type ConfigState = Partial<SifenConfigType> & {
     private_key?: string
     passphrase?: string
@@ -193,6 +199,7 @@ const SifenConfig = () => {
         csc: '',
         private_key: '',
         passphrase: '',
+        modo_envio: 'SINCRONO',
     })
 
     const load = async () => {
@@ -323,6 +330,22 @@ const SifenConfig = () => {
                                         <p className="font-semibold mb-1">Homologación</p>
                                         <p>Use este ambiente para probar la integración con SIFEN sin efectos fiscales reales. Los documentos generados en homologación no tienen validez legal.</p>
                                     </div>
+                                </div>
+
+                                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+                                    <label className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wider block">
+                                        Modo de Envío
+                                    </label>
+                                    <Select
+                                        options={MODO_ENVIO_OPTS}
+                                        value={MODO_ENVIO_OPTS.find(o => o.value === (config as any).modo_envio)}
+                                        onChange={opt => setConfig(prev => ({ ...prev, modo_envio: opt?.value ?? 'SINCRONO' }))}
+                                    />
+                                </div>
+                                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                    <p><span className="font-semibold">Sincrónico:</span> Envía cada documento directamente al SET. Si falla, se encola automáticamente para envío por lote.</p>
+                                    <p><span className="font-semibold">Asincrónico:</span> Todos los documentos se envían por lote (batch). Más eficiente para volúmenes altos.</p>
+                                    <p><span className="font-semibold">Automático:</span> Documentos individuales van sincrónico; operaciones masivas se agrupan en lotes.</p>
                                 </div>
                             </div>
                         </Card>

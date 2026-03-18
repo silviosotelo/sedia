@@ -34,8 +34,26 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
         // 3. Generar QR
         await sifenQrService.generarQrDE(tenantId, deId);
 
-        // 4. Intentar envío sincrónico directo a SET
-        //    Si falla por timeout/conexión, deja en ENQUEUED para lote automático
+        // 4. Determinar modo de envío (SINCRONO/ASINCRONO/AUTO)
+        const { sifenConfigService } = await import('../services/sifenConfig.service');
+        const sifenConfig = await sifenConfigService.getConfig(tenantId);
+        const modoEnvio = (sifenConfig as any)?.modo_envio || 'SINCRONO';
+
+        if (modoEnvio === 'ASINCRONO') {
+            // Modo asíncrono: encolar directo para lote, sin intentar sync
+            await query(
+                `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW()
+                 WHERE id = $1 AND tenant_id = $2`,
+                [deId, tenantId]
+            );
+            await markJobDone(jobId);
+            logger.info(`DE ${deId} encolado para lote (modo ASINCRONO)`);
+            await dispatchWebhookEvent(tenantId, 'sifen_de_encolado', { de_id: deId }).catch(() => {});
+            return;
+        }
+
+        // Modo SINCRONO o AUTO: intentar envío sincrónico directo a SET
+        // Si falla por timeout/conexión, deja en ENQUEUED para lote automático
         let enviado = false;
         try {
             const { sifenConsultaService } = await import('../services/sifenConsulta.service');
