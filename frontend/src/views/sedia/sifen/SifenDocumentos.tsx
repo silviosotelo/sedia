@@ -126,6 +126,10 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
     const [printDialogOpen, setPrintDialogOpen] = useState(false)
     const [printing, setPrinting] = useState(false)
     const [reenviando, setReenviando] = useState(false)
+    const [corrigiendo, setCorrigiendo] = useState(false)
+    const [editOpen, setEditOpen] = useState(false)
+    const [editReceptor, setEditReceptor] = useState<any>({})
+    const [editItems, setEditItems] = useState<any[]>([])
 
     const handleReenviar = async () => {
         setReenviando(true)
@@ -135,6 +139,33 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
             load()
         } catch (err: any) { toastError(err?.message || 'Error al reenviar') }
         finally { setReenviando(false) }
+    }
+
+    const openEditDialog = () => {
+        if (de) {
+            setEditReceptor({ ...(de.datos_receptor || {}) })
+            setEditItems((de.datos_items || []).map((it: any) => ({ ...it })))
+        }
+        setEditOpen(true)
+    }
+
+    const handleCorregirYReenviar = async () => {
+        setCorrigiendo(true)
+        try {
+            await api.sifen.corregirDe(tenantId, deId, {
+                datos_receptor: editReceptor,
+                datos_items: editItems,
+            })
+            await api.sifen.reenviarDe(tenantId, deId)
+            toastSuccess('DE corregido y encolado para re-emisión')
+            setEditOpen(false)
+            load()
+        } catch (err: any) { toastError(err?.message || 'Error al corregir') }
+        finally { setCorrigiendo(false) }
+    }
+
+    const updateItem = (idx: number, field: string, value: any) => {
+        setEditItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: value } : it))
     }
 
     const load = async () => {
@@ -273,7 +304,8 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                     )}
                     {['REJECTED', 'ERROR'].includes(de.estado) && (
                         <>
-                            <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar</Button>
+                            <Button size="xs" variant="solid" icon={<Pencil className="w-3.5 h-3.5" />} onClick={openEditDialog}>Corregir</Button>
+                            <Button size="xs" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar</Button>
                         </>
                     )}
                     {(de.has_xml_signed || de.has_xml_unsigned || de.xml_signed || de.xml_unsigned) && (
@@ -322,7 +354,8 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                                 <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Sin detalles del motivo de rechazo. Presione "Consultar SET" para obtener más información.</p>
                             )}
                             <div className="mt-3 flex gap-2">
-                                <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar a SET</Button>
+                                <Button size="xs" variant="solid" icon={<Pencil className="w-3.5 h-3.5" />} onClick={openEditDialog}>Corregir y Reenviar</Button>
+                                <Button size="xs" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reenviar sin cambios</Button>
                             </div>
                         </div>
                     </div>
@@ -337,7 +370,8 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                             {de.error_categoria && <p className="text-xs text-red-500 dark:text-red-500 mt-1">Categoría: {de.error_categoria}</p>}
                             {de.sifen_mensaje && <p className="text-sm text-red-800 dark:text-red-300 mt-1 font-medium">{de.sifen_mensaje}</p>}
                             <div className="mt-3 flex gap-2">
-                                <Button size="xs" variant="solid" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reintentar</Button>
+                                <Button size="xs" variant="solid" icon={<Pencil className="w-3.5 h-3.5" />} onClick={openEditDialog}>Corregir y Reenviar</Button>
+                                <Button size="xs" icon={<RotateCcw className="w-3.5 h-3.5" />} loading={reenviando} onClick={handleReenviar}>Reintentar</Button>
                             </div>
                         </div>
                     </div>
@@ -530,6 +564,82 @@ function SifenDetalle({ tenantId, deId, onBack }: DetalleProps) {
                             Cerrar
                         </Button>
                     </div>
+                </div>
+            </Dialog>
+
+            {/* Corregir Dialog */}
+            <Dialog isOpen={editOpen} onClose={() => { if (!corrigiendo) setEditOpen(false) }} width={720}>
+                <div className="px-6 pt-5 pb-3 flex-shrink-0 border-b border-gray-100 dark:border-gray-700">
+                    <h4 className="text-base font-bold text-gray-900 dark:text-gray-100">Corregir Documento Electrónico</h4>
+                    <p className="text-xs text-gray-500 mt-1">Modifique los datos del receptor o ítems y reenvíe a SIFEN.</p>
+                </div>
+                <div className="px-6 py-4 space-y-5 max-h-[65vh] overflow-y-auto">
+                    {/* Receptor */}
+                    <div>
+                        <h5 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3">Receptor</h5>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Razón Social</label>
+                                <Input size="sm" value={editReceptor.razon_social || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, razon_social: e.target.value }))} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-gray-500 mb-1 block">RUC</label>
+                                <div className="flex gap-2">
+                                    <Input size="sm" value={editReceptor.ruc || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, ruc: e.target.value }))} placeholder="RUC" className="flex-1" />
+                                    <Input size="sm" value={editReceptor.dv || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, dv: e.target.value }))} placeholder="DV" className="w-14" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Email</label>
+                                <Input size="sm" value={editReceptor.email || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, email: e.target.value }))} />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Teléfono</label>
+                                <Input size="sm" value={editReceptor.telefono || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, telefono: e.target.value }))} />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-semibold text-gray-500 mb-1 block">Dirección</label>
+                                <Input size="sm" value={editReceptor.direccion || ''} onChange={e => setEditReceptor((p: any) => ({ ...p, direccion: e.target.value }))} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Items */}
+                    <div>
+                        <h5 className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3">Ítems ({editItems.length})</h5>
+                        <div className="space-y-3">
+                            {editItems.map((item, idx) => (
+                                <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-mono text-gray-400 w-5">{idx + 1}.</span>
+                                        <Input size="sm" value={item.descripcion || ''} onChange={e => updateItem(idx, 'descripcion', e.target.value)} placeholder="Descripción" className="flex-1" />
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2 pl-7">
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 block">Código</label>
+                                            <Input size="sm" value={item.codigo || ''} onChange={e => updateItem(idx, 'codigo', e.target.value)} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 block">Cantidad</label>
+                                            <Input size="sm" type="number" value={item.cantidad ?? ''} onChange={e => updateItem(idx, 'cantidad', Number(e.target.value))} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 block">Precio Unit.</label>
+                                            <Input size="sm" type="number" value={item.precio_unitario ?? ''} onChange={e => updateItem(idx, 'precio_unitario', Number(e.target.value))} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-gray-400 block">IVA %</label>
+                                            <Input size="sm" type="number" value={item.tasa_iva ?? ''} onChange={e => updateItem(idx, 'tasa_iva', Number(e.target.value))} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end gap-2">
+                    <Button size="sm" disabled={corrigiendo} onClick={() => setEditOpen(false)}>Cancelar</Button>
+                    <Button size="sm" variant="solid" loading={corrigiendo} onClick={handleCorregirYReenviar}>Corregir y Reenviar a SET</Button>
                 </div>
             </Dialog>
 
