@@ -176,11 +176,17 @@ async function actualizarRespuestaEvento(
 
 /**
  * Determina el estado final ('ACCEPTED' | 'REJECTED') a partir del código de
- * respuesta SIFEN.  El SET retorna '0300' para eventos aceptados.
+ * respuesta SIFEN. Códigos de aprobación según MT v150 Cap. 12:
+ *   0600 = Evento registrado correctamente (WS siRecepEvento)
+ *   0260 = Autorización del DE satisfactoria (WS siRecepDE)
+ *   0300 = Lote recibido con éxito (WS siRecepLoteDE)
+ * También chequea dEstRes="Aprobado" como fallback.
  */
 function resolverEstadoRespuesta(result: any): 'ACCEPTED' | 'REJECTED' {
     const codigo = String(result?.codigo || result?.codigoEstado || '');
-    return codigo === '0300' || result?.estado === 'APROBADO' ? 'ACCEPTED' : 'REJECTED';
+    const estado = String(result?.estado || result?.estadoRes || '').toLowerCase();
+    return ['0600', '0260', '0300'].includes(codigo) || estado.includes('aprobado')
+        ? 'ACCEPTED' : 'REJECTED';
 }
 
 // ─── Implementación pública ───────────────────────────────────────────────────

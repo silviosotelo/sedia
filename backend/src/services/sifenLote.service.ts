@@ -206,7 +206,8 @@ export const sifenLoteService = {
                 const resProc = detalle?.gResProc || {};
                 const codigoItem = String(resProc?.dCodRes || detalle?.dCodRes || '');
                 const mensajeItem = resProc?.dMsgRes || detalle?.dMsgRes || null;
-                const aprobado = estadoRes === 'Aprobado' || estadoRes === 'Aprobado con observación';
+                const aprobado = estadoRes === 'Aprobado' || estadoRes === 'Aprobado con observación'
+                    || codigoItem === '0260';
                 const nuevoEstado = aprobado ? 'APPROVED' : 'REJECTED';
 
                 const deId = cdc ? deMap.get(cdc) : undefined;
