@@ -306,8 +306,8 @@ export const sifenConsultaService = {
         await sifenQrService.generarQrDE(tenantId, deId);
 
         // 5. Check modo_envio — ASINCRONO encola sin intentar envío sincrónico
-        const _cfgForMode = await sifenConfigService.getConfig(tenantId);
-        const modoEnvio = (_cfgForMode as any)?.modo_envio || 'SINCRONO';
+        const cfgForMode = await sifenConfigService.getConfig(tenantId);
+        const modoEnvio = cfgForMode?.modo_envio || 'SINCRONO';
         if (modoEnvio === 'ASINCRONO') {
             await query(
                 `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1`,

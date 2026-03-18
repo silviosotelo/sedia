@@ -425,11 +425,10 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         await sifenQrService.generarQrDE(tenantId, deId);
 
         // 2. Check modo_envio — ASINCRONO skips the synchronous send entirely
-        const { sifenConfigService: _cfgSvc } = await import('../../services/sifenConfig.service');
-        const _sifenCfg = await _cfgSvc.getConfig(tenantId);
-        const _modoEnvio = (_sifenCfg as any)?.modo_envio || 'SINCRONO';
+        const sifenCfg = await sifenConfigService.getConfig(tenantId);
+        const modoEnvio = sifenCfg?.modo_envio || 'SINCRONO';
 
-        if (_modoEnvio === 'ASINCRONO') {
+        if (modoEnvio === 'ASINCRONO') {
             await query(
                 `UPDATE sifen_de SET estado = 'ENQUEUED', updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
                 [deId, tenantId]
@@ -582,7 +581,13 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         return reply.send({ success: true, message: 'Comprobante vinculado' });
     });
 
-    // Corregir datos de un DE rechazado/error y re-generar XML + firma + QR
+    // Helper: reset DE to DRAFT clearing all generated artifacts
+    const RESET_DE_SQL = `UPDATE sifen_de SET estado = 'DRAFT', xml_unsigned = NULL, xml_signed = NULL,
+            qr_text = NULL, sifen_codigo = NULL, sifen_mensaje = NULL,
+            sifen_respuesta = NULL, error_categoria = NULL, updated_at = NOW()
+         WHERE id = $1 AND tenant_id = $2`;
+
+    // Corregir datos de un DE rechazado/error y reset a DRAFT (single UPDATE)
     app.put<{ Params: { id: string; deId: string } }>('/tenants/:id/sifen/de/:deId/corregir', {
         preHandler: [requirePermiso('sifen:emitir')]
     }, async (req, reply) => {
@@ -600,38 +605,31 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
         }
 
         const body = req.body as any;
-        // Update editable fields
-        const updates: string[] = [];
+        // Build single UPDATE with data fields + reset in one query
+        const setClauses = [
+            'estado = \'DRAFT\'', 'xml_unsigned = NULL', 'xml_signed = NULL',
+            'qr_text = NULL', 'sifen_codigo = NULL', 'sifen_mensaje = NULL',
+            'sifen_respuesta = NULL', 'error_categoria = NULL', 'updated_at = NOW()',
+        ];
         const params: any[] = [deId, tenantId];
         let paramIdx = 3;
 
         if (body.datos_receptor !== undefined) {
-            updates.push(`datos_receptor = $${paramIdx++}`);
+            setClauses.push(`datos_receptor = $${paramIdx++}`);
             params.push(JSON.stringify(body.datos_receptor));
         }
         if (body.datos_items !== undefined) {
-            updates.push(`datos_items = $${paramIdx++}`);
+            setClauses.push(`datos_items = $${paramIdx++}`);
             params.push(JSON.stringify(body.datos_items));
         }
         if (body.datos_adicionales !== undefined) {
-            updates.push(`datos_adicionales = $${paramIdx++}`);
+            setClauses.push(`datos_adicionales = $${paramIdx++}`);
             params.push(JSON.stringify(body.datos_adicionales));
         }
 
-        if (updates.length > 0) {
-            await query(
-                `UPDATE sifen_de SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $1 AND tenant_id = $2`,
-                params
-            );
-        }
-
-        // Reset state to DRAFT so it can be re-emitted
         await query(
-            `UPDATE sifen_de SET estado = 'DRAFT', xml_unsigned = NULL, xml_signed = NULL,
-                    qr_text = NULL, sifen_codigo = NULL, sifen_mensaje = NULL,
-                    sifen_respuesta = NULL, error_categoria = NULL, updated_at = NOW()
-             WHERE id = $1 AND tenant_id = $2`,
-            [deId, tenantId]
+            `UPDATE sifen_de SET ${setClauses.join(', ')} WHERE id = $1 AND tenant_id = $2`,
+            params
         );
 
         return reply.send({ success: true, message: 'DE corregido y listo para re-emitir', data: { id: deId, estado: 'DRAFT' } });
@@ -654,15 +652,7 @@ export async function sifenRoutes(app: FastifyInstance): Promise<void> {
             throw new ApiError(400, 'INVALID_STATE', `Solo se pueden reenviar DEs en estado REJECTED, ERROR o SIGNED (actual: ${de.estado})`);
         }
 
-        // Reset to DRAFT and enqueue full re-emission
-        await query(
-            `UPDATE sifen_de SET estado = 'DRAFT', xml_unsigned = NULL, xml_signed = NULL,
-                    qr_text = NULL, sifen_codigo = NULL, sifen_mensaje = NULL,
-                    sifen_respuesta = NULL, error_categoria = NULL, updated_at = NOW()
-             WHERE id = $1 AND tenant_id = $2`,
-            [deId, tenantId]
-        );
-
+        await query(RESET_DE_SQL, [deId, tenantId]);
         await query(
             `INSERT INTO jobs (tenant_id, tipo_job, payload) VALUES ($1, 'SIFEN_EMITIR_DE', $2)`,
             [tenantId, JSON.stringify({ de_id: deId })]

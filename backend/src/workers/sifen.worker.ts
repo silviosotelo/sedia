@@ -35,9 +35,9 @@ export async function handleEmitirSifen(jobId: string, tenantId: string, payload
         await sifenQrService.generarQrDE(tenantId, deId);
 
         // 4. Determinar modo de envío (SINCRONO/ASINCRONO/AUTO)
-        const { sifenConfigService } = await import('../services/sifenConfig.service');
-        const sifenConfig = await sifenConfigService.getConfig(tenantId);
-        const modoEnvio = (sifenConfig as any)?.modo_envio || 'SINCRONO';
+        const { sifenConfigService: cfgService } = await import('../services/sifenConfig.service');
+        const sifenCfg = await cfgService.getConfig(tenantId);
+        const modoEnvio = sifenCfg?.modo_envio || 'SINCRONO';
 
         if (modoEnvio === 'ASINCRONO') {
             // Modo asíncrono: encolar directo para lote, sin intentar sync

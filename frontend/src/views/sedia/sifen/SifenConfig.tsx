@@ -338,7 +338,7 @@ const SifenConfig = () => {
                                     </label>
                                     <Select
                                         options={MODO_ENVIO_OPTS}
-                                        value={MODO_ENVIO_OPTS.find(o => o.value === (config as any).modo_envio)}
+                                        value={MODO_ENVIO_OPTS.find(o => o.value === config.modo_envio)}
                                         onChange={opt => setConfig(prev => ({ ...prev, modo_envio: opt?.value ?? 'SINCRONO' }))}
                                     />
                                 </div>
