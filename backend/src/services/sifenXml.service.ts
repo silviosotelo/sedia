@@ -195,6 +195,21 @@ export const sifenXmlService = {
             // Quitar standalone de la declaración XML (SIFEN no lo espera)
             .replace(/ standalone="[^"]*"/, '');
 
+        // xmlgen calcula IVA base/liquidación con flotantes sin redondear,
+        // produciendo valores como 90909.09090909 que violan el XSD (0160).
+        // Para PYG: redondear todos los valores monetarios a enteros.
+        // Para otras monedas: máximo 4 decimales.
+        const isPYG = !de.moneda || de.moneda === 'PYG';
+        xmlUnsigned = xmlUnsigned.replace(
+            /(<(?:dBasGravIVA|dLiqIVAItem|dMonTiPag|dTotBruOpeItem|dTotOpeItem|dPUniProSer|dTotOpe|dTotGralOpe|dTotIVA|dTotDesc|dSubExe|dSubExo|dSub5|dSub10|dIVA5|dIVA10|dLiqTotIVA5|dLiqTotIVA10|dBaseGrav5|dBaseGrav10|dTBasGraIVA|dDescItem|dDescGloItem|dAntPreUniIt|dAntGloPreUniIt|dTotDescGlotem|dTotAntItem|dTotAnt|dPorcDescTotal|dDescTotal|dAnticipo|dRedon|dBasExe|dCantProSer)>)([\d.]+)(<\/)/g,
+            (_match, open, val, close) => {
+                const num = parseFloat(val);
+                if (isNaN(num)) return _match;
+                const rounded = isPYG ? Math.round(num) : Math.round(num * 10000) / 10000;
+                return open + rounded + close;
+            }
+        );
+
         // Log XML completo para diagnóstico
         logger.info('XML generado (limpiado)', { deId, xmlLen: xmlUnsigned.length, xml: xmlUnsigned });
 
