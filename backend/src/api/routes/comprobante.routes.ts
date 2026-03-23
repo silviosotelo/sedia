@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import {
   findComprobantesByTenant,
+  findComprobantesByIds,
   findComprobanteById,
   updateComprobanteFields,
 } from '../../db/repositories/comprobante.repository';
@@ -278,6 +279,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       xml_descargado?: string;
       modo?: string;
       formato?: string;
+      ids?: string;
     };
   }>(
     '/tenants/:id/comprobantes/exportar',
@@ -299,6 +301,7 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         xml_descargado,
         modo,
         formato = 'json',
+        ids,
       } = req.query;
 
       const xmlDescargadoFilter =
@@ -306,19 +309,26 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
           xml_descargado === 'false' ? false :
             undefined;
 
-      const { data } = await findComprobantesByTenant(
-        req.params.id,
-        {
-          fecha_desde,
-          fecha_hasta,
-          tipo_comprobante: tipo_comprobante as TipoComprobante | undefined,
-          ruc_vendedor,
-          xml_descargado: xmlDescargadoFilter,
-          modo: modo as 'ventas' | 'compras' | undefined,
-          tenant_ruc: tenant.ruc,
-        },
-        { page: 1, limit: 10000 }
-      );
+      let data: Comprobante[];
+      if (ids) {
+        const idList = ids.split(',').filter(Boolean);
+        data = await findComprobantesByIds(req.params.id, idList);
+      } else {
+        const result = await findComprobantesByTenant(
+          req.params.id,
+          {
+            fecha_desde,
+            fecha_hasta,
+            tipo_comprobante: tipo_comprobante as TipoComprobante | undefined,
+            ruc_vendedor,
+            xml_descargado: xmlDescargadoFilter,
+            modo: modo as 'ventas' | 'compras' | undefined,
+            tenant_ruc: tenant.ruc,
+          },
+          { page: 1, limit: 10000 }
+        );
+        data = result.data;
+      }
 
       const fmt = formato.toLowerCase();
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -326,11 +336,11 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
       const usuarioId = req.currentUser?.id ?? null;
 
       const filtrosObj = {
-        fecha_desde,
-        fecha_hasta,
-        tipo_comprobante,
-        ruc_vendedor,
-        xml_descargado: xmlDescargadoFilter,
+        fecha_desde: ids ? undefined : fecha_desde,
+        fecha_hasta: ids ? undefined : fecha_hasta,
+        tipo_comprobante: ids ? undefined : tipo_comprobante,
+        ruc_vendedor: ids ? undefined : ruc_vendedor,
+        xml_descargado: ids ? undefined : xmlDescargadoFilter,
       };
 
       if (fmt === 'txt') {
@@ -395,6 +405,9 @@ export async function comprobanteRoutes(app: FastifyInstance): Promise<void> {
         ruc_vendedor: c.ruc_vendedor,
         razon_social_vendedor: c.razon_social_vendedor,
         xml_descargado_at: c.xml_descargado_at,
+        estado_sifen: c.estado_sifen,
+        sincronizar: c.sincronizar,
+        nro_ot: c.nro_ot,
         detalles_xml: c.detalles_xml,
       }));
 

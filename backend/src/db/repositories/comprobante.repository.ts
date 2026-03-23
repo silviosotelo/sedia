@@ -184,6 +184,18 @@ export async function findComprobantesByTenant(
   return { data: rows, total };
 }
 
+export async function findComprobantesByIds(
+  tenantId: string,
+  ids: string[]
+): Promise<Comprobante[]> {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map((_, i) => `$${i + 2}`).join(',');
+  return query<Comprobante>(
+    `SELECT * FROM comprobantes WHERE tenant_id = $1 AND id IN (${placeholders}) ORDER BY fecha_emision DESC`,
+    [tenantId, ...ids]
+  );
+}
+
 export async function findComprobanteById(
   tenantId: string,
   comprobanteId: string

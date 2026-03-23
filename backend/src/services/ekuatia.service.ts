@@ -86,6 +86,7 @@ export class SifenDocumentoNoAprobadoError extends Error {
 export class EkuatiaService {
   readonly solveCaptchaApiKey: string;
   private browser: Browser | null = null;
+  private browserLaunching: Promise<Browser> | null = null;
 
   // Pre-resolved captcha token pool for parallel performance
   private tokenPool: string[] = [];
@@ -99,7 +100,11 @@ export class EkuatiaService {
     if (this.browser && this.browser.connected) {
       return this.browser;
     }
-    this.browser = await puppeteer.launch({
+    // Mutex: if another call is already launching, wait for it
+    if (this.browserLaunching) {
+      return this.browserLaunching;
+    }
+    this.browserLaunching = puppeteer.launch({
       headless: config.puppeteer.headless,
       args: [
         '--no-sandbox',
@@ -110,7 +115,12 @@ export class EkuatiaService {
         '--password-store=basic',
       ],
     });
-    return this.browser;
+    try {
+      this.browser = await this.browserLaunching;
+      return this.browser;
+    } finally {
+      this.browserLaunching = null;
+    }
   }
 
   /**
@@ -121,6 +131,7 @@ export class EkuatiaService {
   async close(): Promise<void> {
     this.tokenPool = [];
     this.tokenResolving = 0;
+    this.browserLaunching = null;
     if (this.browser) {
       try {
         await this.browser.close();

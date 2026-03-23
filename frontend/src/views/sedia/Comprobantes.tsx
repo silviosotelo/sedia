@@ -113,6 +113,68 @@ function cn(...classes: (string | undefined | null | false)[]): string {
     return classes.filter(Boolean).join(' ')
 }
 
+// ─── CSV generation helper ───────────────────────────────────────────────────
+
+function generateCsvAndDownload(rows: Comprobante[], filenamePrefix = 'comprobantes') {
+    const formatNum = (val: string | number | null | undefined) => {
+        const n = typeof val === 'string' ? parseFloat(val) : (val ?? 0)
+        return isNaN(n as number) ? '0' : (n as number).toLocaleString('es-PY')
+    }
+    const escape = (v: string) => {
+        if (v.includes(',') || v.includes('"') || v.includes('\n'))
+            return `"${v.replace(/"/g, '""')}"`
+        return v
+    }
+    const headers = [
+        'fecha', 'tipo', 'numero_comprobante', 'cdc', 'ruc_emisor',
+        'razon_social_emisor', 'ruc_receptor', 'razon_social_receptor',
+        'condicion_venta', 'moneda', 'monto_total', 'iva_10', 'iva_5',
+        'exentas', 'iva_total', 'forma_pago', 'timbrado', 'estado_sifen',
+        'sincronizar', 'items',
+    ]
+    const csvRows = rows.map((c) => {
+        const dx = c.detalles_xml
+        const iva10 = dx?.totales?.iva10 ?? 0
+        const iva5 = dx?.totales?.iva5 ?? 0
+        const itemsStr = (dx?.items ?? [])
+            .map((it: any) => `${it.cantidad}x ${it.descripcion} @${it.precioUnitario}`)
+            .join(' | ')
+        return [
+            escape(c.fecha_emision ?? ''),
+            escape(c.tipo_comprobante ?? ''),
+            escape(c.numero_comprobante ?? ''),
+            escape(c.cdc ?? ''),
+            escape(c.ruc_vendedor ?? ''),
+            escape(c.razon_social_vendedor ?? ''),
+            escape(dx?.receptor?.ruc ?? dx?.receptor?.numeroIdentificacion ?? ''),
+            escape(dx?.receptor?.razonSocial ?? ''),
+            escape(dx?.operacion?.condicionVentaDesc ?? ''),
+            escape(dx?.operacion?.moneda ?? 'PYG'),
+            formatNum(c.total_operacion),
+            formatNum(iva10),
+            formatNum(iva5),
+            formatNum(dx?.totales?.exentas),
+            formatNum(iva10 + iva5),
+            escape((dx?.pagos ?? []).map((p: any) => p.tipoPagoDesc || p.tipoPago).join('; ')),
+            escape(dx?.timbrado ?? ''),
+            escape(c.estado_sifen ?? ''),
+            c.sincronizar ? 'Sí' : 'No',
+            escape(itemsStr),
+        ]
+    })
+    const csv = [headers.join(','), ...csvRows.map((r) => r.join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return rows.length
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function TipoComprobanteBadge({ tipo }: { tipo: TipoComprobante }) {
@@ -243,11 +305,14 @@ function BulkBar({
     selectedIds,
     onClear,
     onExportSelected,
+    hasFeatureFn,
 }: {
     selectedIds: Set<string>
     onClear: () => void
-    onExportSelected: () => void
+    onExportSelected: (format: string) => void
+    hasFeatureFn: (f: string) => boolean
 }) {
+    const [showMenu, setShowMenu] = useState(false)
     const count = selectedIds.size
     if (count === 0) return null
     return (
@@ -261,15 +326,73 @@ function BulkBar({
             <span className="text-sm font-semibold" style={{ color: 'rgb(var(--brand-rgb))' }}>
                 {count} seleccionado{count !== 1 ? 's' : ''}
             </span>
-            <Button size="sm" variant="default" icon={<Download className="w-4 h-4" />} onClick={onExportSelected}>
-                Exportar selección
-            </Button>
+            <div className="relative">
+                <Button size="sm" variant="default" icon={<Download className="w-4 h-4" />} onClick={() => setShowMenu(!showMenu)}>
+                    Exportar selección
+                    <ChevronDown className={cn('w-3.5 h-3.5 ml-1 transition-transform', showMenu && 'rotate-180')} />
+                </Button>
+                {showMenu && (
+                    <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+                        <div className="absolute left-0 top-full mt-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-20 min-w-[160px] py-1.5">
+                            {EXPORT_OPTIONS.filter((o) => hasFeatureFn(o.feature)).map(({ key, label, Icon }) => (
+                                <button
+                                    key={key}
+                                    onClick={() => { setShowMenu(false); onExportSelected(key) }}
+                                    className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left transition-colors"
+                                >
+                                    <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
             <button
                 onClick={onClear}
                 className="ml-auto text-xs flex items-center gap-1 transition-colors text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
             >
                 <X className="w-3.5 h-3.5" /> Limpiar
             </button>
+        </div>
+    )
+}
+
+// ─── Active filter chips ─────────────────────────────────────────────────────
+
+function ActiveFilterChips({
+    filters,
+    onRemove,
+}: {
+    filters: { tipo: string; xml: string; sifen: string; sincronizar: string; modo: string; fechaDesde: string; fechaHasta: string }
+    onRemove: (key: string) => void
+}) {
+    const chips: { key: string; label: string }[] = []
+    if (filters.tipo) chips.push({ key: 'tipo', label: `Tipo: ${TIPO_COMPROBANTE_LABELS[filters.tipo as TipoComprobante] || filters.tipo}` })
+    if (filters.xml) chips.push({ key: 'xml', label: filters.xml === 'true' ? 'Con XML' : 'Sin XML' })
+    if (filters.sifen) chips.push({ key: 'sifen', label: `SIFEN: ${filters.sifen === 'aprobado' ? 'Aprobado' : filters.sifen === 'no_aprobado' ? 'No aprobado' : 'Sin estado'}` })
+    if (filters.sincronizar) chips.push({ key: 'sincronizar', label: filters.sincronizar === 'true' ? 'Sync: Incluidos' : 'Sync: Excluidos' })
+    if (filters.modo) chips.push({ key: 'modo', label: `Op: ${filters.modo === 'ventas' ? 'Ventas' : 'Compras'}` })
+    if (filters.fechaDesde) chips.push({ key: 'fechaDesde', label: `Desde: ${filters.fechaDesde}` })
+    if (filters.fechaHasta) chips.push({ key: 'fechaHasta', label: `Hasta: ${filters.fechaHasta}` })
+    if (chips.length === 0) return null
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            {chips.map((c) => (
+                <span
+                    key={c.key}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                >
+                    {c.label}
+                    <button
+                        onClick={() => onRemove(c.key)}
+                        className="hover:text-blue-900 dark:hover:text-blue-100 transition-colors"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
+                </span>
+            ))}
         </div>
     )
 }
@@ -289,18 +412,20 @@ function ExportDropdown({
     onToggle,
     onExport,
     hasFeatureFn,
+    loadingKey,
 }: {
     show: boolean
     onToggle: () => void
     onExport: (format: string) => void
     hasFeatureFn: (f: string) => boolean
+    loadingKey?: string | null
 }) {
     const available = EXPORT_OPTIONS.filter((o) => hasFeatureFn(o.feature))
     if (available.length === 0) return null
 
     return (
         <div className="relative">
-            <Button variant="default" icon={<Download className="w-4 h-4" />} onClick={onToggle}>
+            <Button variant="default" icon={<Download className="w-4 h-4" />} onClick={onToggle} loading={!!loadingKey}>
                 Exportar
                 <ChevronDown
                     className={cn('w-3.5 h-3.5 ml-1 transition-transform', show && 'rotate-180')}
@@ -315,10 +440,17 @@ function ExportDropdown({
                             <button
                                 key={key}
                                 onClick={() => onExport(key)}
-                                className="flex items-center gap-2.5 px-3.5 py-2 text-sm text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left transition-colors"
+                                disabled={loadingKey === key}
+                                className={cn(
+                                    'flex items-center gap-2.5 px-3.5 py-2 text-sm w-full text-left transition-colors',
+                                    loadingKey === key
+                                        ? 'text-gray-400 dark:text-gray-600 cursor-wait'
+                                        : 'text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700',
+                                )}
                             >
                                 <Icon className="w-4 h-4 text-gray-400 dark:text-gray-500" />
                                 {label}
+                                {loadingKey === key && <span className="ml-auto text-xs text-gray-400">...</span>}
                             </button>
                         ))}
                     </div>
@@ -632,12 +764,25 @@ const Comprobantes = () => {
         setModoFilter('')
     }
 
+    const handleRemoveFilter = (key: string) => {
+        const setters: Record<string, (v: string) => void> = {
+            tipo: setTipoFilter, xml: setXmlFilter, sifen: setSifenFilter,
+            sincronizar: setSincronizarFilter, modo: setModoFilter,
+            fechaDesde: setFechaDesde, fechaHasta: setFechaHasta,
+        }
+        setters[key]?.('')
+    }
+
     const handleExport = (format: string) => {
         if (!effectiveTenantId) return
         setShowExport(false)
+        if (format === 'csv') {
+            void handleExportCsv()
+            return
+        }
         void api.comprobantes.export(
             effectiveTenantId,
-            format as 'json' | 'txt' | 'xlsx' | 'pdf' | 'csv',
+            format as 'json' | 'txt' | 'xlsx' | 'pdf',
             currentExportParams,
         )
     }
@@ -674,81 +819,8 @@ const Comprobantes = () => {
                 if (fetchPage >= res.pagination.total_pages) break
                 fetchPage++
             }
-
-            const formatNum = (val: string | number | null | undefined) => {
-                const n = typeof val === 'string' ? parseFloat(val) : (val ?? 0)
-                return isNaN(n as number) ? '0' : (n as number).toLocaleString('es-PY')
-            }
-
-            const headers = [
-                'fecha',
-                'tipo',
-                'numero_comprobante',
-                'cdc',
-                'ruc_emisor',
-                'razon_social_emisor',
-                'ruc_receptor',
-                'razon_social_receptor',
-                'condicion_venta',
-                'moneda',
-                'monto_total',
-                'iva_10',
-                'iva_5',
-                'exentas',
-                'iva_total',
-                'forma_pago',
-                'timbrado',
-                'estado_sifen',
-                'items',
-            ]
-
-            const escape = (v: string) => {
-                if (v.includes(',') || v.includes('"') || v.includes('\n'))
-                    return `"${v.replace(/"/g, '""')}"`
-                return v
-            }
-
-            const rows = allRows.map((c) => {
-                const dx = c.detalles_xml
-                const iva10 = dx?.totales?.iva10 ?? 0
-                const iva5 = dx?.totales?.iva5 ?? 0
-                const itemsStr = (dx?.items ?? [])
-                    .map((it: any) => `${it.cantidad}x ${it.descripcion} @${it.precioUnitario}`)
-                    .join(' | ')
-                return [
-                    escape(c.fecha_emision ?? ''),
-                    escape(c.tipo_comprobante ?? ''),
-                    escape(c.numero_comprobante ?? ''),
-                    escape(c.cdc ?? ''),
-                    escape(c.ruc_vendedor ?? ''),
-                    escape(c.razon_social_vendedor ?? ''),
-                    escape(dx?.receptor?.ruc ?? dx?.receptor?.numeroIdentificacion ?? ''),
-                    escape(dx?.receptor?.razonSocial ?? ''),
-                    escape(dx?.operacion?.condicionVentaDesc ?? ''),
-                    escape(dx?.operacion?.moneda ?? 'PYG'),
-                    formatNum(c.total_operacion),
-                    formatNum(iva10),
-                    formatNum(iva5),
-                    formatNum(dx?.totales?.exentas),
-                    formatNum(iva10 + iva5),
-                    escape((dx?.pagos ?? []).map((p: any) => p.tipoPagoDesc || p.tipoPago).join('; ')),
-                    escape(dx?.timbrado ?? ''),
-                    escape(c.estado_sifen ?? ''),
-                    escape(itemsStr),
-                ]
-            })
-
-            const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n')
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `comprobantes_${new Date().toISOString().slice(0, 10)}.csv`
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            URL.revokeObjectURL(url)
-            showToastSuccess(`CSV exportado (${allRows.length} registros)`)
+            const count = generateCsvAndDownload(allRows)
+            showToastSuccess(`CSV exportado (${count} registros)`)
         } catch (e) {
             showToastError('Error al exportar CSV', e instanceof Error ? e.message : undefined)
         } finally {
@@ -756,10 +828,19 @@ const Comprobantes = () => {
         }
     }
 
-    const handleExportSelected = () => {
+    const handleExportSelected = (format = 'csv') => {
         if (!effectiveTenantId || selectedIds.size === 0) return
-        showToastSuccess(`Exportando ${selectedIds.size} comprobantes...`)
-        void api.comprobantes.export(effectiveTenantId, 'csv', currentExportParams)
+        if (format === 'csv') {
+            const selected = comprobantes.filter((c) => selectedIds.has(c.id))
+            const count = generateCsvAndDownload(selected, 'comprobantes_seleccion')
+            showToastSuccess(`CSV exportado (${count} registros)`)
+        } else {
+            void api.comprobantes.export(
+                effectiveTenantId,
+                format as 'json' | 'txt' | 'xlsx' | 'pdf',
+                { ...currentExportParams, ids: Array.from(selectedIds) },
+            )
+        }
         setSelectedIds(new Set())
     }
 
@@ -832,29 +913,15 @@ const Comprobantes = () => {
                 </div>
                 <div className="flex items-center gap-2">
                     {effectiveTenantId && (
-                        <>
-                            <Button
-                                variant="default"
-                                size="sm"
-                                icon={<RefreshCcw className={cn('w-4 h-4', refreshing && 'animate-spin')} />}
-                                loading={refreshing}
-                                onClick={() => void load(true)}
-                            >
-                                Actualizar
-                            </Button>
-                            {hasExportCsv && (
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    icon={<Download className="w-4 h-4" />}
-                                    loading={exportingCsv}
-                                    disabled={exportingCsv || comprobantes.length === 0}
-                                    onClick={() => void handleExportCsv()}
-                                >
-                                    Exportar CSV
-                                </Button>
-                            )}
-                        </>
+                        <Button
+                            variant="default"
+                            size="sm"
+                            icon={<RefreshCcw className={cn('w-4 h-4', refreshing && 'animate-spin')} />}
+                            loading={refreshing}
+                            onClick={() => void load(true)}
+                        >
+                            Actualizar
+                        </Button>
                     )}
                 </div>
             </div>
@@ -909,8 +976,25 @@ const Comprobantes = () => {
                         onToggle={() => setShowExport(!showExport)}
                         onExport={handleExport}
                         hasFeatureFn={checkFeature}
+                        loadingKey={exportingCsv ? 'csv' : null}
                     />
                 </div>
+            )}
+
+            {/* Active filter chips */}
+            {effectiveTenantId && activeFilters > 0 && (
+                <ActiveFilterChips
+                    filters={{
+                        tipo: tipoFilter,
+                        xml: xmlFilter,
+                        sifen: sifenFilter,
+                        sincronizar: sincronizarFilter,
+                        modo: modoFilter,
+                        fechaDesde,
+                        fechaHasta,
+                    }}
+                    onRemove={handleRemoveFilter}
+                />
             )}
 
             {/* Collapsible filter panel */}
@@ -1065,6 +1149,7 @@ const Comprobantes = () => {
                         selectedIds={selectedIds}
                         onClear={() => setSelectedIds(new Set())}
                         onExportSelected={handleExportSelected}
+                        hasFeatureFn={checkFeature}
                     />
 
                     <div className="overflow-x-auto">

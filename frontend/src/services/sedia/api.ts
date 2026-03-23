@@ -49,6 +49,34 @@ function authHeaders(): Record<string, string> {
 export async function downloadWithAuth(url: string, filename?: string): Promise<void> {
   const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) throw new Error(`Error descargando: HTTP ${res.status}`);
+
+  const contentType = res.headers.get('content-type') || '';
+
+  // Backend returns JSON with download_url when R2 storage is enabled (XLSX/PDF)
+  if (contentType.includes('application/json')) {
+    const json = await res.json();
+    if (json?.data?.download_url) {
+      const a = document.createElement('a');
+      a.href = json.data.download_url;
+      a.download = filename || '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+    // JSON export — download as JSON file
+    const blob = new Blob([JSON.stringify(json?.data ?? json, null, 2)], { type: 'application/json' });
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename || 'export.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(objectUrl);
+    return;
+  }
+
   const blob = await res.blob();
   const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -245,6 +273,7 @@ export const api = {
         ruc_vendedor?: string;
         xml_descargado?: boolean;
         modo?: 'ventas' | 'compras';
+        ids?: string[];
       }
     ): string => {
       const q = new URLSearchParams({ formato });
@@ -254,6 +283,7 @@ export const api = {
       if (params?.ruc_vendedor) q.set('ruc_vendedor', params.ruc_vendedor);
       if (params?.xml_descargado !== undefined) q.set('xml_descargado', String(params.xml_descargado));
       if (params?.modo) q.set('modo', params.modo);
+      if (params?.ids?.length) q.set('ids', params.ids.join(','));
       return `${BASE_URL}/tenants/${tenantId}/comprobantes/exportar?${q.toString()}`;
     },
     export: (
@@ -266,6 +296,7 @@ export const api = {
         ruc_vendedor?: string;
         xml_descargado?: boolean;
         modo?: 'ventas' | 'compras';
+        ids?: string[];
       }
     ): Promise<void> => {
       const url = api.comprobantes.exportUrl(tenantId, formato, params);

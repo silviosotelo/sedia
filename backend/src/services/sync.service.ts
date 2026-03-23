@@ -184,8 +184,8 @@ export class SyncService {
     let exitosos = 0;
     let fallidos = 0;
 
-    // Concurrent XML downloads with semaphore (max 3 parallel)
-    const concurrency = payload.concurrency ?? 3;
+    // Sequential by default — concurrent Chrome tabs cause timeouts on low-RAM VPS
+    const concurrency = payload.concurrency ?? 1;
 
     // Pre-resolve captcha tokens for the first chunk to eliminate sequential wait
     timer.step('warmup_captchas');

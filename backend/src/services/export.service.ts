@@ -60,6 +60,8 @@ export async function exportarComprobantesXLSX(
     { header: 'Forma de Pago', key: 'forma_pago', width: 20 },
     { header: 'Timbrado', key: 'timbrado', width: 14 },
     { header: 'Con XML', key: 'con_xml', width: 10 },
+    { header: 'Estado SIFEN', key: 'estado_sifen', width: 16 },
+    { header: 'Sincronizar', key: 'sincronizar', width: 12 },
   ];
 
   // Header styling
@@ -94,6 +96,8 @@ export async function exportarComprobantesXLSX(
       forma_pago: (dx?.pagos ?? []).map((p: any) => p.tipoPagoDesc || p.tipoPago).join(', ') || '',
       timbrado: dx?.timbrado ?? '',
       con_xml: c.xml_descargado_at ? 'Sí' : 'No',
+      estado_sifen: c.estado_sifen ?? '',
+      sincronizar: c.sincronizar ? 'Sí' : 'No',
     });
   }
 
@@ -214,11 +218,12 @@ export async function exportarComprobantesPDF(
       { label: 'Tipo', x: 148, w: 55 },
       { label: 'Fecha', x: 206, w: 58 },
       { label: 'RUC Emisor', x: 267, w: 68 },
-      { label: 'Razón Social Emisor', x: 338, w: 110 },
-      { label: 'Receptor', x: 451, w: 110 },
-      { label: 'IVA 10%', x: 564, w: 55 },
-      { label: 'IVA 5%', x: 622, w: 50 },
-      { label: 'Total', x: 675, w: 65 },
+      { label: 'Razón Social Emisor', x: 338, w: 100 },
+      { label: 'Receptor', x: 441, w: 95 },
+      { label: 'Estado', x: 539, w: 55 },
+      { label: 'IVA 10%', x: 597, w: 48 },
+      { label: 'IVA 5%', x: 647, w: 45 },
+      { label: 'Total', x: 695, w: 45 },
     ];
 
     const drawTableHeader = (yPos: number) => {
@@ -267,11 +272,12 @@ export async function exportarComprobantesPDF(
       doc.text(c.tipo_comprobante, 148, y + 3, { width: 55 });
       doc.text(fecha, 206, y + 3, { width: 58 });
       doc.text(c.ruc_vendedor, 267, y + 3, { width: 68 });
-      doc.text((c.razon_social_vendedor ?? '').slice(0, 25), 338, y + 3, { width: 110 });
-      doc.text(receptor.slice(0, 25), 451, y + 3, { width: 110 });
-      doc.text(iva10 ? iva10.toLocaleString('es-PY') : '-', 564, y + 3, { width: 55, align: 'right' });
-      doc.text(iva5 ? iva5.toLocaleString('es-PY') : '-', 622, y + 3, { width: 50, align: 'right' });
-      doc.text(total.toLocaleString('es-PY'), 675, y + 3, { width: 65, align: 'right' });
+      doc.text((c.razon_social_vendedor ?? '').slice(0, 22), 338, y + 3, { width: 100 });
+      doc.text(receptor.slice(0, 22), 441, y + 3, { width: 95 });
+      doc.text((c.estado_sifen ?? '').slice(0, 10), 539, y + 3, { width: 55 });
+      doc.text(iva10 ? iva10.toLocaleString('es-PY') : '-', 597, y + 3, { width: 48, align: 'right' });
+      doc.text(iva5 ? iva5.toLocaleString('es-PY') : '-', 647, y + 3, { width: 45, align: 'right' });
+      doc.text(total.toLocaleString('es-PY'), 695, y + 3, { width: 45, align: 'right' });
 
       y += 13;
     });
@@ -288,10 +294,10 @@ export async function exportarComprobantesPDF(
     const totalIva10Pdf = comprobantes.reduce((s, c) => s + calcularIva(c).iva10, 0);
     doc.rect(40, y, 700, 14).fill('#EFF6FF');
     doc.fillColor('#1E40AF').fontSize(7).font('Helvetica-Bold');
-    doc.text(`TOTALES (${comprobantes.length} comprobantes)`, 40, y + 3, { width: 520 });
-    doc.text(totalIva10Pdf.toLocaleString('es-PY'), 564, y + 3, { width: 55, align: 'right' });
-    doc.text(totalIva5Pdf.toLocaleString('es-PY'), 622, y + 3, { width: 50, align: 'right' });
-    doc.text(totalMontoPdf.toLocaleString('es-PY'), 675, y + 3, { width: 65, align: 'right' });
+    doc.text(`TOTALES (${comprobantes.length} comprobantes)`, 40, y + 3, { width: 553 });
+    doc.text(totalIva10Pdf.toLocaleString('es-PY'), 597, y + 3, { width: 48, align: 'right' });
+    doc.text(totalIva5Pdf.toLocaleString('es-PY'), 647, y + 3, { width: 45, align: 'right' });
+    doc.text(totalMontoPdf.toLocaleString('es-PY'), 695, y + 3, { width: 45, align: 'right' });
 
     addPageNum();
     doc.end();

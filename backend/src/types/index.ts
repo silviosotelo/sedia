@@ -73,6 +73,12 @@ export interface Comprobante {
   xml_url: string | null;
   xml_descargado_at: Date | null;
   detalles_xml: DetallesXml | null;
+  estado_sifen: string | null;
+  nro_transaccion_sifen: string | null;
+  fecha_estado_sifen: Date | null;
+  sistema_facturacion_sifen: string | null;
+  nro_ot: string | null;
+  sincronizar: boolean;
   created_at: Date;
   updated_at: Date;
 }
